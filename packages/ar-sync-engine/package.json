@@ -1,0 +1,14 @@
+{
+  "name": "@edzy/ar-sync-engine",
+  "version": "1.0.0",
+  "description": "16:9 AR Viewport Sync and WebRTC Directive Engine for Edzy Smart Classrooms",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 0"
+  },
+  "keywords": ["ar", "webrtc", "spatial-computing", "edtech", "k12"],
+  "author": "Edzy Spatial Pod",
+  "license": "MIT"
+}

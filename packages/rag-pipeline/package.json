@@ -1,0 +1,14 @@
+{
+  "name": "@edzy/rag-pipeline",
+  "version": "1.0.0",
+  "description": "Class-wise Syllabus RAG & Retrieval Engine for CBSE/ICSE Indian K-12 Curriculum",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 0"
+  },
+  "keywords": ["rag", "ncert", "cbse", "icse", "ai-tutor", "vector-search", "pgvector"],
+  "author": "Edzy AI Intelligence Pod",
+  "license": "MIT"
+}
