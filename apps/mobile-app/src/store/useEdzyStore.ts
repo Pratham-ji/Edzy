@@ -115,6 +115,12 @@ interface EdzyState {
   feeInstallments: FeeInstallment[];
   examMarks: ExamTermRecord[];
 
+  // Digital Wellbeing & Screen Time Limit
+  sessionTimeLimitMinutes: number;
+  sessionRemainingSeconds: number;
+  isTimeLimitActive: boolean;
+  isSessionLocked: boolean;
+
   // Actions
   login: (schoolCode: string, studentId: string, pinOrPass: string) => boolean;
   oneTapDemoLogin: () => void;
@@ -125,6 +131,10 @@ interface EdzyState {
   sendSocraticPrompt: (question: string) => void;
   payFeeInstallment: (installmentId: string, pin: string) => { success: boolean; message: string; receiptNo?: string };
   incrementStudyHour: (hours: number) => void;
+  setTimeLimitMinutes: (minutes: number) => void;
+  decrementSessionSecond: () => void;
+  unlockOrExtendSession: (pin: string, additionalMinutes: number) => boolean;
+  toggleTimeLimitActive: () => void;
 }
 
 const INITIAL_ROADMAPS: SyllabusRoadmap[] = [
@@ -511,6 +521,12 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
   feeInstallments: INITIAL_FEES,
   examMarks: INITIAL_EXAMS,
 
+  // Digital Wellbeing: 45 min default time limit to avoid digital fatigue & time waste
+  sessionTimeLimitMinutes: 45,
+  sessionRemainingSeconds: 45 * 60,
+  isTimeLimitActive: true,
+  isSessionLocked: false,
+
   login: (schoolCode, studentId, pinOrPass) => {
     // Validates credentials or fallback to demo
     if (studentId.trim() === 'SCH-2026-0104' || pinOrPass === '1234' || schoolCode.toUpperCase() === 'DVPS01') {
@@ -672,6 +688,44 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         ...state.studentProfile,
         weeklyStudyHours: parseFloat((state.studentProfile.weeklyStudyHours + hours).toFixed(1)),
       },
+    }));
+  },
+
+  setTimeLimitMinutes: (minutes: number) => {
+    set({
+      sessionTimeLimitMinutes: minutes,
+      sessionRemainingSeconds: minutes * 60,
+      isSessionLocked: false,
+    });
+  },
+
+  decrementSessionSecond: () => {
+    const { sessionRemainingSeconds, isTimeLimitActive, isSessionLocked } = get();
+    if (!isTimeLimitActive || isSessionLocked) return;
+
+    if (sessionRemainingSeconds <= 1) {
+      set({ sessionRemainingSeconds: 0, isSessionLocked: true });
+    } else {
+      set({ sessionRemainingSeconds: sessionRemainingSeconds - 1 });
+    }
+  },
+
+  unlockOrExtendSession: (pin: string, additionalMinutes: number) => {
+    const { studentProfile } = get();
+    if (pin.trim() !== studentProfile.parentPin) {
+      return false;
+    }
+    set((state) => ({
+      sessionRemainingSeconds: state.sessionRemainingSeconds + additionalMinutes * 60,
+      isSessionLocked: false,
+    }));
+    return true;
+  },
+
+  toggleTimeLimitActive: () => {
+    set((state) => ({
+      isTimeLimitActive: !state.isTimeLimitActive,
+      isSessionLocked: false,
     }));
   },
 }));

@@ -37,6 +37,7 @@
   },
   "scripts": {
     "start": "expo start",
+    "start:timeout": "node ./scripts/run-with-timeout.js",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -24,6 +27,12 @@ import {
   ChevronRight,
   ShieldAlert,
   CheckCircle,
+  Hourglass,
+  Lock,
+  Timer,
+  ShieldCheck,
+  X,
+  Coffee,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
@@ -40,7 +49,31 @@ export default function MasterBentoDashboard() {
     feeInstallments,
     examMarks,
     logout,
+    sessionTimeLimitMinutes,
+    sessionRemainingSeconds,
+    isTimeLimitActive,
+    isSessionLocked,
+    setTimeLimitMinutes,
+    decrementSessionSecond,
+    unlockOrExtendSession,
+    toggleTimeLimitActive,
   } = useEdzyStore();
+
+  const [parentOverridePin, setParentOverridePin] = useState('');
+
+  // Run the digital wellbeing time limit countdown
+  useEffect(() => {
+    const timer = setInterval(() => {
+      decrementSessionSecond();
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [decrementSessionSecond]);
+
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const isStudent = activeMode === 'STUDENT';
   const currentChapter = roadmaps.find((r) => r.isCurrent) || roadmaps[0];
@@ -103,6 +136,37 @@ export default function MasterBentoDashboard() {
           </View>
           <View style={styles.verifiedTag}>
             <Text style={styles.verifiedText}>Active 26-27</Text>
+          </View>
+        </View>
+
+        {/* Digital Wellbeing Session Limit Indicator */}
+        <View style={styles.timeLimitBannerRow}>
+          <View style={styles.timeLimitLeft}>
+            <Hourglass
+              size={13}
+              color={
+                !isTimeLimitActive
+                  ? colors.text.muted
+                  : sessionRemainingSeconds < 300
+                  ? colors.status.error
+                  : colors.student.secondaryLight
+              }
+            />
+            <Text
+              style={[
+                styles.timeLimitBannerText,
+                sessionRemainingSeconds < 300 && isTimeLimitActive && { color: colors.status.error },
+              ]}
+            >
+              {isTimeLimitActive
+                ? `Focus Time Limit: ${formatTimer(sessionRemainingSeconds)} Left`
+                : 'Focus Time Limit: Disabled'}
+            </Text>
+          </View>
+          <View style={styles.timeLimitModeTag}>
+            <Text style={styles.timeLimitModeTagText}>
+              {isTimeLimitActive ? `${sessionTimeLimitMinutes}m Max` : 'Off'}
+            </Text>
           </View>
         </View>
 
@@ -428,9 +492,111 @@ export default function MasterBentoDashboard() {
                 <Text style={styles.circularTime}>Synced 2 hours ago</Text>
               </View>
             </View>
+
+            {/* 5. PARENTAL DIGITAL WELLBEING & STUDY TIME LIMIT TILE */}
+            <View style={[styles.bentoTile, styles.parentTimeLimitTile]}>
+              <View style={styles.tileHeaderRow}>
+                <View style={styles.reportTitleRow}>
+                  <Timer size={18} color={colors.parent.primaryLight} />
+                  <Text style={styles.reportTileTitle}>Parental Session Time Limit</Text>
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleTagBtn,
+                    isTimeLimitActive ? styles.toggleTagBtnActive : styles.toggleTagBtnInactive,
+                  ]}
+                  onPress={toggleTimeLimitActive}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.toggleTagBtnText}>
+                    {isTimeLimitActive ? 'ACTIVE' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.tileDescription}>
+                Sets a strict study time limit so your child avoids digital fatigue and does not waste excess screen time.
+              </Text>
+
+              <View style={styles.presetRow}>
+                {[15, 30, 45, 60, 90].map((mins) => (
+                  <TouchableOpacity
+                    key={mins}
+                    style={[
+                      styles.presetBtn,
+                      sessionTimeLimitMinutes === mins && styles.presetBtnActive,
+                    ]}
+                    onPress={() => setTimeLimitMinutes(mins)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.presetBtnText,
+                        sessionTimeLimitMinutes === mins && styles.presetBtnTextActive,
+                      ]}
+                    >
+                      {mins}m
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
+
+      {/* SESSION TIME LIMIT EXPIRED BREAK MODAL */}
+      <Modal
+        visible={isSessionLocked}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.lockModalBackdrop}>
+          <View style={styles.lockModalCard}>
+            <View style={styles.lockIconCircle}>
+              <Coffee size={32} color={colors.student.secondaryLight} />
+            </View>
+            <Text style={styles.lockModalTitle}>Study Time Limit Reached 🛑</Text>
+            <Text style={styles.lockModalSub}>
+              You have completed your scheduled {sessionTimeLimitMinutes}-minute focused study block. To protect your vision and concentration, take a 10-minute break.
+            </Text>
+
+            <View style={styles.parentOverrideSection}>
+              <Text style={styles.parentOverrideLabel}>
+                PARENT PIN OVERRIDE (+15 MINS EXTENSION):
+              </Text>
+              <View style={styles.overrideInputRow}>
+                <TextInput
+                  style={styles.overrideInput}
+                  value={parentOverridePin}
+                  onChangeText={setParentOverridePin}
+                  placeholder="PIN: 1234"
+                  placeholderTextColor={colors.text.disabled}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  maxLength={4}
+                />
+                <TouchableOpacity
+                  style={styles.overrideSubmitBtn}
+                  onPress={() => {
+                    const success = unlockOrExtendSession(parentOverridePin, 15);
+                    if (success) {
+                      setParentOverridePin('');
+                      Alert.alert('Study Session Extended', 'Added +15 minutes of study time.');
+                    } else {
+                      Alert.alert('Invalid PIN', 'Enter 4-digit Parent PIN (Demo: 1234).');
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.overrideSubmitBtnText}>Extend +15m</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -999,5 +1165,167 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.text.disabled,
     marginTop: 8,
+  },
+  timeLimitBannerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(6, 182, 212, 0.08)',
+    borderColor: 'rgba(6, 182, 212, 0.25)',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 8,
+  },
+  timeLimitLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timeLimitBannerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.student.secondaryLight,
+    fontFamily: 'Menlo',
+  },
+  timeLimitModeTag: {
+    backgroundColor: 'rgba(6, 182, 212, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  timeLimitModeTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.student.secondaryLight,
+  },
+  parentTimeLimitTile: {
+    backgroundColor: colors.surface,
+  },
+  toggleTagBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  toggleTagBtnActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  toggleTagBtnInactive: {
+    backgroundColor: 'rgba(100, 116, 139, 0.2)',
+  },
+  toggleTagBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.parent.primaryLight,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  presetBtn: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: colors.bentoCard,
+    borderColor: colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+  },
+  presetBtnActive: {
+    borderColor: colors.parent.primary,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  presetBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text.muted,
+  },
+  presetBtnTextActive: {
+    color: colors.parent.primaryLight,
+    fontWeight: '800',
+  },
+  lockModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  lockModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: colors.bentoCard,
+    borderColor: colors.student.secondary,
+    borderWidth: 1.5,
+    borderRadius: 22,
+    padding: 24,
+    alignItems: 'center',
+  },
+  lockIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  lockModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  lockModalSub: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  parentOverrideSection: {
+    width: '100%',
+    marginTop: 20,
+    borderTopColor: colors.cardBorder,
+    borderTopWidth: 1,
+    paddingTop: 14,
+  },
+  parentOverrideLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.text.muted,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  overrideInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  overrideInput: {
+    flex: 1,
+    height: 42,
+    backgroundColor: colors.background,
+    borderColor: colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    textAlign: 'center',
+    color: colors.text.primary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  overrideSubmitBtn: {
+    backgroundColor: colors.student.primary,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  overrideSubmitBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
