@@ -508,7 +508,7 @@ const INITIAL_EXAMS: ExamTermRecord[] = [
 ];
 
 export const useEdzyStore = create<EdzyState>((set, get) => ({
-  isAuthenticated: false,
+  isAuthenticated: true,
   activeMode: 'STUDENT',
   studentProfile: {
     id: 'SCH-2026-0104',
