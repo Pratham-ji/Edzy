@@ -1451,6 +1451,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     if (isLiveSupabaseConfigured) {
       const dbStudents = newStudents.map((st) => ({
         id: st.id,
+        school_id: 'DVPS01',
         school_code: 'DVPS01',
         roll_no: st.rollNo,
         name: st.name,
@@ -1469,6 +1470,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
       const dbInstallments = newInstallments.map((inst) => ({
         id: inst.id,
+        school_id: 'DVPS01',
         school_code: 'DVPS01',
         student_id: inst.studentId,
         student_name: inst.studentName,
@@ -1547,6 +1549,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         .from('syllabus_roadmaps')
         .insert({
           id: newRecord.id,
+          school_id: 'DVPS01',
           school_code: 'DVPS01',
           chapter_number: newRecord.chapterNumber,
           title: newRecord.title,
@@ -1637,6 +1640,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           .from('exam_marks')
           .upsert({
             id: `${updatedRecord.studentId}_${updatedRecord.term}`,
+            school_id: 'DVPS01',
             school_code: 'DVPS01',
             student_id: updatedRecord.studentId,
             student_name: updatedRecord.studentName,
