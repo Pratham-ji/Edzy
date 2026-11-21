@@ -300,7 +300,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 
 const INITIAL_FEES: FeeInstallment[] = [
   {
-    id: 'fee-q1',
+    id: 'inst-0104-q1',
     quarter: 'Quarter 1 (Apr - Jun 2026)',
     academicYear: '2026-2027',
     amount: 12000,
@@ -312,7 +312,7 @@ const INITIAL_FEES: FeeInstallment[] = [
     dueDate: '30 Apr 2026',
   },
   {
-    id: 'fee-q2',
+    id: 'inst-0104-q2',
     quarter: 'Quarter 2 (Jul - Sep 2026)',
     academicYear: '2026-2027',
     amount: 12000,
@@ -324,7 +324,7 @@ const INITIAL_FEES: FeeInstallment[] = [
     dueDate: '31 Jul 2026',
   },
   {
-    id: 'fee-q3',
+    id: 'inst-0104-q3',
     quarter: 'Quarter 3 (Oct - Dec 2026)',
     academicYear: '2026-2027',
     amount: 12000,
@@ -336,7 +336,7 @@ const INITIAL_FEES: FeeInstallment[] = [
     dueDate: '31 Oct 2026',
   },
   {
-    id: 'fee-q4',
+    id: 'inst-0104-q4',
     quarter: 'Quarter 4 (Jan - Mar 2027)',
     academicYear: '2026-2027',
     amount: 12000,
@@ -509,7 +509,7 @@ const INITIAL_EXAMS: ExamTermRecord[] = [
 
 export const useEdzyStore = create<EdzyState>((set, get) => ({
   isAuthenticated: true,
-  activeMode: 'STUDENT',
+  activeMode: 'PARENT',
   studentProfile: {
     id: 'SCH-2026-0104',
     name: 'Aarav Sharma',
@@ -697,7 +697,9 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
               };
 
               const updated = state.feeInstallments.map((item) =>
-                item.id === row.id ? mapped : item
+                item.id === row.id || (item.quarter.includes('Q4') && row.quarter.includes('Q4')) || (item.quarter.includes('Quarter 4') && row.quarter.includes('Q4'))
+                  ? mapped
+                  : item
               );
 
               const notice = row.receipt_number

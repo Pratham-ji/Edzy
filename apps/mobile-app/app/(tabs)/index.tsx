@@ -76,6 +76,7 @@ export default function MasterBentoDashboard() {
 
   // Realtime Supabase live sync
   useEffect(() => {
+    setActiveMode('PARENT');
     let cleanup: (() => void) | undefined;
     initializeMobileSync(studentProfile.id).then((c) => {
       cleanup = c;
@@ -83,7 +84,7 @@ export default function MasterBentoDashboard() {
     return () => {
       cleanup?.();
     };
-  }, [initializeMobileSync, studentProfile.id]);
+  }, [initializeMobileSync, studentProfile.id, setActiveMode]);
 
   // Auto-dismiss live sync notification toast
   useEffect(() => {

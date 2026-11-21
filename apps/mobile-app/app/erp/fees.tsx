@@ -30,7 +30,17 @@ import { useEdzyStore, FeeInstallment, PaymentMethod } from '@/store/useEdzyStor
 import { colors } from '@/theme/colors';
 
 export default function FeePassbookScreen() {
-  const { feeInstallments, payFeeInstallment, studentProfile } = useEdzyStore();
+  const { feeInstallments, payFeeInstallment, studentProfile, initializeMobileSync } = useEdzyStore();
+
+  React.useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    initializeMobileSync(studentProfile.id).then((c) => {
+      cleanup = c;
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [initializeMobileSync, studentProfile.id]);
 
   const [activePaymentModal, setActivePaymentModal] = useState<FeeInstallment | null>(null);
   const [parentPin, setParentPin] = useState('');
