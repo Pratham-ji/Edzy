@@ -1,0 +1,1298 @@
+import { create } from 'zustand';
+
+export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
+export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
+export type ExamTerm = 'UNIT_TEST_1' | 'MIDTERM' | 'PRE_BOARD';
+export type ARModelType = 'Human Heart 3D' | 'Optics Bench 3D' | 'Quadratic Graph 3D' | 'Animal Cell 3D' | 'None';
+
+export interface StudentRecord {
+  id: string; // e.g. SCH-2026-0104
+  rollNo: string;
+  name: string;
+  classGrade: string; // e.g. Class 10-A, Class 9-B
+  section: string;
+  parentName: string;
+  parentPhone: string;
+  parentPin: string;
+  annualFee: number;
+  totalPaid: number;
+  totalPending: number;
+  atHomeHoursThisWeek: number;
+  streakDays: number;
+  attendancePercent: number;
+}
+
+export interface FeeInstallmentRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  classGrade: string;
+  quarter: string; // e.g. Q1 (Apr-Jun 2026)
+  amount: number;
+  status: PaymentStatus;
+  paymentMethod?: PaymentMethod;
+  paymentRef?: string;
+  receiptNumber?: string;
+  paidDate?: string;
+  dueDate: string;
+  clerkNote?: string;
+}
+
+export interface SyllabusChapterRecord {
+  id: string;
+  fileName: string;
+  chapterNumber: number;
+  title: string;
+  classGrade: string;
+  subject: string;
+  fileSizeBytes: string;
+  uploadedAt: string;
+  status: 'READY' | 'PROCESSING';
+  arModelMapped: ARModelType;
+  generatedMilestones: {
+    nodeId: string;
+    title: string;
+    ncertPageRange: string;
+    ragStatus: 'GROUNDED' | 'INDEXING';
+  }[];
+}
+
+export interface StudentSubjectScore {
+  subject: string;
+  marksObtained: number;
+  maxMarks: number;
+  grade: string;
+  remarks: string;
+}
+
+export interface StudentExamRecord {
+  studentId: string;
+  studentName: string;
+  classGrade: string;
+  rollNo: string;
+  term: ExamTerm;
+  scores: StudentSubjectScore[];
+  aggregatePercentage: number;
+  overallGrade: string;
+  needsRemediation: boolean;
+}
+
+export interface SchoolProfile {
+  name: string;
+  code: string;
+  affiliationNumber: string;
+  board: string;
+  session: string;
+  address: string;
+  city: string;
+  state: string;
+  principalName: string;
+  accountantName: string;
+  phone: string;
+  email: string;
+}
+
+export function calculateCbseGrade(percentage: number): string {
+  if (percentage >= 91) return 'A1';
+  if (percentage >= 81) return 'A2';
+  if (percentage >= 71) return 'B1';
+  if (percentage >= 61) return 'B2';
+  if (percentage >= 51) return 'C1';
+  if (percentage >= 41) return 'C2';
+  if (percentage >= 33) return 'D';
+  return 'E';
+}
+
+interface AdminState {
+  schoolProfile: SchoolProfile;
+  students: StudentRecord[];
+  feeInstallments: FeeInstallmentRecord[];
+  syllabusVault: SyllabusChapterRecord[];
+  examMarks: StudentExamRecord[];
+  receiptCounter: number;
+
+  // Actions
+  collectOfflineFee: (
+    installmentId: string,
+    mode: 'OFFLINE_CASH' | 'OFFLINE_CHEQUE',
+    referenceNo: string,
+    clerkNote: string
+  ) => { receiptNumber: string; studentName: string; amount: number };
+
+  importStudentsFromCSV: (
+    rows: Array<{
+      name: string;
+      classGrade: string;
+      rollNo: string;
+      parentName: string;
+      parentPhone: string;
+      annualFee?: number;
+    }>
+  ) => { importedCount: number };
+
+  uploadSyllabusChapter: (payload: {
+    fileName: string;
+    chapterNumber: number;
+    title: string;
+    classGrade: string;
+    subject: string;
+    arModelMapped: ARModelType;
+  }) => SyllabusChapterRecord;
+
+  updateStudentMark: (
+    studentId: string,
+    term: ExamTerm,
+    subject: string,
+    marksObtained: number,
+    remarks?: string
+  ) => void;
+
+  updateSchoolProfile: (profilePartial: Partial<SchoolProfile>) => void;
+}
+
+// 15 realistic Indian students across Class 10-A and Class 9-B
+const INITIAL_STUDENTS: StudentRecord[] = [
+  {
+    id: 'SCH-2026-0104',
+    rollNo: '24',
+    name: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Rajesh Sharma',
+    parentPhone: '9811234567',
+    parentPin: '1234',
+    annualFee: 48000,
+    totalPaid: 36000,
+    totalPending: 12000,
+    atHomeHoursThisWeek: 6.5,
+    streakDays: 12,
+    attendancePercent: 96.8,
+  },
+  {
+    id: 'SCH-2026-0101',
+    rollNo: '01',
+    name: 'Ananya Gupta',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Amit Gupta',
+    parentPhone: '9811234501',
+    parentPin: '2145',
+    annualFee: 48000,
+    totalPaid: 48000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 8.2,
+    streakDays: 19,
+    attendancePercent: 98.5,
+  },
+  {
+    id: 'SCH-2026-0102',
+    rollNo: '12',
+    name: 'Rohan Mehra',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Sunil Mehra',
+    parentPhone: '9811234502',
+    parentPin: '3912',
+    annualFee: 48000,
+    totalPaid: 36000,
+    totalPending: 12000,
+    atHomeHoursThisWeek: 4.5,
+    streakDays: 7,
+    attendancePercent: 92.0,
+  },
+  {
+    id: 'SCH-2026-0103',
+    rollNo: '15',
+    name: 'Diya Verma',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Vivek Verma',
+    parentPhone: '9811234503',
+    parentPin: '7721',
+    annualFee: 48000,
+    totalPaid: 48000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 7.0,
+    streakDays: 14,
+    attendancePercent: 97.2,
+  },
+  {
+    id: 'SCH-2026-0105',
+    rollNo: '27',
+    name: 'Kabir Sen',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Debashis Sen',
+    parentPhone: '9811234505',
+    parentPin: '8104',
+    annualFee: 48000,
+    totalPaid: 24000,
+    totalPending: 24000,
+    atHomeHoursThisWeek: 3.2,
+    streakDays: 4,
+    attendancePercent: 88.4,
+  },
+  {
+    id: 'SCH-2026-0106',
+    rollNo: '31',
+    name: 'Sanjana Nair',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Unnikrishnan Nair',
+    parentPhone: '9811234506',
+    parentPin: '4092',
+    annualFee: 48000,
+    totalPaid: 48000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 6.8,
+    streakDays: 16,
+    attendancePercent: 99.1,
+  },
+  {
+    id: 'SCH-2026-0107',
+    rollNo: '38',
+    name: 'Vivaan Joshi',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Harish Joshi',
+    parentPhone: '9811234507',
+    parentPin: '5521',
+    annualFee: 48000,
+    totalPaid: 36000,
+    totalPending: 12000,
+    atHomeHoursThisWeek: 5.1,
+    streakDays: 9,
+    attendancePercent: 94.6,
+  },
+  {
+    id: 'SCH-2026-0108',
+    rollNo: '40',
+    name: 'Meera Pillai',
+    classGrade: 'Class 10-A',
+    section: 'A',
+    parentName: 'Suresh Pillai',
+    parentPhone: '9811234508',
+    parentPin: '6310',
+    annualFee: 48000,
+    totalPaid: 48000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 7.9,
+    streakDays: 18,
+    attendancePercent: 96.5,
+  },
+  {
+    id: 'SCH-2026-0201',
+    rollNo: '04',
+    name: 'Ishaan Agarwal',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'Sanjay Agarwal',
+    parentPhone: '9811234509',
+    parentPin: '9023',
+    annualFee: 44000,
+    totalPaid: 44000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 7.2,
+    streakDays: 15,
+    attendancePercent: 97.8,
+  },
+  {
+    id: 'SCH-2026-0202',
+    rollNo: '09',
+    name: 'Tanvi Deshmukh',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'Anand Deshmukh',
+    parentPhone: '9811234510',
+    parentPin: '1478',
+    annualFee: 44000,
+    totalPaid: 33000,
+    totalPending: 11000,
+    atHomeHoursThisWeek: 4.8,
+    streakDays: 8,
+    attendancePercent: 91.2,
+  },
+  {
+    id: 'SCH-2026-0203',
+    rollNo: '14',
+    name: 'Aditya Kulkarni',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'Pravin Kulkarni',
+    parentPhone: '9811234511',
+    parentPin: '2367',
+    annualFee: 44000,
+    totalPaid: 44000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 8.5,
+    streakDays: 21,
+    attendancePercent: 98.9,
+  },
+  {
+    id: 'SCH-2026-0204',
+    rollNo: '21',
+    name: 'Riya Sengupta',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'Subhash Sengupta',
+    parentPhone: '9811234512',
+    parentPin: '8941',
+    annualFee: 44000,
+    totalPaid: 22000,
+    totalPending: 22000,
+    atHomeHoursThisWeek: 3.5,
+    streakDays: 5,
+    attendancePercent: 86.5,
+  },
+  {
+    id: 'SCH-2026-0205',
+    rollNo: '25',
+    name: 'Aryan Kapoor',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'Gaurav Kapoor',
+    parentPhone: '9811234513',
+    parentPin: '3389',
+    annualFee: 44000,
+    totalPaid: 33000,
+    totalPending: 11000,
+    atHomeHoursThisWeek: 5.4,
+    streakDays: 10,
+    attendancePercent: 93.4,
+  },
+  {
+    id: 'SCH-2026-0206',
+    rollNo: '33',
+    name: 'Sneha Reddy',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'K. V. Reddy',
+    parentPhone: '9811234514',
+    parentPin: '6712',
+    annualFee: 44000,
+    totalPaid: 44000,
+    totalPending: 0,
+    atHomeHoursThisWeek: 6.9,
+    streakDays: 13,
+    attendancePercent: 96.0,
+  },
+  {
+    id: 'SCH-2026-0207',
+    rollNo: '37',
+    name: 'Shlok Bhatia',
+    classGrade: 'Class 9-B',
+    section: 'B',
+    parentName: 'Rajiv Bhatia',
+    parentPhone: '9811234515',
+    parentPin: '5120',
+    annualFee: 44000,
+    totalPaid: 33000,
+    totalPending: 11000,
+    atHomeHoursThisWeek: 4.1,
+    streakDays: 6,
+    attendancePercent: 89.7,
+  },
+];
+
+// Pre-seeded fee installments matching mobile app
+const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
+  // Aarav Sharma
+  {
+    id: 'inst-0104-q1',
+    studentId: 'SCH-2026-0104',
+    studentName: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Reception Counter #2',
+    receiptNumber: '#SCH-1042',
+    paidDate: '12 Apr 2026',
+    dueDate: '30 Apr 2026',
+    clerkNote: 'Paid in cash at main administration reception desk.',
+  },
+  {
+    id: 'inst-0104-q2',
+    studentId: 'SCH-2026-0104',
+    studentName: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'HDFC Cheque #902188',
+    receiptNumber: '#SCH-2190',
+    paidDate: '14 Jul 2026',
+    dueDate: '31 Jul 2026',
+    clerkNote: 'Cleared via HDFC Bank Connaught Place branch.',
+  },
+  {
+    id: 'inst-0104-q3',
+    studentId: 'SCH-2026-0104',
+    studentName: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ904812',
+    receiptNumber: '#EDZ-5581',
+    paidDate: '05 Oct 2026',
+    dueDate: '31 Oct 2026',
+    clerkNote: 'Settled through Edzy Parent Mobile App via Razorpay UPI.',
+  },
+  {
+    id: 'inst-0104-q4',
+    studentId: 'SCH-2026-0104',
+    studentName: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Ananya Gupta (All Paid)
+  {
+    id: 'inst-0101-q1',
+    studentId: 'SCH-2026-0101',
+    studentName: 'Ananya Gupta',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP918233',
+    receiptNumber: '#EDZ-1011',
+    paidDate: '10 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0101-q2',
+    studentId: 'SCH-2026-0101',
+    studentName: 'Ananya Gupta',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP938211',
+    receiptNumber: '#EDZ-2114',
+    paidDate: '11 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0101-q3',
+    studentId: 'SCH-2026-0101',
+    studentName: 'Ananya Gupta',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT772911',
+    receiptNumber: '#EDZ-3921',
+    paidDate: '02 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0101-q4',
+    studentId: 'SCH-2026-0101',
+    studentName: 'Ananya Gupta',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ99120',
+    receiptNumber: '#EDZ-4890',
+    paidDate: '01 Nov 2026',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Kabir Sen (Defaulter: Q3 & Q4 Pending)
+  {
+    id: 'inst-0105-q1',
+    studentId: 'SCH-2026-0105',
+    studentName: 'Kabir Sen',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    receiptNumber: '#SCH-1055',
+    paidDate: '28 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0105-q2',
+    studentId: 'SCH-2026-0105',
+    studentName: 'Kabir Sen',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    receiptNumber: '#SCH-2201',
+    paymentRef: 'SBI Chq #441029',
+    paidDate: '29 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0105-q3',
+    studentId: 'SCH-2026-0105',
+    studentName: 'Kabir Sen',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'OVERDUE',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0105-q4',
+    studentId: 'SCH-2026-0105',
+    studentName: 'Kabir Sen',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Rohan Mehra (Q4 Pending)
+  {
+    id: 'inst-0102-q4',
+    studentId: 'SCH-2026-0102',
+    studentName: 'Rohan Mehra',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Vivaan Joshi (Q4 Pending)
+  {
+    id: 'inst-0107-q4',
+    studentId: 'SCH-2026-0107',
+    studentName: 'Vivaan Joshi',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Class 9-B: Tanvi Deshmukh (Q4 Pending)
+  {
+    id: 'inst-0202-q4',
+    studentId: 'SCH-2026-0202',
+    studentName: 'Tanvi Deshmukh',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Class 9-B: Riya Sengupta (Q3 Overdue, Q4 Pending)
+  {
+    id: 'inst-0204-q3',
+    studentId: 'SCH-2026-0204',
+    studentName: 'Riya Sengupta',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'OVERDUE',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0204-q4',
+    studentId: 'SCH-2026-0204',
+    studentName: 'Riya Sengupta',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Class 9-B: Aryan Kapoor (Q4 Pending)
+  {
+    id: 'inst-0205-q4',
+    studentId: 'SCH-2026-0205',
+    studentName: 'Aryan Kapoor',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // Class 9-B: Shlok Bhatia (Q4 Pending)
+  {
+    id: 'inst-0207-q4',
+    studentId: 'SCH-2026-0207',
+    studentName: 'Shlok Bhatia',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+];
+
+const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
+  {
+    id: 'syl-01',
+    fileName: 'Class10_Bio_Ch6_SchoolNotes.pdf',
+    chapterNumber: 6,
+    title: 'Life Processes & Human Circulatory System',
+    classGrade: 'Class 10',
+    subject: 'Biology (Science)',
+    fileSizeBytes: '4.2 MB',
+    uploadedAt: '15 Oct 2026',
+    status: 'READY',
+    arModelMapped: 'Human Heart 3D',
+    generatedMilestones: [
+      {
+        nodeId: 'm-1',
+        title: '6.1 Autotrophic Nutrition & Stomata Gas Exchange',
+        ncertPageRange: 'Pages 93-98',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'm-2',
+        title: '6.2 Human Digestive System: Enzymes & Villi',
+        ncertPageRange: 'Pages 99-105',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'm-3',
+        title: '6.3 Human Heart: Chambers, Double Circulation & Aorta',
+        ncertPageRange: 'Pages 106-110',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'm-4',
+        title: '6.4 Excretion: Nephron Filtration Mechanism',
+        ncertPageRange: 'Pages 111-115',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'm-5',
+        title: '6.5 CBSE Past 5-Year Questions & Board Practicals',
+        ncertPageRange: 'Pages 116-120',
+        ragStatus: 'GROUNDED',
+      },
+    ],
+  },
+  {
+    id: 'syl-02',
+    fileName: 'Class10_Phy_Ch10_Optics.pdf',
+    chapterNumber: 10,
+    title: 'Light: Reflection & Refraction',
+    classGrade: 'Class 10',
+    subject: 'Physics (Science)',
+    fileSizeBytes: '5.8 MB',
+    uploadedAt: '22 Oct 2026',
+    status: 'READY',
+    arModelMapped: 'Optics Bench 3D',
+    generatedMilestones: [
+      {
+        nodeId: 'p-1',
+        title: '10.1 Spherical Mirrors: Concave & Convex Ray Tracing',
+        ncertPageRange: 'Pages 160-168',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'p-2',
+        title: '10.2 Mirror Formula & Magnification Ratio',
+        ncertPageRange: 'Pages 169-173',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'p-3',
+        title: "10.3 Snell's Law & Refractive Index (Air-Glass)",
+        ncertPageRange: 'Pages 174-180',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'p-4',
+        title: '10.4 Convex & Concave Lens Ray Diagrams',
+        ncertPageRange: 'Pages 181-186',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'p-5',
+        title: '10.5 Dioptre Power & Numerical Problems',
+        ncertPageRange: 'Pages 187-191',
+        ragStatus: 'GROUNDED',
+      },
+    ],
+  },
+  {
+    id: 'syl-03',
+    fileName: 'Class10_Math_Ch4_Quadratic.pdf',
+    chapterNumber: 4,
+    title: 'Quadratic Equations & Discriminant Analysis',
+    classGrade: 'Class 10',
+    subject: 'Mathematics',
+    fileSizeBytes: '3.6 MB',
+    uploadedAt: '01 Nov 2026',
+    status: 'READY',
+    arModelMapped: 'Quadratic Graph 3D',
+    generatedMilestones: [
+      {
+        nodeId: 'q-1',
+        title: '4.1 Standard Form ax² + bx + c = 0 & Factorisation',
+        ncertPageRange: 'Pages 70-76',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'q-2',
+        title: '4.2 Quadratic Formula (Shreedharacharya Rule)',
+        ncertPageRange: 'Pages 77-83',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'q-3',
+        title: '4.3 Discriminant D = b² - 4ac & Nature of Roots',
+        ncertPageRange: 'Pages 84-88',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'q-4',
+        title: '4.4 Real-World Kinematics & Area Word Problems',
+        ncertPageRange: 'Pages 89-93',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'q-5',
+        title: '4.5 Board Exam Revision Drill',
+        ncertPageRange: 'Pages 94-96',
+        ragStatus: 'GROUNDED',
+      },
+    ],
+  },
+  {
+    id: 'syl-04',
+    fileName: 'Class9_Sci_Ch5_CellStructure.pdf',
+    chapterNumber: 5,
+    title: 'The Fundamental Unit of Life: Cell Organelles',
+    classGrade: 'Class 9',
+    subject: 'Science',
+    fileSizeBytes: '4.9 MB',
+    uploadedAt: '12 Nov 2026',
+    status: 'READY',
+    arModelMapped: 'Animal Cell 3D',
+    generatedMilestones: [
+      {
+        nodeId: 'c-1',
+        title: '5.1 Discovery of Cell & Plasma Membrane Diffusion',
+        ncertPageRange: 'Pages 57-62',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'c-2',
+        title: '5.2 Nucleus, Chromosomes & DNA Structure',
+        ncertPageRange: 'Pages 63-66',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'c-3',
+        title: '5.3 Cytoplasm & Endoplasmic Reticulum (RER/SER)',
+        ncertPageRange: 'Pages 67-70',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'c-4',
+        title: '5.4 Mitochondria, Golgi Apparatus & Lysosomes',
+        ncertPageRange: 'Pages 71-74',
+        ragStatus: 'GROUNDED',
+      },
+      {
+        nodeId: 'c-5',
+        title: '5.5 Plant vs Animal Cell 3D Comparison',
+        ncertPageRange: 'Pages 75-78',
+        ragStatus: 'GROUNDED',
+      },
+    ],
+  },
+];
+
+const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
+  {
+    studentId: 'SCH-2026-0104',
+    studentName: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    rollNo: '24',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 92.6,
+    overallGrade: 'A1',
+    needsRemediation: false,
+    scores: [
+      {
+        subject: 'Science & Lab',
+        marksObtained: 94,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Exceptional diagrammatic clarity in Biology & ray optics.',
+      },
+      {
+        subject: 'Mathematics',
+        marksObtained: 91,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Very strong algebraic manipulation.',
+      },
+      {
+        subject: 'English Communicative',
+        marksObtained: 88,
+        maxMarks: 100,
+        grade: 'A2',
+        remarks: 'High comprehension, vocabulary is strong.',
+      },
+      {
+        subject: 'Social Science',
+        marksObtained: 92,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Detailed historical chronology and accurate map work.',
+      },
+      {
+        subject: 'Computer Applications',
+        marksObtained: 98,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Top scorer in Python and data structures!',
+      },
+    ],
+  },
+  {
+    studentId: 'SCH-2026-0101',
+    studentName: 'Ananya Gupta',
+    classGrade: 'Class 10-A',
+    rollNo: '01',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 96.2,
+    overallGrade: 'A1',
+    needsRemediation: false,
+    scores: [
+      {
+        subject: 'Science & Lab',
+        marksObtained: 98,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Batch topper in Science experiments.',
+      },
+      {
+        subject: 'Mathematics',
+        marksObtained: 97,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Flawless quadratic proofs.',
+      },
+      {
+        subject: 'English Communicative',
+        marksObtained: 93,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Excellent analytical writing.',
+      },
+      {
+        subject: 'Social Science',
+        marksObtained: 96,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Thorough coverage of Economics & Civics.',
+      },
+      {
+        subject: 'Computer Applications',
+        marksObtained: 97,
+        maxMarks: 100,
+        grade: 'A1',
+        remarks: 'Creative coding test solutions.',
+      },
+    ],
+  },
+  {
+    studentId: 'SCH-2026-0105',
+    studentName: 'Kabir Sen',
+    classGrade: 'Class 10-A',
+    rollNo: '27',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 54.4,
+    overallGrade: 'C1',
+    needsRemediation: true,
+    scores: [
+      {
+        subject: 'Science & Lab',
+        marksObtained: 48,
+        maxMarks: 100,
+        grade: 'C2',
+        remarks: 'Needs urgent remediation in Chemistry formulas & ray diagrams.',
+      },
+      {
+        subject: 'Mathematics',
+        marksObtained: 46,
+        maxMarks: 100,
+        grade: 'C2',
+        remarks: 'Struggles with word problems and quadratic equations.',
+      },
+      {
+        subject: 'English Communicative',
+        marksObtained: 64,
+        maxMarks: 100,
+        grade: 'B2',
+        remarks: 'Average performance.',
+      },
+      {
+        subject: 'Social Science',
+        marksObtained: 52,
+        maxMarks: 100,
+        grade: 'C1',
+        remarks: 'Incomplete answers in History section.',
+      },
+      {
+        subject: 'Computer Applications',
+        marksObtained: 62,
+        maxMarks: 100,
+        grade: 'B2',
+        remarks: 'Basic syntax understanding is okay.',
+      },
+    ],
+  },
+  {
+    studentId: 'SCH-2026-0204',
+    studentName: 'Riya Sengupta',
+    classGrade: 'Class 9-B',
+    rollNo: '21',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 58.0,
+    overallGrade: 'C1',
+    needsRemediation: true,
+    scores: [
+      {
+        subject: 'Science & Lab',
+        marksObtained: 51,
+        maxMarks: 100,
+        grade: 'C1',
+        remarks: 'Requires practice with cell organelle diagrams.',
+      },
+      {
+        subject: 'Mathematics',
+        marksObtained: 49,
+        maxMarks: 100,
+        grade: 'C2',
+        remarks: 'Weak in polynomial factorisation.',
+      },
+      {
+        subject: 'English Communicative',
+        marksObtained: 70,
+        maxMarks: 100,
+        grade: 'B1',
+        remarks: 'Good spoken fluency.',
+      },
+      {
+        subject: 'Social Science',
+        marksObtained: 56,
+        maxMarks: 100,
+        grade: 'C1',
+        remarks: 'Needs review of Indian physical geography.',
+      },
+      {
+        subject: 'Computer Applications',
+        marksObtained: 64,
+        maxMarks: 100,
+        grade: 'B2',
+        remarks: 'Fair execution of HTML tables.',
+      },
+    ],
+  },
+];
+
+export const useAdminStore = create<AdminState>((set, get) => ({
+  schoolProfile: {
+    name: 'Doon Valley Public School',
+    code: 'DVPS01',
+    affiliationNumber: 'CBSE-2130842',
+    board: 'CBSE New Delhi',
+    session: '2026-2027',
+    address: 'Sector 4, R.K. Puram, Outer Ring Road',
+    city: 'New Delhi',
+    state: 'Delhi (NCR)',
+    principalName: 'Dr. Meenakshi Sundaram (M.Sc., Ph.D.)',
+    accountantName: 'Sunil Aggarwal (Chief Bursar)',
+    phone: '+91 11 2618 4021',
+    email: 'admin@doonvalley.edu.in',
+  },
+  students: INITIAL_STUDENTS,
+  feeInstallments: INITIAL_INSTALLMENTS,
+  syllabusVault: INITIAL_SYLLABUS,
+  examMarks: INITIAL_EXAM_MARKS,
+  receiptCounter: 3240,
+
+  collectOfflineFee: (installmentId, mode, referenceNo, clerkNote) => {
+    const state = get();
+    const inst = state.feeInstallments.find((f) => f.id === installmentId);
+    if (!inst) {
+      throw new Error('Installment not found');
+    }
+
+    const nextReceiptNum = `#SCH-${state.receiptCounter + 1}`;
+    const todayStr = new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const updatedInstallments = state.feeInstallments.map((item) => {
+      if (item.id === installmentId) {
+        return {
+          ...item,
+          status: 'PAID' as PaymentStatus,
+          paymentMethod: mode,
+          paymentRef: referenceNo || (mode === 'OFFLINE_CASH' ? 'Cash at Counter #1' : 'Cheque In-Hand'),
+          receiptNumber: nextReceiptNum,
+          paidDate: todayStr,
+          clerkNote: clerkNote || `Collected by Accounts Desk on ${todayStr}`,
+        };
+      }
+      return item;
+    });
+
+    // Update student totals
+    const updatedStudents = state.students.map((st) => {
+      if (st.id === inst.studentId) {
+        return {
+          ...st,
+          totalPaid: st.totalPaid + inst.amount,
+          totalPending: Math.max(0, st.totalPending - inst.amount),
+        };
+      }
+      return st;
+    });
+
+    set({
+      feeInstallments: updatedInstallments,
+      students: updatedStudents,
+      receiptCounter: state.receiptCounter + 1,
+    });
+
+    return {
+      receiptNumber: nextReceiptNum,
+      studentName: inst.studentName,
+      amount: inst.amount,
+    };
+  },
+
+  importStudentsFromCSV: (rows) => {
+    const state = get();
+    const newStudents: StudentRecord[] = [];
+    const newInstallments: FeeInstallmentRecord[] = [];
+
+    let count = state.students.length + 1;
+
+    for (const row of rows) {
+      const paddedNum = count.toString().padStart(4, '0');
+      const studentId = `SCH-2026-${paddedNum}`;
+      const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+      const annualFee = row.annualFee || (row.classGrade.includes('10') ? 48000 : 44000);
+      const quarterFee = annualFee / 4;
+
+      const newStudent: StudentRecord = {
+        id: studentId,
+        rollNo: row.rollNo || count.toString(),
+        name: row.name,
+        classGrade: row.classGrade,
+        section: row.classGrade.includes('-') ? row.classGrade.split('-')[1] : 'A',
+        parentName: row.parentName,
+        parentPhone: row.parentPhone,
+        parentPin: randomPin,
+        annualFee,
+        totalPaid: 0,
+        totalPending: annualFee,
+        atHomeHoursThisWeek: 0,
+        streakDays: 0,
+        attendancePercent: 100,
+      };
+
+      newStudents.push(newStudent);
+
+      // Auto-create 4 quarterly fee installments
+      const quarters = [
+        { q: 'Q1 (Apr - Jun 2026)', due: '30 Apr 2026' },
+        { q: 'Q2 (Jul - Sep 2026)', due: '31 Jul 2026' },
+        { q: 'Q3 (Oct - Dec 2026)', due: '31 Oct 2026' },
+        { q: 'Q4 (Jan - Mar 2027)', due: '30 Nov 2026' },
+      ];
+
+      quarters.forEach((qObj, qIdx) => {
+        newInstallments.push({
+          id: `inst-${paddedNum}-q${qIdx + 1}`,
+          studentId,
+          studentName: row.name,
+          classGrade: row.classGrade,
+          quarter: qObj.q,
+          amount: quarterFee,
+          status: 'PENDING',
+          dueDate: qObj.due,
+        });
+      });
+
+      count++;
+    }
+
+    set({
+      students: [...state.students, ...newStudents],
+      feeInstallments: [...state.feeInstallments, ...newInstallments],
+    });
+
+    return { importedCount: newStudents.length };
+  },
+
+  uploadSyllabusChapter: (payload) => {
+    const todayStr = new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const newRecord: SyllabusChapterRecord = {
+      id: `syl-${Date.now()}`,
+      fileName: payload.fileName,
+      chapterNumber: payload.chapterNumber,
+      title: payload.title,
+      classGrade: payload.classGrade,
+      subject: payload.subject,
+      fileSizeBytes: '5.2 MB',
+      uploadedAt: todayStr,
+      status: 'READY',
+      arModelMapped: payload.arModelMapped,
+      generatedMilestones: [
+        {
+          nodeId: `n-${Date.now()}-1`,
+          title: `${payload.chapterNumber}.1 Core Theoretical Concepts & Principles`,
+          ncertPageRange: 'Pages 01-08',
+          ragStatus: 'GROUNDED',
+        },
+        {
+          nodeId: `n-${Date.now()}-2`,
+          title: `${payload.chapterNumber}.2 Real-World Indian Everyday Applications`,
+          ncertPageRange: 'Pages 09-15',
+          ragStatus: 'GROUNDED',
+        },
+        {
+          nodeId: `n-${Date.now()}-3`,
+          title: `${payload.chapterNumber}.3 Step-by-Step Problem Solving & Derivations`,
+          ncertPageRange: 'Pages 16-22',
+          ragStatus: 'GROUNDED',
+        },
+        {
+          nodeId: `n-${Date.now()}-4`,
+          title: `${payload.chapterNumber}.4 3D Spatial Anatomy / Lab Simulation Drill`,
+          ncertPageRange: 'Pages 23-28',
+          ragStatus: 'GROUNDED',
+        },
+        {
+          nodeId: `n-${Date.now()}-5`,
+          title: `${payload.chapterNumber}.5 CBSE 5-Year Past Examination Board Questions`,
+          ncertPageRange: 'Pages 29-34',
+          ragStatus: 'GROUNDED',
+        },
+      ],
+    };
+
+    set((state) => ({
+      syllabusVault: [newRecord, ...state.syllabusVault],
+    }));
+
+    return newRecord;
+  },
+
+  updateStudentMark: (studentId, term, subject, marksObtained, remarks) => {
+    set((state) => {
+      const student = state.students.find((s) => s.id === studentId);
+      const studentName = student ? student.name : 'Unknown';
+      const classGrade = student ? student.classGrade : 'Class 10-A';
+      const rollNo = student ? student.rollNo : '0';
+
+      const existingRecord = state.examMarks.find(
+        (e) => e.studentId === studentId && e.term === term
+      );
+
+      const subjects = [
+        'Science & Lab',
+        'Mathematics',
+        'English Communicative',
+        'Social Science',
+        'Computer Applications',
+      ];
+
+      let scoresList: StudentSubjectScore[] = [];
+
+      if (existingRecord) {
+        scoresList = existingRecord.scores.map((sc) => {
+          if (sc.subject === subject) {
+            return {
+              ...sc,
+              marksObtained,
+              grade: calculateCbseGrade((marksObtained / sc.maxMarks) * 100),
+              remarks: remarks || sc.remarks,
+            };
+          }
+          return sc;
+        });
+      } else {
+        scoresList = subjects.map((sub) => {
+          const isTarget = sub === subject;
+          const mark = isTarget ? marksObtained : 75;
+          return {
+            subject: sub,
+            marksObtained: mark,
+            maxMarks: 100,
+            grade: calculateCbseGrade(mark),
+            remarks: isTarget ? (remarks || 'Good consistency.') : 'Good consistency.',
+          };
+        });
+      }
+
+      const totalObtained = scoresList.reduce((acc, s) => acc + s.marksObtained, 0);
+      const totalMax = scoresList.reduce((acc, s) => acc + s.maxMarks, 0);
+      const aggregate = parseFloat(((totalObtained / totalMax) * 100).toFixed(1));
+      const overallGrade = calculateCbseGrade(aggregate);
+      const needsRemediation = aggregate < 60;
+
+      const updatedRecord: StudentExamRecord = {
+        studentId,
+        studentName,
+        classGrade,
+        rollNo,
+        term,
+        scores: scoresList,
+        aggregatePercentage: aggregate,
+        overallGrade,
+        needsRemediation,
+      };
+
+      const filtered = state.examMarks.filter(
+        (e) => !(e.studentId === studentId && e.term === term)
+      );
+
+      return {
+        examMarks: [updatedRecord, ...filtered],
+      };
+    });
+  },
+
+  updateSchoolProfile: (profilePartial) => {
+    set((state) => ({
+      schoolProfile: {
+        ...state.schoolProfile,
+        ...profilePartial,
+      },
+    }));
+  },
+}));
