@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase, isLiveSupabaseConfigured } from '../lib/supabase';
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
@@ -110,8 +111,11 @@ interface AdminState {
   syllabusVault: SyllabusChapterRecord[];
   examMarks: StudentExamRecord[];
   receiptCounter: number;
+  connectionMode: 'LIVE_CLOUD' | 'DEMO_MODE';
+  isSyncing: boolean;
 
   // Actions
+  initializeRealtimeSync: () => Promise<() => void>;
   collectOfflineFee: (
     installmentId: string,
     mode: 'OFFLINE_CASH' | 'OFFLINE_CHEQUE',
@@ -1033,6 +1037,270 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   syllabusVault: INITIAL_SYLLABUS,
   examMarks: INITIAL_EXAM_MARKS,
   receiptCounter: 3240,
+  connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
+  isSyncing: false,
+
+  initializeRealtimeSync: async () => {
+    if (!isLiveSupabaseConfigured) {
+      set({ connectionMode: 'DEMO_MODE' });
+      return () => {};
+    }
+
+    try {
+      set({ isSyncing: true });
+      const [studentsRes, feeRes, marksRes, syllabusRes] = await Promise.all([
+        supabase.from('students').select('*').order('roll_no', { ascending: true }),
+        supabase.from('fee_ledger').select('*').order('due_date', { ascending: true }),
+        supabase.from('exam_marks').select('*'),
+        supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
+      ]);
+
+      const updates: Partial<AdminState> = {};
+
+      if (studentsRes.data && studentsRes.data.length > 0) {
+        updates.students = studentsRes.data.map((row: any) => ({
+          id: row.id,
+          rollNo: row.roll_no ? String(row.roll_no).padStart(2, '0') : '0',
+          name: row.name,
+          classGrade: row.class_grade,
+          section: row.section || 'A',
+          parentName: row.parent_name,
+          parentPhone: row.parent_phone,
+          parentPin: row.parent_pin || '1234',
+          annualFee: Number(row.annual_fee || 48000),
+          totalPaid: Number(row.total_paid || 0),
+          totalPending: Number(row.total_pending || 0),
+          atHomeHoursThisWeek: Number(row.at_home_hours || 0),
+          streakDays: Number(row.streak_days || 0),
+          attendancePercent: Number(row.attendance_percent || 95),
+        }));
+      }
+
+      if (feeRes.data && feeRes.data.length > 0) {
+        updates.feeInstallments = feeRes.data.map((row: any) => ({
+          id: row.id,
+          studentId: row.student_id,
+          studentName: row.student_name,
+          classGrade: row.class_grade,
+          quarter: row.quarter,
+          amount: Number(row.amount),
+          status: row.status as PaymentStatus,
+          paymentMethod: row.payment_mode as PaymentMethod | undefined,
+          paymentRef: row.payment_ref || undefined,
+          receiptNumber: row.receipt_number || undefined,
+          paidDate: row.paid_at
+            ? new Date(row.paid_at).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })
+            : undefined,
+          dueDate: row.due_date || '30 Nov 2026',
+          clerkNote: row.clerk_note || undefined,
+        }));
+      }
+
+      if (marksRes.data && marksRes.data.length > 0) {
+        updates.examMarks = marksRes.data.map((row: any) => ({
+          studentId: row.student_id,
+          studentName: row.student_name,
+          classGrade: row.class_grade,
+          rollNo: row.roll_no,
+          term: row.term as ExamTerm,
+          scores: Array.isArray(row.scores_json) ? row.scores_json : [],
+          aggregatePercentage: Number(row.aggregate_percentage || 0),
+          overallGrade: row.overall_grade || 'A1',
+          needsRemediation: Boolean(row.needs_remediation),
+        }));
+      }
+
+      if (syllabusRes.data && syllabusRes.data.length > 0) {
+        updates.syllabusVault = syllabusRes.data.map((row: any) => ({
+          id: row.id,
+          fileName: row.file_name || 'Chapter.pdf',
+          chapterNumber: Number(row.chapter_number),
+          title: row.title,
+          classGrade: row.class_grade,
+          subject: row.subject,
+          fileSizeBytes: row.file_size_bytes || '4.5 MB',
+          uploadedAt: row.created_at
+            ? new Date(row.created_at).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })
+            : 'Today',
+          status: (row.status as any) || 'READY',
+          arModelMapped: (row.ar_model_mapped as any) || 'None',
+          generatedMilestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
+        }));
+      }
+
+      set({
+        ...updates,
+        connectionMode: 'LIVE_CLOUD',
+        isSyncing: false,
+      });
+
+      // Subscribe to Realtime Postgres changes across all core tables
+      const channel = supabase
+        .channel('edzy-web-admin-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'fee_ledger' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped: FeeInstallmentRecord = {
+                id: row.id,
+                studentId: row.student_id,
+                studentName: row.student_name,
+                classGrade: row.class_grade,
+                quarter: row.quarter,
+                amount: Number(row.amount),
+                status: row.status as PaymentStatus,
+                paymentMethod: row.payment_mode as PaymentMethod | undefined,
+                paymentRef: row.payment_ref || undefined,
+                receiptNumber: row.receipt_number || undefined,
+                paidDate: row.paid_at
+                  ? new Date(row.paid_at).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : undefined,
+                dueDate: row.due_date || '30 Nov 2026',
+                clerkNote: row.clerk_note || undefined,
+              };
+
+              const exists = state.feeInstallments.some((f) => f.id === row.id);
+              const updated = exists
+                ? state.feeInstallments.map((f) => (f.id === row.id ? mapped : f))
+                : [mapped, ...state.feeInstallments];
+
+              // Recompute student totalPaid / totalPending
+              const updatedStudents = state.students.map((st) => {
+                if (st.id === row.student_id) {
+                  const studentInstallments = updated.filter((f) => f.studentId === st.id);
+                  const totalPaid = studentInstallments
+                    .filter((f) => f.status === 'PAID')
+                    .reduce((sum, f) => sum + f.amount, 0);
+                  const totalPending = studentInstallments
+                    .filter((f) => f.status !== 'PAID')
+                    .reduce((sum, f) => sum + f.amount, 0);
+                  return { ...st, totalPaid, totalPending };
+                }
+                return st;
+              });
+
+              return { feeInstallments: updated, students: updatedStudents };
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'students' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped: StudentRecord = {
+                id: row.id,
+                rollNo: row.roll_no ? String(row.roll_no).padStart(2, '0') : '0',
+                name: row.name,
+                classGrade: row.class_grade,
+                section: row.section || 'A',
+                parentName: row.parent_name,
+                parentPhone: row.parent_phone,
+                parentPin: row.parent_pin || '1234',
+                annualFee: Number(row.annual_fee || 48000),
+                totalPaid: Number(row.total_paid || 0),
+                totalPending: Number(row.total_pending || 0),
+                atHomeHoursThisWeek: Number(row.at_home_hours || 0),
+                streakDays: Number(row.streak_days || 0),
+                attendancePercent: Number(row.attendance_percent || 95),
+              };
+              const exists = state.students.some((s) => s.id === row.id);
+              return {
+                students: exists
+                  ? state.students.map((s) => (s.id === row.id ? mapped : s))
+                  : [...state.students, mapped],
+              };
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'exam_marks' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped: StudentExamRecord = {
+                studentId: row.student_id,
+                studentName: row.student_name,
+                classGrade: row.class_grade,
+                rollNo: row.roll_no,
+                term: row.term as ExamTerm,
+                scores: Array.isArray(row.scores_json) ? row.scores_json : [],
+                aggregatePercentage: Number(row.aggregate_percentage || 0),
+                overallGrade: row.overall_grade || 'A1',
+                needsRemediation: Boolean(row.needs_remediation),
+              };
+              const filtered = state.examMarks.filter(
+                (e) => !(e.studentId === mapped.studentId && e.term === mapped.term)
+              );
+              return { examMarks: [mapped, ...filtered] };
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'syllabus_roadmaps' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped: SyllabusChapterRecord = {
+                id: row.id,
+                fileName: row.file_name || 'Chapter.pdf',
+                chapterNumber: Number(row.chapter_number),
+                title: row.title,
+                classGrade: row.class_grade,
+                subject: row.subject,
+                fileSizeBytes: row.file_size_bytes || '4.5 MB',
+                uploadedAt: row.created_at
+                  ? new Date(row.created_at).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : 'Today',
+                status: (row.status as any) || 'READY',
+                arModelMapped: (row.ar_model_mapped as any) || 'None',
+                generatedMilestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
+              };
+              const exists = state.syllabusVault.some((s) => s.id === row.id);
+              return {
+                syllabusVault: exists
+                  ? state.syllabusVault.map((s) => (s.id === row.id ? mapped : s))
+                  : [mapped, ...state.syllabusVault],
+              };
+            });
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (err) {
+      console.warn('Supabase Realtime fell back to Demo Mode:', err);
+      set({ connectionMode: 'DEMO_MODE', isSyncing: false });
+      return () => {};
+    }
+  },
 
   collectOfflineFee: (installmentId, mode, referenceNo, clerkNote) => {
     const state = get();
@@ -1080,6 +1348,36 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       students: updatedStudents,
       receiptCounter: state.receiptCounter + 1,
     });
+
+    if (isLiveSupabaseConfigured) {
+      const nowIso = new Date().toISOString();
+      supabase
+        .from('fee_ledger')
+        .update({
+          status: 'PAID',
+          payment_mode: mode,
+          payment_ref: referenceNo || (mode === 'OFFLINE_CASH' ? 'Cash at Counter #1' : 'Cheque In-Hand'),
+          receipt_number: nextReceiptNum,
+          paid_at: nowIso,
+          clerk_note: clerkNote || `Collected by Accounts Desk on ${todayStr}`,
+          updated_at: nowIso,
+        })
+        .eq('id', installmentId)
+        .then(() => {
+          const st = updatedStudents.find((s) => s.id === inst.studentId);
+          if (st) {
+            supabase
+              .from('students')
+              .update({
+                total_paid: st.totalPaid,
+                total_pending: st.totalPending,
+                updated_at: nowIso,
+              })
+              .eq('id', st.id)
+              .then(() => {});
+          }
+        });
+    }
 
     return {
       receiptNumber: nextReceiptNum,
@@ -1150,6 +1448,41 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       feeInstallments: [...state.feeInstallments, ...newInstallments],
     });
 
+    if (isLiveSupabaseConfigured) {
+      const dbStudents = newStudents.map((st) => ({
+        id: st.id,
+        school_code: 'DVPS01',
+        roll_no: st.rollNo,
+        name: st.name,
+        class_grade: st.classGrade,
+        section: st.section,
+        parent_name: st.parentName,
+        parent_phone: st.parentPhone,
+        parent_pin: st.parentPin,
+        annual_fee: st.annualFee,
+        total_paid: st.totalPaid,
+        total_pending: st.totalPending,
+        at_home_hours: st.atHomeHoursThisWeek,
+        streak_days: st.streakDays,
+        attendance_percent: st.attendancePercent,
+      }));
+
+      const dbInstallments = newInstallments.map((inst) => ({
+        id: inst.id,
+        school_code: 'DVPS01',
+        student_id: inst.studentId,
+        student_name: inst.studentName,
+        class_grade: inst.classGrade,
+        quarter: inst.quarter,
+        amount: inst.amount,
+        status: inst.status,
+        due_date: '2026-11-30',
+      }));
+
+      supabase.from('students').upsert(dbStudents).then(() => {});
+      supabase.from('fee_ledger').upsert(dbInstallments).then(() => {});
+    }
+
     return { importedCount: newStudents.length };
   },
 
@@ -1208,6 +1541,28 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set((state) => ({
       syllabusVault: [newRecord, ...state.syllabusVault],
     }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('syllabus_roadmaps')
+        .insert({
+          id: newRecord.id,
+          school_code: 'DVPS01',
+          chapter_number: newRecord.chapterNumber,
+          title: newRecord.title,
+          class_grade: newRecord.classGrade,
+          subject: newRecord.subject,
+          board: 'CBSE',
+          file_name: newRecord.fileName,
+          file_size_bytes: newRecord.fileSizeBytes,
+          status: newRecord.status,
+          ar_model_mapped: newRecord.arModelMapped,
+          milestones_json: newRecord.generatedMilestones,
+          progress_percent: 0,
+          is_current: false,
+        })
+        .then(() => {});
+    }
 
     return newRecord;
   },
@@ -1276,6 +1631,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         overallGrade,
         needsRemediation,
       };
+
+      if (isLiveSupabaseConfigured) {
+        supabase
+          .from('exam_marks')
+          .upsert({
+            id: `${updatedRecord.studentId}_${updatedRecord.term}`,
+            school_code: 'DVPS01',
+            student_id: updatedRecord.studentId,
+            student_name: updatedRecord.studentName,
+            class_grade: updatedRecord.classGrade,
+            roll_no: updatedRecord.rollNo,
+            term: updatedRecord.term,
+            scores_json: updatedRecord.scores,
+            aggregate_percentage: updatedRecord.aggregatePercentage,
+            overall_grade: updatedRecord.overallGrade,
+            needs_remediation: updatedRecord.needsRemediation,
+            updated_at: new Date().toISOString(),
+          })
+          .then(() => {});
+      }
 
       const filtered = state.examMarks.filter(
         (e) => !(e.studentId === studentId && e.term === term)

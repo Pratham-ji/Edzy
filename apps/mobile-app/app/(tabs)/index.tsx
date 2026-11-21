@@ -36,6 +36,7 @@ import {
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
+import { HolographicHeartPreview } from '@/components/HolographicHeartPreview';
 
 export default function MasterBentoDashboard() {
   const router = useRouter();
@@ -57,6 +58,10 @@ export default function MasterBentoDashboard() {
     decrementSessionSecond,
     unlockOrExtendSession,
     toggleTimeLimitActive,
+    connectionMode,
+    liveSyncToast,
+    clearLiveSyncToast,
+    initializeMobileSync,
   } = useEdzyStore();
 
   const [parentOverridePin, setParentOverridePin] = useState('');
@@ -68,6 +73,27 @@ export default function MasterBentoDashboard() {
     }, 1000);
     return () => clearInterval(timer);
   }, [decrementSessionSecond]);
+
+  // Realtime Supabase live sync
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    initializeMobileSync(studentProfile.id).then((c) => {
+      cleanup = c;
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [initializeMobileSync, studentProfile.id]);
+
+  // Auto-dismiss live sync notification toast
+  useEffect(() => {
+    if (liveSyncToast) {
+      const t = setTimeout(() => {
+        clearLiveSyncToast();
+      }, 4500);
+      return () => clearTimeout(t);
+    }
+  }, [liveSyncToast, clearLiveSyncToast]);
 
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -170,6 +196,19 @@ export default function MasterBentoDashboard() {
           </View>
         </View>
 
+        {/* Realtime Live Sync Notification Toast */}
+        {liveSyncToast && (
+          <View style={styles.liveSyncToastBanner}>
+            <View style={styles.pulseGreenDot} />
+            <Text style={styles.liveSyncToastText} numberOfLines={1}>
+              {liveSyncToast}
+            </Text>
+            <TouchableOpacity onPress={clearLiveSyncToast} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={13} color="#6EE7B7" />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* 2. Master Mode Switcher: Study Space vs Parent ERP */}
         <View style={styles.modeSwitcherContainer}>
           <TouchableOpacity
@@ -271,14 +310,14 @@ export default function MasterBentoDashboard() {
                 </View>
               </View>
 
-              {/* Simulated 16:9 3D Wireframe Preview Box */}
+              {/* High-Tech 16:9 Holographic Heart AR Wireframe Viewport */}
               <View style={styles.aspect169PreviewContainer}>
-                <View style={styles.wireframeGrid}>
-                  <View style={styles.targetNodeReticle}>
-                    <View style={styles.pulseRing} />
-                    <Text style={styles.reticleLabel}>FOCUS: {activeArDirective.targetNode}</Text>
-                  </View>
-                </View>
+                <HolographicHeartPreview
+                  targetNode={activeArDirective.targetNode}
+                  fps={activeArDirective.fps}
+                  latencyMs={activeArDirective.latencyMs}
+                  rotation={activeArDirective.rotation}
+                />
                 <View style={styles.arOverlayInfo}>
                   <Text style={styles.arModelTitle}>{activeArDirective.modelName}</Text>
                   <Text style={styles.arModelSub} numberOfLines={1}>
@@ -613,6 +652,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 14,
+    maxWidth: 920,
+    width: '100%',
+    alignSelf: 'center',
   },
   schoolInfoRow: {
     flexDirection: 'row',
@@ -695,6 +737,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.parent.primaryLight,
   },
+  liveSyncToastBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 8,
+    gap: 8,
+  },
+  pulseGreenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  liveSyncToastText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6EE7B7',
+  },
   modeSwitcherContainer: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -740,6 +806,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+    maxWidth: 920,
+    width: '100%',
+    alignSelf: 'center',
   },
   bentoGrid: {
     gap: 14,
@@ -864,14 +933,14 @@ const styles = StyleSheet.create({
   aspect169PreviewContainer: {
     aspectRatio: 16 / 9,
     width: '100%',
+    maxHeight: 260,
     backgroundColor: '#060B14',
     borderRadius: 12,
     borderColor: colors.cardBorder,
     borderWidth: 1,
     overflow: 'hidden',
-    justifyContent: 'space-between',
-    padding: 12,
     position: 'relative',
+    alignSelf: 'center',
   },
   wireframeGrid: {
     flex: 1,
@@ -897,8 +966,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   arOverlayInfo: {
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    padding: 8,
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.90)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     borderColor: colors.cardBorder,
     borderWidth: 1,

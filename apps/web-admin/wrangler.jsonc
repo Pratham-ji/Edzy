@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "edzy-school-admin",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-11-21",
+  "vars": {
+    "VITE_SUPABASE_URL": "https://demo-edzy-school.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo-anon-key-edzy"
+  }
+}

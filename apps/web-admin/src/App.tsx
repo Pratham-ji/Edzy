@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
+import { useAdminStore } from './store/useAdminStore';
 import DashboardPage from './pages/DashboardPage';
 import FeesPage from './pages/FeesPage';
 import StudentsPage from './pages/StudentsPage';
@@ -14,6 +15,17 @@ import UploadSyllabusModal from './components/UploadSyllabusModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
+  const { initializeRealtimeSync } = useAdminStore();
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    initializeRealtimeSync().then((c) => {
+      cleanup = c;
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [initializeRealtimeSync]);
 
   // Global Quick Modals
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);

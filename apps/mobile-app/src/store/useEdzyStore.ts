@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase, isLiveSupabaseConfigured } from '../lib/supabase';
 
 export type UserMode = 'STUDENT' | 'PARENT';
 
@@ -121,7 +122,13 @@ interface EdzyState {
   isTimeLimitActive: boolean;
   isSessionLocked: boolean;
 
+  // Realtime Cloud Connection
+  connectionMode: 'LIVE_CLOUD' | 'DEMO_MODE';
+  liveSyncToast: string | null;
+
   // Actions
+  initializeMobileSync: (studentIdOrRoll?: string) => Promise<() => void>;
+  clearLiveSyncToast: () => void;
   login: (schoolCode: string, studentId: string, pinOrPass: string) => boolean;
   oneTapDemoLogin: () => void;
   logout: () => void;
@@ -527,6 +534,281 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
   isTimeLimitActive: true,
   isSessionLocked: false,
 
+  // Realtime Cloud Connection
+  connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
+  liveSyncToast: null,
+  clearLiveSyncToast: () => set({ liveSyncToast: null }),
+
+  initializeMobileSync: async (studentIdOrRoll = 'SCH-2026-0104') => {
+    if (!isLiveSupabaseConfigured) {
+      set({ connectionMode: 'DEMO_MODE' });
+      return () => {};
+    }
+
+    try {
+      const targetId = studentIdOrRoll;
+      const [studentRes, feeRes, marksRes, syllabusRes] = await Promise.all([
+        supabase.from('students').select('*').eq('id', targetId).maybeSingle(),
+        supabase.from('fee_ledger').select('*').eq('student_id', targetId).order('due_date', { ascending: true }),
+        supabase.from('exam_marks').select('*').eq('student_id', targetId),
+        supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
+      ]);
+
+      const updates: Partial<EdzyState> = {};
+
+      if (studentRes.data) {
+        const s = studentRes.data;
+        updates.studentProfile = {
+          ...get().studentProfile,
+          id: s.id,
+          name: s.name || get().studentProfile.name,
+          rollNo: s.roll_no ? String(s.roll_no) : get().studentProfile.rollNo,
+          classGrade: s.class_grade || get().studentProfile.classGrade,
+          parentName: s.parent_name || get().studentProfile.parentName,
+          parentPin: s.parent_pin || get().studentProfile.parentPin,
+          weeklyStudyHours: Number(s.at_home_hours || get().studentProfile.weeklyStudyHours),
+          streakDays: Number(s.streak_days || get().studentProfile.streakDays),
+        };
+      }
+
+      if (feeRes.data && feeRes.data.length > 0) {
+        updates.feeInstallments = feeRes.data.map((row: any) => ({
+          id: row.id,
+          quarter: row.quarter,
+          academicYear: '2026-2027',
+          amount: Number(row.amount),
+          status: row.status as PaymentStatus,
+          paymentMethod: row.payment_mode as PaymentMethod | undefined,
+          paymentChannelDetail:
+            row.payment_mode === 'OFFLINE_CASH'
+              ? 'School Accounts Desk (Cash Counter #1)'
+              : row.payment_mode === 'OFFLINE_CHEQUE'
+              ? `Bank Cheque (${row.payment_ref || 'In-Hand'})`
+              : 'Instant UPI (Razorpay/NPCI)',
+          receiptNumber: row.receipt_number || undefined,
+          paidDate: row.paid_at
+            ? new Date(row.paid_at).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })
+            : undefined,
+          dueDate: row.due_date || '30 Nov 2026',
+        }));
+      }
+
+      if (marksRes.data && marksRes.data.length > 0) {
+        updates.examMarks = marksRes.data.map((row: any) => ({
+          termId: row.term as any,
+          termName:
+            row.term === 'PRE_BOARD'
+              ? 'Class 10 Pre-Board Examination'
+              : row.term === 'MIDTERM'
+              ? 'Class 10 Midterm Examination'
+              : 'Class 10 Unit Test 1',
+          academicYear: '2026-2027',
+          totalObtained: Array.isArray(row.scores_json)
+            ? row.scores_json.reduce((sum: number, sc: any) => sum + (sc.marksObtained || 0), 0)
+            : 463,
+          totalMax: 500,
+          percentage: Number(row.aggregate_percentage || 92.6),
+          rankInClass: 2,
+          totalStudents: 42,
+          attendancePercentage: 96.8,
+          scores: Array.isArray(row.scores_json)
+            ? row.scores_json.map((sc: any) => ({
+                subject: sc.subject,
+                marksObtained: sc.marksObtained,
+                maxMarks: sc.maxMarks || 100,
+                grade: sc.grade || 'A1',
+                classAverage: 78,
+                teacherRemarks: sc.remarks || 'Good performance',
+              }))
+            : [],
+        }));
+      }
+
+      if (syllabusRes.data && syllabusRes.data.length > 0) {
+        updates.roadmaps = syllabusRes.data.map((row: any) => ({
+          id: row.id,
+          chapterNumber: Number(row.chapter_number),
+          subject: row.subject,
+          title: row.title,
+          board: 'CBSE Class 10 NCERT',
+          totalSubtopics: Array.isArray(row.milestones_json) ? row.milestones_json.length : 5,
+          completedSubtopics: Number(row.progress_percent) > 50 ? 3 : 1,
+          progressPercent: Number(row.progress_percent || 0),
+          isCurrent: Boolean(row.is_current),
+          milestones: Array.isArray(row.milestones_json)
+            ? row.milestones_json.map((ms: any, idx: number) => ({
+                id: ms.nodeId || `m-${idx}`,
+                title: ms.title,
+                description: ms.ncertPageRange || 'NCERT Textbook',
+                status: idx === 0 ? 'COMPLETED' : idx === 1 ? 'IN_PROGRESS' : 'LOCKED',
+                targetNode: row.ar_model_mapped !== 'None' ? 'Aorta' : undefined,
+                durationMinutes: 45,
+              }))
+            : [],
+        }));
+      }
+
+      set({
+        ...updates,
+        connectionMode: 'LIVE_CLOUD',
+      });
+
+      // Realtime subscription filtered for student
+      const channel = supabase
+        .channel(`mobile-sync-${targetId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'fee_ledger',
+            filter: `student_id=eq.${targetId}`,
+          },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped: FeeInstallment = {
+                id: row.id,
+                quarter: row.quarter,
+                academicYear: '2026-2027',
+                amount: Number(row.amount),
+                status: row.status as PaymentStatus,
+                paymentMethod: row.payment_mode as PaymentMethod | undefined,
+                paymentChannelDetail:
+                  row.payment_mode === 'OFFLINE_CASH'
+                    ? 'School Accounts Desk (Cash Counter #1)'
+                    : row.payment_mode === 'OFFLINE_CHEQUE'
+                    ? `Bank Cheque (${row.payment_ref || 'In-Hand'})`
+                    : 'Instant UPI (Razorpay/NPCI)',
+                receiptNumber: row.receipt_number || undefined,
+                paidDate: row.paid_at
+                  ? new Date(row.paid_at).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : undefined,
+                dueDate: row.due_date || '30 Nov 2026',
+              };
+
+              const updated = state.feeInstallments.map((item) =>
+                item.id === row.id ? mapped : item
+              );
+
+              const notice = row.receipt_number
+                ? `Fee Receipt #${row.receipt_number} synced from School Desk`
+                : `Fee installment updated: ${row.quarter}`;
+
+              return {
+                feeInstallments: updated,
+                liveSyncToast: notice,
+              };
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'exam_marks',
+            filter: `student_id=eq.${targetId}`,
+          },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped: ExamTermRecord = {
+                termId: row.term as any,
+                termName:
+                  row.term === 'PRE_BOARD'
+                    ? 'Class 10 Pre-Board Examination'
+                    : row.term === 'MIDTERM'
+                    ? 'Class 10 Midterm Examination'
+                    : 'Class 10 Unit Test 1',
+                academicYear: '2026-2027',
+                totalObtained: Array.isArray(row.scores_json)
+                  ? row.scores_json.reduce((sum: number, sc: any) => sum + (sc.marksObtained || 0), 0)
+                  : 463,
+                totalMax: 500,
+                percentage: Number(row.aggregate_percentage || 92.6),
+                rankInClass: 2,
+                totalStudents: 42,
+                attendancePercentage: 96.8,
+                scores: Array.isArray(row.scores_json)
+                  ? row.scores_json.map((sc: any) => ({
+                      subject: sc.subject,
+                      marksObtained: sc.marksObtained,
+                      maxMarks: sc.maxMarks || 100,
+                      grade: sc.grade || 'A1',
+                      classAverage: 78,
+                      teacherRemarks: sc.remarks || 'Good performance',
+                    }))
+                  : [],
+              };
+              const filtered = state.examMarks.filter((m) => m.termId !== mapped.termId);
+              return {
+                examMarks: [mapped, ...filtered],
+                liveSyncToast: `Exam Marks updated by teacher: ${mapped.termName}`,
+              };
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'syllabus_roadmaps' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const newRoadmap: SyllabusRoadmap = {
+                id: row.id,
+                chapterNumber: Number(row.chapter_number),
+                subject: row.subject,
+                title: row.title,
+                board: 'CBSE Class 10 NCERT',
+                totalSubtopics: Array.isArray(row.milestones_json) ? row.milestones_json.length : 5,
+                completedSubtopics: 1,
+                progressPercent: Number(row.progress_percent || 0),
+                isCurrent: Boolean(row.is_current),
+                milestones: Array.isArray(row.milestones_json)
+                  ? row.milestones_json.map((ms: any, idx: number) => ({
+                      id: ms.nodeId || `m-${idx}`,
+                      title: ms.title,
+                      description: ms.ncertPageRange || 'NCERT Textbook',
+                      status: idx === 0 ? 'COMPLETED' : idx === 1 ? 'IN_PROGRESS' : 'LOCKED',
+                      targetNode: row.ar_model_mapped !== 'None' ? 'Aorta' : undefined,
+                      durationMinutes: 45,
+                    }))
+                  : [],
+              };
+              const exists = state.roadmaps.some((r) => r.id === row.id);
+              return {
+                roadmaps: exists
+                  ? state.roadmaps.map((r) => (r.id === row.id ? newRoadmap : r))
+                  : [...state.roadmaps, newRoadmap],
+                liveSyncToast: `New Syllabus Chapter synced: Ch ${newRoadmap.chapterNumber}`,
+              };
+            });
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (err) {
+      console.warn('Mobile Supabase Realtime fell back to Demo Mode:', err);
+      set({ connectionMode: 'DEMO_MODE' });
+      return () => {};
+    }
+  },
+
   login: (schoolCode, studentId, pinOrPass) => {
     // Validates credentials or fallback to demo
     if (studentId.trim() === 'SCH-2026-0104' || pinOrPass === '1234' || schoolCode.toUpperCase() === 'DVPS01') {
@@ -675,6 +957,34 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     });
 
     set({ feeInstallments: updatedInstallments });
+
+    if (isLiveSupabaseConfigured) {
+      const nowIso = new Date().toISOString();
+      supabase
+        .from('fee_ledger')
+        .update({
+          status: 'PAID',
+          payment_mode: 'ONLINE_UPI',
+          payment_ref: 'UPI-RAZOR-991204',
+          receipt_number: generatedReceipt,
+          paid_at: nowIso,
+          clerk_note: 'Paid via Instant UPI on Mobile App',
+          updated_at: nowIso,
+        })
+        .eq('id', installmentId)
+        .then(() => {});
+
+      supabase
+        .from('students')
+        .update({
+          total_paid: 48000,
+          total_pending: 0,
+          updated_at: nowIso,
+        })
+        .eq('id', state.studentProfile.id)
+        .then(() => {});
+    }
+
     return {
       success: true,
       message: 'Payment of ₹12,000 processed successfully via UPI.',

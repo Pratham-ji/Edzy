@@ -29,7 +29,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenCsvModal,
   onOpenSyllabusModal,
 }) => {
-  const { schoolProfile } = useAdminStore();
+  const { schoolProfile, connectionMode } = useAdminStore();
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
@@ -76,11 +76,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         <div className="h-5 w-px bg-slate-200 mx-1" />
 
-        {/* Database Status Indicator */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-slate-50 text-slate-600 border-slate-200">
-          <Database className={`w-3.5 h-3.5 ${isLiveSupabaseConfigured ? 'text-emerald-500' : 'text-indigo-500'}`} />
-          <span>{isLiveSupabaseConfigured ? 'Live Supabase DB' : 'Demo Pitch Mode'}</span>
-        </div>
+        {/* Database Status Indicator: Live Cloud Sync vs Offline Demo Mode */}
+        {connectionMode === 'LIVE_CLOUD' ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Live Cloud Sync</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span>Offline Demo Mode</span>
+          </div>
+        )}
 
         {/* Academic Session Pill */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-medium text-slate-700">
