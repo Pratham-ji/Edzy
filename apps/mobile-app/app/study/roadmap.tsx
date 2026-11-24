@@ -27,7 +27,7 @@ import { colors } from '@/theme/colors';
 export default function SyllabusRoadmapScreen() {
   const router = useRouter();
   const { roadmaps, markMilestoneStatus, updateArDirective, incrementStudyHour } = useEdzyStore();
-  const [selectedRoadmapId, setSelectedRoadmapId] = useState<string>(roadmaps[0].id);
+  const [selectedRoadmapId, setSelectedRoadmapId] = useState<string>(roadmaps[0]?.id || 'bio-ch6');
 
   const activeRoadmap = roadmaps.find((r) => r.id === selectedRoadmapId) || roadmaps[0];
 
@@ -64,10 +64,6 @@ export default function SyllabusRoadmapScreen() {
     <SafeAreaView style={styles.safeContainer}>
       {/* Chapter Selection Horizontal Scroller */}
       <View style={styles.selectorHeader}>
-        <Text style={styles.headerTitle}>CBSE Class 10 Syllabus Track</Text>
-        <Text style={styles.headerSubtitle}>
-          Select a subject chapter to view curriculum milestones and AR experiments:
-        </Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -105,172 +101,142 @@ export default function SyllabusRoadmapScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.contentScroll} showsVerticalScrollIndicator={false}>
-        {/* Selected Chapter Progress Summary Card */}
-        <View style={styles.chapterSummaryCard}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Chapter Summary Card */}
+        <View style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
+            <View style={styles.subjectPill}>
+              <BookOpen size={12} color={colors.brand.primary} />
+              <Text style={styles.subjectPillText}>
+                {activeRoadmap.subject} • Chapter {activeRoadmap.chapterNumber}
+              </Text>
+            </View>
             <View style={styles.boardBadge}>
-              <ShieldCheck size={14} color={colors.student.secondaryLight} />
               <Text style={styles.boardBadgeText}>{activeRoadmap.board}</Text>
             </View>
-            <Text style={styles.completedCountText}>
-              {activeRoadmap.completedSubtopics} / {activeRoadmap.totalSubtopics} Milestones
-            </Text>
           </View>
 
-          <Text style={styles.chapterMainTitle}>
-            Chapter {activeRoadmap.chapterNumber}: {activeRoadmap.title}
-          </Text>
+          <Text style={styles.chapterMainTitle}>{activeRoadmap.title}</Text>
 
-          {/* Progress bar */}
-          <View style={styles.progressBarTrack}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${activeRoadmap.progressPercent}%` },
-              ]}
-            />
-          </View>
-
-          <View style={styles.summaryMetaRow}>
-            <View style={styles.metaItem}>
-              <Clock size={12} color={colors.text.muted} />
-              <Text style={styles.metaText}>Est. 3.5 Hours Total</Text>
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBarTrack}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${activeRoadmap.progressPercent}%` },
+                  activeRoadmap.progressPercent === 100 && {
+                    backgroundColor: colors.status.success,
+                  },
+                ]}
+              />
             </View>
-            <View style={styles.metaItem}>
-              <Sparkles size={12} color={colors.student.secondaryLight} />
-              <Text style={styles.metaText}>NCERT Syllabus Verified</Text>
+            <View style={styles.progressLabelRow}>
+              <Text style={styles.progressPercentText}>
+                {activeRoadmap.progressPercent}% Completed
+              </Text>
+              <Text style={styles.progressSubText}>
+                {activeRoadmap.completedSubtopics} of {activeRoadmap.totalSubtopics} topics cleared
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Milestone Tree Title */}
-        <View style={styles.treeHeaderRow}>
-          <Text style={styles.treeSectionTitle}>Interactive Milestone Sequence</Text>
-          <Text style={styles.treeSectionSubtitle}>Tap to mark progress or view 3D model</Text>
-        </View>
+        {/* Milestone Timeline Header */}
+        <Text style={styles.timelineSectionTitle}>NCERT Topic Milestones</Text>
 
-        {/* Milestones List */}
-        <View style={styles.milestoneTreeContainer}>
-          {activeRoadmap.milestones.map((milestone, index) => {
-            const isCompleted = milestone.status === 'COMPLETED';
-            const isInProgress = milestone.status === 'IN_PROGRESS';
-            const isLocked = milestone.status === 'LOCKED';
+        {/* Milestone Tree List */}
+        <View style={styles.milestoneList}>
+          {activeRoadmap.milestones.map((node, index) => {
+            const isCompleted = node.status === 'COMPLETED';
+            const isInProgress = node.status === 'IN_PROGRESS';
+            const isLocked = node.status === 'LOCKED';
 
             return (
-              <View key={milestone.id} style={styles.milestoneItemWrapper}>
-                {/* Vertical tree connection line */}
-                {index < activeRoadmap.milestones.length - 1 && (
+              <View key={node.id} style={styles.milestoneCard}>
+                <View style={styles.nodeHeaderRow}>
+                  <View style={styles.statusIconBox}>
+                    {isCompleted ? (
+                      <CheckCircle2 size={20} color={colors.status.success} />
+                    ) : isInProgress ? (
+                      <PlayCircle size={20} color={colors.brand.primary} />
+                    ) : (
+                      <Lock size={18} color={colors.text.muted} />
+                    )}
+                  </View>
+
+                  <View style={styles.nodeTitleContainer}>
+                    <Text
+                      style={[
+                        styles.nodeTitle,
+                        isLocked && styles.nodeTitleLocked,
+                      ]}
+                    >
+                      {node.title}
+                    </Text>
+                    <View style={styles.timeTag}>
+                      <Clock size={11} color={colors.text.muted} />
+                      <Text style={styles.timeTagText}>{node.durationMinutes} mins</Text>
+                    </View>
+                  </View>
+
                   <View
                     style={[
-                      styles.treeConnectorLine,
-                      isCompleted && styles.treeConnectorLineCompleted,
+                      styles.statusPillBadge,
+                      isCompleted && styles.badgeCompleted,
+                      isInProgress && styles.badgeInProgress,
+                      isLocked && styles.badgeLocked,
                     ]}
-                  />
-                )}
-
-                {/* Milestone Node Card */}
-                <View
-                  style={[
-                    styles.milestoneCard,
-                    isCompleted && styles.milestoneCardCompleted,
-                    isInProgress && styles.milestoneCardInProgress,
-                    isLocked && styles.milestoneCardLocked,
-                  ]}
-                >
-                  <View style={styles.nodeHeaderRow}>
-                    {/* Status Icon */}
-                    <View style={styles.statusIconBox}>
-                      {isCompleted && (
-                        <CheckCircle2 size={20} color={colors.parent.primaryLight} />
-                      )}
-                      {isInProgress && (
-                        <PlayCircle size={20} color={colors.student.secondaryLight} />
-                      )}
-                      {isLocked && <Lock size={18} color={colors.text.disabled} />}
-                    </View>
-
-                    <View style={styles.nodeTitleContainer}>
-                      <Text
-                        style={[
-                          styles.nodeTitle,
-                          isLocked && styles.nodeTitleLocked,
-                        ]}
-                      >
-                        {milestone.title}
-                      </Text>
-                      <View style={styles.timeTag}>
-                        <Clock size={10} color={colors.text.muted} />
-                        <Text style={styles.timeTagText}>{milestone.durationMinutes} mins</Text>
-                      </View>
-                    </View>
-
-                    {/* Status Badge */}
-                    <View
+                  >
+                    <Text
                       style={[
-                        styles.nodeStatusBadge,
-                        isCompleted && styles.badgeCompleted,
-                        isInProgress && styles.badgeInProgress,
-                        isLocked && styles.badgeLocked,
+                        styles.statusPillBadgeText,
+                        isCompleted && { color: colors.status.success },
+                        isInProgress && { color: colors.brand.primary },
+                        isLocked && { color: colors.text.muted },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.nodeStatusBadgeText,
-                          isCompleted && { color: colors.parent.primaryLight },
-                          isInProgress && { color: colors.student.secondaryLight },
-                          isLocked && { color: colors.text.disabled },
-                        ]}
-                      >
-                        {milestone.status}
-                      </Text>
-                    </View>
+                      {isCompleted ? 'Done' : isInProgress ? 'Active' : 'Locked'}
+                    </Text>
                   </View>
+                </View>
 
-                  <Text style={styles.nodeDescription}>{milestone.description}</Text>
+                <Text style={styles.nodeDescription}>{node.description}</Text>
 
-                  {/* Action buttons inside Milestone */}
-                  <View style={styles.nodeActionsRow}>
-                    {milestone.targetNode && (
-                      <TouchableOpacity
-                        style={styles.arPillButton}
-                        onPress={() => handleLaunchAR(milestone.arModelId, milestone.targetNode)}
-                        activeOpacity={0.8}
-                      >
-                        <Boxes size={14} color={colors.spatial.nodeActive} />
-                        <Text style={styles.arPillButtonText}>
-                          AR: {milestone.targetNode}
-                        </Text>
-                        <ChevronRight size={12} color={colors.spatial.nodeActive} />
-                      </TouchableOpacity>
-                    )}
-
+                <View style={styles.nodeActionsRow}>
+                  {node.arModelId ? (
                     <TouchableOpacity
-                      style={[
-                        styles.toggleButton,
-                        isCompleted && styles.toggleButtonCompleted,
-                        isInProgress && styles.toggleButtonProgress,
-                        isLocked && styles.toggleButtonLocked,
-                      ]}
-                      onPress={() =>
-                        handleToggleMilestone(milestone.id, milestone.status, milestone.targetNode)
-                      }
+                      style={styles.arPillButton}
+                      onPress={() => handleLaunchAR(node.arModelId, node.targetNode)}
                       activeOpacity={0.8}
                     >
-                      <Text
-                        style={[
-                          styles.toggleButtonText,
-                          isCompleted && { color: colors.text.secondary },
-                        ]}
-                      >
-                        {isCompleted
-                          ? 'Review Node'
-                          : isInProgress
-                          ? 'Mark Complete ✓'
-                          : 'Locked (Sequence)'}
-                      </Text>
+                      <Boxes size={14} color={colors.brand.primary} />
+                      <Text style={styles.arPillButtonText}>Open 3D Lab</Text>
                     </TouchableOpacity>
-                  </View>
+                  ) : (
+                    <View />
+                  )}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleButton,
+                      isInProgress && styles.toggleButtonProgress,
+                      isCompleted && styles.toggleButtonCompleted,
+                      isLocked && styles.toggleButtonLocked,
+                    ]}
+                    onPress={() => handleToggleMilestone(node.id, node.status, node.targetNode)}
+                    disabled={isLocked}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleButtonText,
+                        isCompleted && styles.toggleButtonTextCompleted,
+                      ]}
+                    >
+                      {isCompleted ? 'Completed ✓' : isInProgress ? 'Mark Complete' : 'Locked'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -288,39 +254,25 @@ const styles = StyleSheet.create({
   },
   selectorHeader: {
     backgroundColor: colors.surface,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomColor: colors.cardBorder,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text.primary,
-    paddingHorizontal: 16,
-  },
-  headerSubtitle: {
-    fontSize: 11,
-    color: colors.text.muted,
-    paddingHorizontal: 16,
-    marginTop: 2,
-    marginBottom: 12,
+    borderBottomColor: colors.surfaceBorder,
   },
   horizontalScroll: {
     paddingHorizontal: 16,
     gap: 10,
   },
   chapterTabCard: {
-    width: 170,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
+    width: 136,
+    backgroundColor: colors.background,
+    borderRadius: 12,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
+    borderColor: colors.surfaceBorder,
+    padding: 10,
   },
   chapterTabCardActive: {
-    borderColor: colors.student.secondaryLight,
-    backgroundColor: 'rgba(6, 182, 212, 0.08)',
+    backgroundColor: colors.brand.tint,
+    borderColor: colors.brand.primary,
   },
   tabTopRow: {
     flexDirection: 'row',
@@ -329,150 +281,134 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   tabSubject: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.text.muted,
+    color: colors.text.secondary,
   },
   tabSubjectActive: {
-    color: colors.student.secondaryLight,
+    color: colors.brand.primary,
   },
   tabPercentBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    paddingHorizontal: 6,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 6,
   },
   tabPercentText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.student.primaryLight,
+    color: colors.brand.primary,
   },
   tabTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text.secondary,
-    lineHeight: 16,
+    fontSize: 11,
+    color: colors.text.primary,
+    fontWeight: '600',
+    lineHeight: 15,
   },
   tabTitleActive: {
-    color: colors.text.primary,
+    color: colors.brand.primaryDark,
+    fontWeight: '700',
   },
-  contentScroll: {
+  scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    gap: 14,
   },
-  chapterSummaryCard: {
-    backgroundColor: colors.student.cardBg,
-    borderColor: colors.student.border,
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderRadius: 18,
+    borderColor: colors.surfaceBorder,
     padding: 16,
-    marginBottom: 20,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: colors.shadow.elevation,
   },
   summaryTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  boardBadge: {
+  subjectPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: colors.brand.tint,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  subjectPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
+  boardBadge: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   boardBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
-  },
-  completedCountText: {
-    fontSize: 11,
-    color: colors.text.muted,
+    color: colors.text.secondary,
     fontWeight: '600',
   },
   chapterMainTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: colors.text.primary,
-    marginBottom: 12,
-    lineHeight: 24,
+    marginBottom: 14,
+  },
+  progressContainer: {
+    gap: 6,
   },
   progressBarTrack: {
-    height: 8,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    height: 7,
+    backgroundColor: colors.background,
     borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 12,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.student.secondaryLight,
+    backgroundColor: colors.brand.primary,
     borderRadius: 4,
   },
-  summaryMetaRow: {
+  progressLabelRow: {
     flexDirection: 'row',
-    gap: 16,
+    justifyContent: 'space-between',
   },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+  progressPercentText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brand.primary,
   },
-  metaText: {
+  progressSubText: {
     fontSize: 11,
     color: colors.text.muted,
-    fontWeight: '500',
   },
-  treeHeaderRow: {
-    marginBottom: 14,
-  },
-  treeSectionTitle: {
+  timelineSectionTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.text.primary,
+    marginTop: 4,
   },
-  treeSectionSubtitle: {
-    fontSize: 11,
-    color: colors.text.muted,
-    marginTop: 2,
-  },
-  milestoneTreeContainer: {
-    position: 'relative',
-    paddingLeft: 8,
-  },
-  milestoneItemWrapper: {
-    position: 'relative',
-    marginBottom: 14,
-  },
-  treeConnectorLine: {
-    position: 'absolute',
-    left: 20,
-    top: 36,
-    bottom: -18,
-    width: 2,
-    backgroundColor: colors.cardBorder,
-    zIndex: -1,
-  },
-  treeConnectorLineCompleted: {
-    backgroundColor: colors.parent.primary,
+  milestoneList: {
+    gap: 12,
   },
   milestoneCard: {
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-  },
-  milestoneCardCompleted: {
-    borderColor: colors.parent.border,
-    backgroundColor: '#0E1C1F',
-  },
-  milestoneCardInProgress: {
-    borderColor: colors.student.secondary,
-    backgroundColor: '#0F1E2E',
-  },
-  milestoneCardLocked: {
-    opacity: 0.65,
-    backgroundColor: colors.background,
+    borderColor: colors.surfaceBorder,
+    padding: 16,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: 1,
   },
   nodeHeaderRow: {
     flexDirection: 'row',
@@ -487,7 +423,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   nodeTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.text.primary,
   },
@@ -501,76 +437,78 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   timeTagText: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.text.muted,
   },
-  nodeStatusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  statusPillBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   badgeCompleted: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: colors.status.successBg,
   },
   badgeInProgress: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    backgroundColor: colors.brand.tint,
   },
   badgeLocked: {
-    backgroundColor: 'rgba(100, 116, 139, 0.15)',
+    backgroundColor: colors.background,
   },
-  nodeStatusBadgeText: {
-    fontSize: 9,
+  statusPillBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
   },
   nodeDescription: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text.secondary,
-    lineHeight: 16,
+    lineHeight: 17,
     marginBottom: 12,
   },
   nodeActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopColor: colors.cardBorder,
     borderTopWidth: 1,
+    borderTopColor: colors.divider,
     paddingTop: 10,
-    gap: 8,
   },
   arPillButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.spatial.telemetryBg,
-    borderColor: colors.spatial.telemetryBorder,
-    borderWidth: 0.8,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
     gap: 5,
+    backgroundColor: colors.brand.tint,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   arPillButtonText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.spatial.nodeActive,
+    color: colors.brand.primary,
   },
   toggleButton: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: colors.student.primary,
+    backgroundColor: colors.brand.primary,
   },
   toggleButtonProgress: {
-    backgroundColor: colors.student.secondary,
+    backgroundColor: colors.brand.primary,
   },
   toggleButtonCompleted: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.status.successBg,
+    borderWidth: 1,
+    borderColor: colors.status.successBorder,
   },
   toggleButtonLocked: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.background,
   },
   toggleButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  toggleButtonTextCompleted: {
+    color: colors.status.success,
   },
 });

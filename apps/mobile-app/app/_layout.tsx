@@ -14,26 +14,25 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === 'login';
 
     if (!isAuthenticated && !inAuthGroup) {
-      // Redirect unauthenticated users to the college-ERP style login screen
       router.replace('/login');
     } else if (isAuthenticated && inAuthGroup) {
-      // Redirect authenticated users to the master Bento dashboard
       router.replace('/(tabs)');
     }
   }, [isAuthenticated, segments, router]);
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: colors.background,
+            backgroundColor: colors.surface,
           },
           headerTintColor: colors.text.primary,
           headerTitleStyle: {
             fontWeight: '700',
-            fontSize: 18,
+            fontSize: 17,
+            color: colors.text.primary,
           },
           headerShadowVisible: false,
           contentStyle: {
@@ -46,36 +45,36 @@ export default function RootLayout() {
         <Stack.Screen
           name="study/roadmap"
           options={{
-            title: 'CBSE Class 10 Roadmap',
-            headerBackTitle: 'Dashboard',
+            title: 'CBSE Chapter Roadmap',
+            headerBackTitle: 'Back',
           }}
         />
         <Stack.Screen
           name="study/ar-lab"
           options={{
-            title: '16:9 Spatial AR Lab',
+            title: '3D Visual Lab',
             headerBackTitle: 'Back',
           }}
         />
         <Stack.Screen
           name="study/tutor"
           options={{
-            title: 'Socratic AI Tutor',
-            headerBackTitle: 'Study',
+            title: 'AI Doubt Tutor',
+            headerBackTitle: 'Back',
           }}
         />
         <Stack.Screen
           name="erp/fees"
           options={{
             title: 'Fee Passbook & Receipts',
-            headerBackTitle: 'ERP',
+            headerBackTitle: 'Back',
           }}
         />
         <Stack.Screen
           name="erp/marks"
           options={{
-            title: 'CBSE Exam Performance',
-            headerBackTitle: 'ERP',
+            title: 'Exam Report Card',
+            headerBackTitle: 'Back',
           }}
         />
       </Stack>

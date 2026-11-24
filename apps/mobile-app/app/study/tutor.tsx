@@ -69,16 +69,16 @@ export default function SocraticTutorScreen() {
         <View style={styles.tutorHeader}>
           <View style={styles.tutorHeaderRow}>
             <View style={styles.botAvatar}>
-              <Bot size={20} color={colors.student.secondaryLight} />
+              <Bot size={20} color={colors.brand.primary} />
             </View>
             <View style={styles.botMeta}>
-              <Text style={styles.botTitle}>Edzy Socratic Guru</Text>
+              <Text style={styles.botTitle}>Edzy Socratic AI Tutor</Text>
               <Text style={styles.botSub}>
                 NCERT Class 10 Syllabus Grounded • Bilingual Hinglish AI
               </Text>
             </View>
             <View style={styles.curriculumTag}>
-              <ShieldCheck size={12} color={colors.parent.primaryLight} />
+              <ShieldCheck size={12} color={colors.status.success} />
               <Text style={styles.curriculumTagText}>CBSE Verified</Text>
             </View>
           </View>
@@ -101,8 +101,8 @@ export default function SocraticTutorScreen() {
                 ]}
               >
                 {!isStudent && (
-                  <View style={styles.smallBotIcon}>
-                    <Sparkles size={14} color={colors.student.secondaryLight} />
+                  <View style={styles.aiAvatarSmall}>
+                    <Bot size={14} color={colors.brand.primary} />
                   </View>
                 )}
 
@@ -121,37 +121,43 @@ export default function SocraticTutorScreen() {
                     {msg.text}
                   </Text>
 
-                  {/* Socratic Citations & AR Jump Pill */}
-                  {!isStudent && msg.sourceDoc && (
+                  {/* Grounded Citation & 3D Node Callout */}
+                  {!isStudent && (msg.sourceDoc || msg.arTriggerNode) && (
                     <View style={styles.aiFooterBox}>
-                      <View style={styles.citationRow}>
-                        <BookOpen size={11} color={colors.student.primaryLight} />
-                        <Text style={styles.citationText}>{msg.sourceDoc}</Text>
-                      </View>
+                      {msg.sourceDoc && (
+                        <View style={styles.citationRow}>
+                          <BookOpen size={11} color={colors.brand.primary} />
+                          <Text style={styles.citationText}>Source: {msg.sourceDoc}</Text>
+                        </View>
+                      )}
 
                       {msg.arTriggerNode && (
                         <TouchableOpacity
                           style={styles.inspectArButton}
-                          onPress={() =>
-                            handleInspectArNode(msg.arTriggerNode!, msg.arModelName)
-                          }
+                          onPress={() => handleInspectArNode(msg.arTriggerNode!, msg.arModelName)}
                           activeOpacity={0.8}
                         >
-                          <Boxes size={14} color={colors.spatial.nodeActive} />
+                          <Boxes size={13} color={colors.brand.primary} />
                           <Text style={styles.inspectArButtonText}>
-                            Inspect Node in 3D AR: {msg.arTriggerNode}
+                            Inspect {msg.arTriggerNode} in 3D Lab →
                           </Text>
-                          <ArrowRight size={12} color={colors.spatial.nodeActive} />
                         </TouchableOpacity>
                       )}
                     </View>
                   )}
 
-                  <Text style={styles.timestampText}>{msg.timestamp}</Text>
+                  <Text
+                    style={[
+                      styles.timestampText,
+                      isStudent && { color: 'rgba(255, 255, 255, 0.7)' },
+                    ]}
+                  >
+                    {msg.timestamp}
+                  </Text>
                 </View>
 
                 {isStudent && (
-                  <View style={styles.smallUserIcon}>
+                  <View style={styles.studentAvatarSmall}>
                     <User size={14} color="#FFFFFF" />
                   </View>
                 )}
@@ -160,9 +166,9 @@ export default function SocraticTutorScreen() {
           })}
         </ScrollView>
 
-        {/* Quick Suggestion Chips */}
+        {/* NCERT Recommended Prompts */}
         <View style={styles.suggestionsContainer}>
-          <Text style={styles.suggestionsTitle}>Syllabus Prompt Ideas:</Text>
+          <Text style={styles.suggestionsTitle}>CBSE BOARD FREQUENTLY ASKED DOUBTS</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -185,11 +191,10 @@ export default function SocraticTutorScreen() {
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.chatInput}
+            placeholder="Ask doubt about Science, Maths, or English..."
+            placeholderTextColor={colors.text.muted}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Ask doubts from Class 10 NCERT Life Processes..."
-            placeholderTextColor={colors.text.disabled}
-            multiline={false}
             onSubmitEditing={() => handleSend()}
             returnKeyType="send"
           />
@@ -202,7 +207,7 @@ export default function SocraticTutorScreen() {
             disabled={!inputText.trim()}
             activeOpacity={0.8}
           >
-            <Send size={16} color="#FFFFFF" />
+            <Send size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -221,9 +226,9 @@ const styles = StyleSheet.create({
   tutorHeader: {
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomColor: colors.cardBorder,
+    paddingVertical: 10,
     borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceBorder,
   },
   tutorHeaderRow: {
     flexDirection: 'row',
@@ -231,12 +236,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   botAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.student.secondary,
-    borderWidth: 1,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.brand.tint,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -245,7 +248,7 @@ const styles = StyleSheet.create({
   },
   botTitle: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text.primary,
   },
   botSub: {
@@ -257,7 +260,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    backgroundColor: colors.status.successBg,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -265,17 +268,16 @@ const styles = StyleSheet.create({
   curriculumTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.parent.primaryLight,
+    color: colors.status.success,
   },
   messagesScroll: {
     padding: 16,
-    paddingBottom: 20,
-    gap: 14,
+    gap: 12,
   },
   messageRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
     gap: 8,
+    alignItems: 'flex-end',
   },
   messageRowStudent: {
     justifyContent: 'flex-end',
@@ -283,37 +285,42 @@ const styles = StyleSheet.create({
   messageRowAI: {
     justifyContent: 'flex-start',
   },
-  smallBotIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
+  aiAvatarSmall: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.brand.tint,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 4,
   },
-  smallUserIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: colors.student.primary,
+  studentAvatarSmall: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.brand.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 4,
   },
   bubble: {
     maxWidth: '82%',
     borderRadius: 16,
     padding: 14,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: 1,
   },
   bubbleStudent: {
-    backgroundColor: colors.student.primary,
+    backgroundColor: colors.brand.primary,
     borderBottomRightRadius: 4,
   },
   bubbleAI: {
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
     borderWidth: 1,
+    borderColor: colors.surfaceBorder,
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -329,7 +336,7 @@ const styles = StyleSheet.create({
   },
   aiFooterBox: {
     marginTop: 10,
-    borderTopColor: colors.cardBorder,
+    borderTopColor: colors.divider,
     borderTopWidth: 1,
     paddingTop: 8,
     gap: 8,
@@ -340,16 +347,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   citationText: {
-    fontSize: 10,
-    color: colors.student.primaryLight,
+    fontSize: 11,
+    color: colors.brand.primary,
     fontWeight: '600',
   },
   inspectArButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.spatial.telemetryBg,
-    borderColor: colors.spatial.telemetryBorder,
+    backgroundColor: colors.brand.tint,
     borderWidth: 1,
+    borderColor: colors.brand.tintBorder,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 7,
@@ -358,7 +365,7 @@ const styles = StyleSheet.create({
   inspectArButtonText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.spatial.nodeActive,
+    color: colors.brand.primary,
     flex: 1,
   },
   timestampText: {
@@ -370,8 +377,8 @@ const styles = StyleSheet.create({
   suggestionsContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.background,
-    borderTopColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    borderTopColor: colors.surfaceBorder,
     borderTopWidth: 1,
   },
   suggestionsTitle: {
@@ -385,8 +392,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   suggestionChip: {
-    backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.background,
+    borderColor: colors.surfaceBorder,
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 12,
@@ -403,13 +410,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceBorder,
     gap: 10,
   },
   chatInput: {
     flex: 1,
     height: 44,
     backgroundColor: colors.background,
-    borderColor: colors.cardBorder,
+    borderColor: colors.surfaceBorder,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
@@ -422,12 +431,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.brand.primary,
   },
   sendButtonActive: {
-    backgroundColor: colors.student.primary,
+    backgroundColor: colors.brand.primary,
   },
   sendButtonDisabled: {
-    backgroundColor: colors.bentoCard,
-    opacity: 0.5,
+    backgroundColor: colors.surfaceBorder,
+    opacity: 0.7,
   },
 });

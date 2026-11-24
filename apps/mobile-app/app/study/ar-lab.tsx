@@ -15,13 +15,15 @@ import {
   Maximize2,
   Users,
   Volume2,
-  Radio,
   Share2,
   X,
   Check,
   ChevronRight,
   Sparkles,
   Info,
+  Heart,
+  Eye,
+  Layers,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
@@ -68,7 +70,6 @@ export default function ArLabScreen() {
   const [explodeLevel, setExplodeLevel] = useState(activeArDirective.explodeFactor || 0.15);
   const [audioNarration, setAudioNarration] = useState(false);
   const [showCoStudyModal, setShowCoStudyModal] = useState(false);
-  const [crdtSyncEnabled, setCrdtSyncEnabled] = useState(true);
 
   const activeNodeData =
     ANATOMICAL_NODES.find((n) => n.id === activeArDirective.targetNode) || ANATOMICAL_NODES[0];
@@ -103,167 +104,85 @@ export default function ArLabScreen() {
   return (
     <SafeAreaView style={styles.safeContainer}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Top Header & Session Bar */}
-        <View style={styles.topBar}>
-          <View>
-            <Text style={styles.screenTitle}>{activeArDirective.modelName}</Text>
-            <Text style={styles.screenSubtitle}>NCERT Biology Chapter 6 • Class 10</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.coStudyButton}
-            onPress={() => setShowCoStudyModal(true)}
-            activeOpacity={0.8}
-          >
-            <Users size={16} color={colors.student.secondaryLight} />
-            <Text style={styles.coStudyButtonText}>Co-Study P2P</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 1. STRICT 16:9 SPATIAL AR VIEWPORT */}
-        <View style={styles.viewportOuterWrapper}>
-          <View style={styles.aspect169Container}>
-            {/* Live WebRTC Telemetry HUD Overlay */}
-            <View style={styles.telemetryOverlay}>
-              <View style={styles.liveIndicator}>
-                <View style={styles.greenPulse} />
-                <Text style={styles.liveText}>
-                  {activeArDirective.fps} FPS • {activeArDirective.latencyMs}ms WebRTC Sync
-                </Text>
+        {/* ─── 3D VIEWPORT CONTAINER (Dark Charcoal inside only) ─── */}
+        <View style={styles.viewportOuterCard}>
+          <View style={styles.viewport3D}>
+            {/* Model Title Overlay */}
+            <View style={styles.viewportTopOverlay}>
+              <View style={styles.modelTagBadge}>
+                <Boxes size={12} color="#FFFFFF" />
+                <Text style={styles.modelTagText}>3D Interactive Lab</Text>
               </View>
-              <View style={styles.aspectBadge}>
-                <Text style={styles.aspectBadgeText}>16:9 SPATIAL COMPANION</Text>
+              <View style={styles.focusPill}>
+                <Text style={styles.focusPillText}>Target: {activeNodeData.label}</Text>
               </View>
             </View>
 
-            {/* Simulated 3D Spatial Geometry & Reticle */}
-            <View style={styles.spatialScene}>
-              {/* Coordinate Grid Lines */}
-              <View style={styles.gridPlane}>
-                <View style={[styles.axisLine, styles.axisX]} />
-                <View style={[styles.axisLine, styles.axisY]} />
+            {/* Visual Placeholder for 3D model */}
+            <View style={styles.centerGraphic}>
+              <View style={styles.graphicCircle}>
+                <Heart size={54} color="#EF4444" fill="rgba(239, 68, 68, 0.2)" />
               </View>
-
-              {/* Spatial 3D Heart Representation */}
-              <View
-                style={[
-                  styles.heart3DRepresentation,
-                  {
-                    transform: [
-                      { rotate: `${rotationAngle}deg` },
-                      { scale: explodeLevel > 0.5 ? 1.15 : 1.0 },
-                    ],
-                  },
-                ]}
-              >
-                {/* Aorta Arch */}
-                <View
-                  style={[
-                    styles.meshPart,
-                    styles.meshAorta,
-                    activeNodeData.id === 'Aorta' && styles.meshHighlighted,
-                  ]}
-                >
-                  <Text style={styles.meshLabel}>Aorta Arch</Text>
-                </View>
-
-                {/* Left Ventricle Chamber */}
-                <View
-                  style={[
-                    styles.meshPart,
-                    styles.meshLeftVentricle,
-                    activeNodeData.id === 'Left Ventricle' && styles.meshHighlighted,
-                  ]}
-                >
-                  <Text style={styles.meshLabel}>Left Ventricle</Text>
-                </View>
-
-                {/* Pulmonary Vein Trunk */}
-                <View
-                  style={[
-                    styles.meshPart,
-                    styles.meshPulmonary,
-                    activeNodeData.id === 'Pulmonary Vein' && styles.meshHighlighted,
-                  ]}
-                >
-                  <Text style={styles.meshLabel}>Pulmonary Vein</Text>
-                </View>
-
-                {/* Bicuspid Valve Flap */}
-                <View
-                  style={[
-                    styles.meshPart,
-                    styles.meshValve,
-                    activeNodeData.id === 'Bicuspid Valve' && styles.meshHighlighted,
-                  ]}
-                >
-                  <Text style={styles.meshLabel}>Bicuspid Valve</Text>
-                </View>
-              </View>
-
-              {/* Target Reticle Pin */}
-              <View style={styles.floatingReticleBox}>
-                <View style={styles.reticleCrosshair} />
-                <View style={styles.reticleTag}>
-                  <Text style={styles.reticleTagText}>TARGET: {activeNodeData.label}</Text>
-                  <Text style={styles.reticleTagMeta}>{activeNodeData.pressure}</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Bottom HUD Bar in Viewport */}
-            <View style={styles.viewportBottomBar}>
-              <Text style={styles.hudCoords}>
-                ROT: {activeArDirective.rotation} • EXP: {Math.round(explodeLevel * 100)}%
+              <Text style={styles.graphicTitle}>{activeArDirective.modelName}</Text>
+              <Text style={styles.graphicSubtitle}>
+                Interactive 3D GLB viewport ready for AR rendering
               </Text>
+            </View>
+
+            {/* Viewport Control Bar */}
+            <View style={styles.viewportControlsBar}>
               <TouchableOpacity
-                style={styles.audioToggleButton}
+                style={styles.vpButton}
+                onPress={handleRotate}
+                activeOpacity={0.8}
+              >
+                <RotateCw size={14} color="#FFFFFF" />
+                <Text style={styles.vpButtonText}>Rotate {rotationAngle}°</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.vpButton}
+                onPress={() => handleExplodeToggle(explodeLevel === 0 ? 0.5 : explodeLevel === 0.5 ? 1 : 0)}
+                activeOpacity={0.8}
+              >
+                <Layers size={14} color="#FFFFFF" />
+                <Text style={styles.vpButtonText}>
+                  {explodeLevel === 0 ? 'Solid' : explodeLevel === 0.5 ? 'Cross-Section' : 'Exploded'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.vpButton, audioNarration && styles.vpButtonActive]}
                 onPress={() => {
                   setAudioNarration(!audioNarration);
                   Alert.alert(
-                    audioNarration ? 'Narration Muted' : 'Audio Narration Active',
-                    audioNarration
-                      ? 'Spatial audio disabled.'
-                      : 'Playing CBSE NCERT pronunciation & functional breakdown in English/Hindi.'
+                    audioNarration ? 'Audio Paused' : 'Voice Explainer',
+                    audioNarration ? 'Narrator stopped.' : `Playing audio explanation for ${activeNodeData.label}.`
                   );
                 }}
+                activeOpacity={0.8}
               >
-                <Volume2
-                  size={14}
-                  color={audioNarration ? colors.student.secondaryLight : colors.text.muted}
-                />
-                <Text
-                  style={[
-                    styles.audioToggleText,
-                    audioNarration && { color: colors.student.secondaryLight },
-                  ]}
-                >
-                  {audioNarration ? 'Narration ON' : 'Audio Guide'}
-                </Text>
+                <Volume2 size={14} color="#FFFFFF" />
+                <Text style={styles.vpButtonText}>{audioNarration ? 'Audio ON' : 'Audio'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* 2. INTERACTIVE ANATOMICAL NODE PILLS */}
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionHeader}>Inspect Anatomical Nodes</Text>
-          <View style={styles.nodePillsGrid}>
+        {/* ─── ANATOMICAL PART SELECTOR (Blinkit Style Chips) ─── */}
+        <View style={styles.selectorCard}>
+          <Text style={styles.sectionTitle}>Select Organ Component</Text>
+          <View style={styles.nodesRow}>
             {ANATOMICAL_NODES.map((node) => {
               const isSelected = node.id === activeNodeData.id;
               return (
                 <TouchableOpacity
                   key={node.id}
-                  style={[styles.nodePill, isSelected && styles.nodePillSelected]}
+                  style={[styles.nodeChip, isSelected && styles.nodeChipActive]}
                   onPress={() => handleSelectNode(node.id)}
                   activeOpacity={0.8}
                 >
-                  <View
-                    style={[
-                      styles.nodeDot,
-                      { backgroundColor: node.oxygenated ? '#EF4444' : '#3B82F6' },
-                    ]}
-                  />
-                  <Text style={[styles.nodePillText, isSelected && styles.nodePillTextSelected]}>
+                  <Text style={[styles.nodeChipText, isSelected && styles.nodeChipTextActive]}>
                     {node.label}
                   </Text>
                 </TouchableOpacity>
@@ -272,173 +191,121 @@ export default function ArLabScreen() {
           </View>
         </View>
 
-        {/* 3. ACTIVE NODE SYLLABUS CARD */}
-        <View style={styles.activeNodeCard}>
-          <View style={styles.nodeCardTopRow}>
+        {/* ─── COMPONENT DETAIL CARD ─── */}
+        <View style={styles.detailCard}>
+          <View style={styles.detailCardHeader}>
             <View>
-              <Text style={styles.nodeCardTitle}>{activeNodeData.label}</Text>
-              <Text style={styles.nodeCardRole}>{activeNodeData.role}</Text>
+              <Text style={styles.detailTitle}>{activeNodeData.label}</Text>
+              <Text style={styles.detailRole}>{activeNodeData.role}</Text>
             </View>
             <View style={styles.pressureBadge}>
               <Text style={styles.pressureBadgeText}>{activeNodeData.pressure}</Text>
             </View>
           </View>
-          <Text style={styles.nodeCardDescription}>{activeNodeData.description}</Text>
-          <View style={styles.ncertCitationRow}>
-            <Info size={12} color={colors.student.primaryLight} />
-            <Text style={styles.ncertCitationText}>
-              Prescribed in NCERT Class 10 Biology Figure 6.10 (Section 6.4)
-            </Text>
+
+          <Text style={styles.detailDescription}>{activeNodeData.description}</Text>
+
+          <View style={styles.detailStatsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statBoxLabel}>BLOOD TYPE</Text>
+              <Text style={[styles.statBoxValue, { color: colors.status.error }]}>
+                Oxygen-Rich (O₂)
+              </Text>
+            </View>
+            <View style={styles.statBoxDivider} />
+            <View style={styles.statBox}>
+              <Text style={styles.statBoxLabel}>CBSE EXAM RELEVANCE</Text>
+              <Text style={[styles.statBoxValue, { color: colors.brand.primary }]}>
+                Very High (5 Marks)
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* 4. 3D AXIS ROTATION & EXPLODE CONTROLS */}
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionHeader}>3D Spatial Transformations</Text>
-
-          {/* Rotation Controls */}
-          <View style={styles.controlsRow}>
-            <TouchableOpacity style={styles.controlBtn} onPress={handleRotate} activeOpacity={0.8}>
-              <RotateCw size={16} color={colors.student.secondaryLight} />
-              <Text style={styles.controlBtnText}>Orbit +45° ({rotationAngle}°)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.controlBtn}
-              onPress={() => {
-                setRotationAngle(0);
-                updateArDirective({ rotation: '0°, 0°, 0°' });
-              }}
-              activeOpacity={0.8}
-            >
-              <Maximize2 size={16} color={colors.text.secondary} />
-              <Text style={styles.controlBtnText}>Reset Frustum</Text>
-            </TouchableOpacity>
+        {/* ─── CO-STUDY PEER SESSION CARD ─── */}
+        <TouchableOpacity
+          style={styles.coStudyCard}
+          onPress={() => setShowCoStudyModal(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.coStudyLeft}>
+            <View style={styles.iconCircleIndigo}>
+              <Users size={18} color={colors.brand.primary} />
+            </View>
+            <View>
+              <Text style={styles.coStudyTitle}>Collaborative Classroom Session</Text>
+              <Text style={styles.coStudySub}>Sync 3D model orientation with classmates</Text>
+            </View>
           </View>
-
-          {/* Explode Factor Segmented Buttons */}
-          <Text style={styles.subControlLabel}>EXPLOSION FACTOR (DISASSEMBLY):</Text>
-          <View style={styles.explodeSegmentRow}>
-            <TouchableOpacity
-              style={[styles.segmentBtn, explodeLevel === 0 && styles.segmentBtnActive]}
-              onPress={() => handleExplodeToggle(0)}
-            >
-              <Text style={[styles.segmentText, explodeLevel === 0 && styles.segmentTextActive]}>
-                0% Intact
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segmentBtn, explodeLevel === 0.5 && styles.segmentBtnActive]}
-              onPress={() => handleExplodeToggle(0.5)}
-            >
-              <Text style={[styles.segmentText, explodeLevel === 0.5 && styles.segmentTextActive]}>
-                50% Section
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segmentBtn, explodeLevel === 1.0 && styles.segmentBtnActive]}
-              onPress={() => handleExplodeToggle(1.0)}
-            >
-              <Text style={[styles.segmentText, explodeLevel === 1.0 && styles.segmentTextActive]}>
-                100% Exploded
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          <ChevronRight size={16} color={colors.brand.primary} />
+        </TouchableOpacity>
       </ScrollView>
 
-      {/* 5. CO-STUDY WITH CLASSMATE (P2P ROOM) MODAL */}
-      <Modal
-        visible={showCoStudyModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCoStudyModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalContainer}>
+      {/* ─── CO-STUDY MODAL ─── */}
+      <Modal visible={showCoStudyModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View style={styles.modalTitleRow}>
-                <Users size={20} color={colors.student.secondaryLight} />
-                <Text style={styles.modalTitle}>Co-Study P2P Spatial Room</Text>
+              <View style={styles.iconCircleIndigo}>
+                <Users size={20} color={colors.brand.primary} />
               </View>
-              <TouchableOpacity onPress={() => setShowCoStudyModal(false)}>
-                <X size={20} color={colors.text.muted} />
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.modalTitle}>Class 10-A Lab Session</Text>
+                <Text style={styles.modalSubtitle}>Doon Valley Public School</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCoStudyModal(false)}
+                style={styles.closeBtn}
+                activeOpacity={0.7}
+              >
+                <X size={18} color={colors.text.secondary} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>
-              Collaborate in a synchronized 16:9 AR lab session with your classmates.
-            </Text>
-
-            {/* Room Code Card */}
-            <View style={styles.roomCodeBox}>
-              <Text style={styles.roomCodeLabel}>SECURE PEER-TO-PEER ROOM CODE</Text>
-              <Text style={styles.roomCodeValue}>ROOM-DVPS-10A-HEART</Text>
-              <Text style={styles.roomCodeSub}>WebRTC Low-Latency DataChannel Active</Text>
-            </View>
-
-            {/* Connected Peers List */}
-            <Text style={styles.peersSectionTitle}>CONNECTED CLASSMATES (2 ACTIVE)</Text>
-            <View style={styles.peersList}>
-              <View style={styles.peerItem}>
+            <View style={styles.peerList}>
+              <View style={styles.peerRow}>
                 <View style={styles.peerAvatar}>
-                  <Text style={styles.peerAvatarText}>A</Text>
+                  <Text style={styles.peerAvatarText}>AS</Text>
                 </View>
                 <View style={styles.peerInfo}>
-                  <Text style={styles.peerName}>Aarav Sharma (You - Host)</Text>
-                  <Text style={styles.peerRole}>Class 10-A • Roll 24</Text>
+                  <Text style={styles.peerName}>Aarav Sharma (You)</Text>
+                  <Text style={styles.peerStatus}>Active Presenter</Text>
                 </View>
-                <View style={styles.peerStatusPill}>
-                  <Text style={styles.peerStatusText}>Transmitting</Text>
+                <View style={styles.hostBadge}>
+                  <Text style={styles.hostBadgeText}>Host</Text>
                 </View>
               </View>
 
-              <View style={styles.peerItem}>
-                <View style={[styles.peerAvatar, { backgroundColor: colors.student.secondary }]}>
-                  <Text style={styles.peerAvatarText}>P</Text>
+              <View style={styles.peerRow}>
+                <View style={[styles.peerAvatar, { backgroundColor: colors.parent.primary }]}>
+                  <Text style={styles.peerAvatarText}>AG</Text>
                 </View>
                 <View style={styles.peerInfo}>
-                  <Text style={styles.peerName}>Priya Patel (Peer)</Text>
-                  <Text style={styles.peerRole}>Class 10-A • Roll 18</Text>
+                  <Text style={styles.peerName}>Ananya Gupta</Text>
+                  <Text style={styles.peerStatus}>Viewing Aorta section</Text>
                 </View>
-                <View style={styles.peerStatusPill}>
-                  <Text style={styles.peerStatusText}>Syncing 18ms</Text>
+              </View>
+
+              <View style={styles.peerRow}>
+                <View style={[styles.peerAvatar, { backgroundColor: colors.streak.primary }]}>
+                  <Text style={styles.peerAvatarText}>RM</Text>
+                </View>
+                <View style={styles.peerInfo}>
+                  <Text style={styles.peerName}>Rohan Mehra</Text>
+                  <Text style={styles.peerStatus}>Viewing Left Ventricle</Text>
                 </View>
               </View>
             </View>
 
-            {/* CRDT Toggle */}
             <TouchableOpacity
-              style={styles.crdtToggleRow}
-              onPress={() => setCrdtSyncEnabled(!crdtSyncEnabled)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.crdtTextCol}>
-                <Text style={styles.crdtTitle}>Mirrored CRDT Spatial Viewport</Text>
-                <Text style={styles.crdtSub}>
-                  When enabled, rotating the heart model mirrors Priya's screen simultaneously.
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.toggleCheckbox,
-                  crdtSyncEnabled && styles.toggleCheckboxActive,
-                ]}
-              >
-                {crdtSyncEnabled && <Check size={14} color="#FFFFFF" />}
-              </View>
-            </TouchableOpacity>
-
-            {/* Modal Actions */}
-            <TouchableOpacity
-              style={styles.modalPrimaryBtn}
+              style={styles.modalActionBtn}
               onPress={() => {
                 setShowCoStudyModal(false);
-                Alert.alert('P2P Spatial Sync Live', 'Your 3D viewport is now locked with Priya Patel.');
+                Alert.alert('Session Synced', 'Your 3D model perspective is now broadcasted to 2 peers.');
               }}
               activeOpacity={0.85}
             >
-              <Text style={styles.modalPrimaryBtnText}>Resume Synced Lab Session</Text>
+              <Text style={styles.modalActionBtnText}>Broadcast Perspective</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -454,413 +321,282 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    gap: 14,
   },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text.primary,
-  },
-  screenSubtitle: {
-    fontSize: 11,
-    color: colors.text.muted,
-    marginTop: 2,
-  },
-  coStudyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(6, 182, 212, 0.12)',
-    borderColor: colors.student.secondary,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 6,
-  },
-  coStudyButtonText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
-  },
-  viewportOuterWrapper: {
-    marginBottom: 16,
-    borderRadius: 16,
+  viewportOuterCard: {
+    borderRadius: 20,
     overflow: 'hidden',
-    borderColor: colors.spatial.telemetryBorder,
-    borderWidth: 1.5,
-    backgroundColor: '#040711',
-    shadowColor: colors.student.secondary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  aspect169Container: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    position: 'relative',
-    justifyContent: 'space-between',
-    padding: 10,
-  },
-  telemetryOverlay: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  liveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 6,
-  },
-  greenPulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.parent.primary,
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.parent.primaryLight,
-    fontFamily: 'Menlo',
-  },
-  aspectBadge: {
-    backgroundColor: colors.spatial.telemetryBg,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  aspectBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.spatial.nodeActive,
-    letterSpacing: 0.8,
-  },
-  spatialScene: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  gridPlane: {
-    position: 'absolute',
-    width: '80%',
-    height: '80%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  axisLine: {
-    position: 'absolute',
-    backgroundColor: colors.spatial.gridLine,
-  },
-  axisX: {
-    width: '100%',
-    height: 1,
-  },
-  axisY: {
-    width: 1,
-    height: '100%',
-  },
-  heart3DRepresentation: {
-    width: 140,
-    height: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  meshPart: {
-    position: 'absolute',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  meshAorta: {
-    top: 0,
-    width: 90,
-    height: 36,
-    backgroundColor: 'rgba(239, 68, 68, 0.3)',
-    borderColor: '#EF4444',
-  },
-  meshLeftVentricle: {
-    bottom: 0,
-    right: 10,
-    width: 65,
-    height: 70,
-    backgroundColor: 'rgba(220, 38, 38, 0.4)',
-    borderColor: '#DC2626',
-  },
-  meshPulmonary: {
-    top: 25,
-    left: 10,
-    width: 60,
-    height: 40,
-    backgroundColor: 'rgba(59, 130, 246, 0.35)',
-    borderColor: '#3B82F6',
-  },
-  meshValve: {
-    top: 45,
-    width: 48,
-    height: 24,
-    backgroundColor: 'rgba(245, 158, 11, 0.3)',
-    borderColor: '#F59E0B',
-  },
-  meshHighlighted: {
-    borderColor: '#FFFFFF',
-    borderWidth: 2.5,
-    shadowColor: colors.student.secondaryLight,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: 0.12,
     shadowRadius: 10,
-    elevation: 8,
+    elevation: 4,
   },
-  meshLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#FFFFFF',
+  viewport3D: {
+    height: 280,
+    backgroundColor: '#111827', // Only dark charcoal element
+    justifyContent: 'space-between',
+    padding: 14,
   },
-  floatingReticleBox: {
-    position: 'absolute',
-    bottom: 4,
-    left: 8,
+  viewportTopOverlay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modelTagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(9, 13, 22, 0.9)',
-    borderColor: colors.spatial.nodeActive,
-    borderWidth: 1,
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  reticleCrosshair: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.spatial.nodeActive,
-  },
-  reticleTag: {},
-  reticleTagText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.spatial.nodeActive,
-  },
-  reticleTagMeta: {
-    fontSize: 8,
-    color: colors.text.muted,
-  },
-  viewportBottomBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  hudCoords: {
-    fontSize: 9,
-    fontFamily: 'Menlo',
-    color: colors.text.muted,
-  },
-  audioToggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  audioToggleText: {
-    fontSize: 10,
-    color: colors.text.muted,
-    fontWeight: '600',
-  },
-  sectionBlock: {
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    fontSize: 14,
+  modelTagText: {
+    color: '#FFFFFF',
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.text.primary,
+  },
+  focusPill: {
+    backgroundColor: colors.brand.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  focusPillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  centerGraphic: {
+    alignItems: 'center',
+  },
+  graphicCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 10,
   },
-  nodePillsGrid: {
+  graphicTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  graphicSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  viewportControlsBar: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  vpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+  },
+  vpButtonActive: {
+    backgroundColor: colors.brand.primary,
+  },
+  vpButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // Selector Card
+  selectorCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: 16,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.muted,
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  nodesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  nodePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
+  nodeChip: {
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderRadius: 10,
+    borderColor: colors.surfaceBorder,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 8,
   },
-  nodePillSelected: {
-    borderColor: colors.student.secondaryLight,
-    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+  nodeChipActive: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
-  nodeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  nodePillText: {
+  nodeChipText: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.text.secondary,
   },
-  nodePillTextSelected: {
-    color: colors.text.primary,
+  nodeChipTextActive: {
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  activeNodeCard: {
+
+  // Detail Card
+  detailCard: {
     backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
+    borderRadius: 16,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
+    borderColor: colors.surfaceBorder,
+    padding: 16,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: 2,
   },
-  nodeCardTopRow: {
+  detailCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  nodeCardTitle: {
-    fontSize: 15,
+  detailTitle: {
+    fontSize: 18,
     fontWeight: '800',
     color: colors.text.primary,
   },
-  nodeCardRole: {
-    fontSize: 11,
-    color: colors.student.secondaryLight,
-    fontWeight: '600',
-    marginTop: 1,
+  detailRole: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 2,
+    fontWeight: '500',
   },
   pressureBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: colors.brand.tint,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   pressureBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#EF4444',
+    color: colors.brand.primary,
   },
-  nodeCardDescription: {
-    fontSize: 12,
+  detailDescription: {
+    fontSize: 13,
     color: colors.text.secondary,
-    lineHeight: 17,
-    marginBottom: 10,
+    lineHeight: 18,
+    marginBottom: 14,
   },
-  ncertCitationRow: {
+  detailStatsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderTopColor: colors.cardBorder,
-    borderTopWidth: 1,
-    paddingTop: 8,
-  },
-  ncertCitationText: {
-    fontSize: 10,
-    color: colors.student.primaryLight,
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
-  controlBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderRadius: 10,
     paddingVertical: 10,
   },
-  controlBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  subControlLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.text.muted,
-    letterSpacing: 0.8,
-    marginBottom: 6,
-  },
-  explodeSegmentRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 3,
-    gap: 4,
-  },
-  segmentBtn: {
+  statBox: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
   },
-  segmentBtnActive: {
-    backgroundColor: colors.student.primary,
+  statBoxDivider: {
+    width: 1,
+    backgroundColor: colors.surfaceBorder,
   },
-  segmentText: {
-    fontSize: 11,
-    fontWeight: '600',
+  statBoxLabel: {
+    fontSize: 9,
+    fontWeight: '700',
     color: colors.text.muted,
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
-  segmentTextActive: {
-    color: '#FFFFFF',
+  statBoxValue: {
+    fontSize: 12,
     fontWeight: '700',
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: colors.bentoCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderColor: colors.cardBorder,
+
+  // Co-Study Card
+  coStudyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: 14,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: 2,
+  },
+  coStudyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  iconCircleIndigo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.brand.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coStudyTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  coStudySub: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
-    paddingBottom: 36,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxWidth: 360,
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
   },
-  modalTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  modalHeaderText: {
+    flex: 1,
   },
   modalTitle: {
     fontSize: 16,
@@ -868,141 +604,74 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   modalSubtitle: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: 4,
-    marginBottom: 16,
+    fontSize: 11,
+    color: colors.text.muted,
   },
-  roomCodeBox: {
-    backgroundColor: colors.surface,
-    borderColor: colors.student.secondary,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.background,
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
   },
-  roomCodeLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.text.muted,
-    letterSpacing: 1,
+  peerList: {
+    gap: 10,
+    marginBottom: 18,
   },
-  roomCodeValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.student.secondaryLight,
-    letterSpacing: 1,
-    marginVertical: 4,
-    fontFamily: 'Menlo',
-  },
-  roomCodeSub: {
-    fontSize: 10,
-    color: colors.parent.primaryLight,
-  },
-  peersSectionTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.text.muted,
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  peersList: {
-    gap: 8,
-    marginBottom: 16,
-  },
-  peerItem: {
+  peerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 10,
     gap: 10,
+    backgroundColor: colors.background,
+    padding: 10,
+    borderRadius: 12,
   },
   peerAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.student.primary,
-    justifyContent: 'center',
+    backgroundColor: colors.brand.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   peerAvatarText: {
     color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '700',
-    fontSize: 14,
   },
   peerInfo: {
     flex: 1,
   },
   peerName: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text.primary,
   },
-  peerRole: {
-    fontSize: 10,
+  peerStatus: {
+    fontSize: 11,
     color: colors.text.muted,
   },
-  peerStatusPill: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  hostBadge: {
+    backgroundColor: colors.brand.tint,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 6,
   },
-  peerStatusText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.parent.primaryLight,
-  },
-  crdtToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.08)',
-    borderColor: colors.student.border,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 18,
-    gap: 12,
-  },
-  crdtTextCol: {
-    flex: 1,
-  },
-  crdtTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  crdtSub: {
+  hostBadgeText: {
     fontSize: 10,
-    color: colors.text.secondary,
-    marginTop: 2,
-    lineHeight: 14,
+    fontWeight: '700',
+    color: colors.brand.primary,
   },
-  toggleCheckbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderColor: colors.cardBorder,
-    borderWidth: 1.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-  },
-  toggleCheckboxActive: {
-    backgroundColor: colors.student.primary,
-    borderColor: colors.student.primary,
-  },
-  modalPrimaryBtn: {
-    backgroundColor: colors.student.primary,
+  modalActionBtn: {
+    backgroundColor: colors.brand.primary,
+    paddingVertical: 12,
     borderRadius: 12,
-    paddingVertical: 14,
     alignItems: 'center',
   },
-  modalPrimaryBtnText: {
+  modalActionBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
 });
