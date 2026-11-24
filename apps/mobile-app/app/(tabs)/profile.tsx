@@ -25,6 +25,8 @@ import {
   Sparkles,
   Sun,
   Moon,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { lightTheme, darkTheme } from '@/theme/colors';
@@ -41,11 +43,27 @@ export default function ProfileScreen() {
     toggleTimeLimitActive,
     themeMode,
     toggleThemeMode,
+    connectionMode,
+    initializeMobileSync,
     logout,
   } = useEdzyStore();
 
+  const [isSyncing, setIsSyncing] = React.useState(false);
+
   const isDark = themeMode === 'dark';
   const activeTheme = isDark ? darkTheme : lightTheme;
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await initializeMobileSync(studentProfile.id);
+      Alert.alert('Cloud Synced', 'Student profile, fee ledger, and marks synced with Supabase Realtime.');
+    } catch {
+      Alert.alert('Offline Mode', 'Operating in local demo mode.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to log out of Edzy?', [
@@ -226,7 +244,93 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ─── 4. POLICIES & INFO ─── */}
+        {/* ─── 4. CLOUD REALTIME SYNC STATUS ─── */}
+        <View style={[styles.card, { backgroundColor: activeTheme.surface, borderColor: activeTheme.surfaceBorder }]}>
+          <View style={styles.settingHeaderRow}>
+            <View
+              style={[
+                styles.settingIconCircle,
+                {
+                  backgroundColor:
+                    connectionMode === 'LIVE_CLOUD'
+                      ? isDark
+                        ? 'rgba(52, 211, 153, 0.16)'
+                        : '#ECFDF5'
+                      : isDark
+                      ? 'rgba(251, 146, 60, 0.16)'
+                      : '#FFF7ED',
+                },
+              ]}
+            >
+              <Cloud
+                size={18}
+                color={
+                  connectionMode === 'LIVE_CLOUD'
+                    ? activeTheme.status.success
+                    : activeTheme.streak.primary
+                }
+              />
+            </View>
+            <View style={styles.settingHeaderText}>
+              <View style={styles.cloudBadgeRow}>
+                <Text style={[styles.settingTitle, { color: activeTheme.text.ink }]}>Cloud Engine</Text>
+                <View
+                  style={[
+                    styles.syncStatusBadge,
+                    {
+                      backgroundColor:
+                        connectionMode === 'LIVE_CLOUD'
+                          ? isDark
+                            ? 'rgba(52, 211, 153, 0.16)'
+                            : '#ECFDF5'
+                          : isDark
+                          ? 'rgba(251, 146, 60, 0.16)'
+                          : '#FFF7ED',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.syncStatusText,
+                      {
+                        color:
+                          connectionMode === 'LIVE_CLOUD'
+                            ? activeTheme.status.success
+                            : activeTheme.streak.primary,
+                      },
+                    ]}
+                  >
+                    {connectionMode === 'LIVE_CLOUD' ? 'Live Synced' : 'Offline Mode'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.settingSubtitle, { color: activeTheme.text.secondary }]}>
+                {connectionMode === 'LIVE_CLOUD'
+                  ? 'Realtime channel active • Subscribed to DVPS01 ledger'
+                  : 'Operating in local offline demo fallback'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.syncNowButton,
+                {
+                  backgroundColor: activeTheme.brand.primary,
+                  opacity: isSyncing ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleManualSync}
+              disabled={isSyncing}
+              activeOpacity={0.8}
+            >
+              <RefreshCw size={12} color="#FFFFFF" />
+              <Text style={styles.syncNowButtonText}>
+                {isSyncing ? 'Syncing...' : 'Sync Now'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ─── 5. POLICIES & INFO ─── */}
         <View style={[styles.card, { backgroundColor: activeTheme.surface, borderColor: activeTheme.surfaceBorder }]}>
           <TouchableOpacity
             style={styles.menuRow}
@@ -452,6 +556,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     lineHeight: 15,
+  },
+  cloudBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  syncStatusBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  syncStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  syncNowButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  syncNowButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   timeLimitButtonsRow: {
     flexDirection: 'row',

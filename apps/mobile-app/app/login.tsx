@@ -34,7 +34,7 @@ const SCHOOL_OPTIONS = [
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, oneTapDemoLogin, studentProfile } = useEdzyStore();
+  const { loginWithStudentId, oneTapDemoLogin, studentProfile } = useEdzyStore();
   const { theme, isDark } = useAppTheme();
 
   const [selectedSchool, setSelectedSchool] = useState('DVPS01');
@@ -42,22 +42,29 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('1234');
   const [showSchoolPicker, setShowSchoolPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleStandardLogin = () => {
+  const handleStandardLogin = async () => {
     if (!studentId.trim()) {
       Alert.alert('Missing Input', 'Please enter your Student Roll Number or Admission ID.');
       return;
     }
+    setErrorMessage(null);
     setIsLoading(true);
-    setTimeout(() => {
-      const ok = login(selectedSchool, studentId, password);
+    try {
+      const result = await loginWithStudentId(selectedSchool, studentId, password);
       setIsLoading(false);
-      if (ok) {
+      if (result.success) {
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Authentication Failed', 'Invalid credentials. You can use Demo Login.');
+        setErrorMessage(result.message);
+        Alert.alert('Authentication Failed', result.message);
       }
-    }, 400);
+    } catch (e: any) {
+      setIsLoading(false);
+      setErrorMessage(e?.message || 'Authentication error.');
+      Alert.alert('Error', e?.message || 'Authentication error.');
+    }
   };
 
   const handleOneTapLogin = () => {
@@ -193,6 +200,28 @@ export default function LoginScreen() {
               />
             </View>
           </View>
+
+          {/* Inline Error Message */}
+          {errorMessage ? (
+            <View
+              style={[
+                styles.errorBox,
+                {
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.28)' : '#FECACA',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: isDark ? '#F87171' : '#DC2626' },
+                ]}
+              >
+                {errorMessage}
+              </Text>
+            </View>
+          ) : null}
 
           {/* Primary Sign In Button */}
           <TouchableOpacity
@@ -375,6 +404,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     fontWeight: '500',
+  },
+  errorBox: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   primaryButton: {
     flexDirection: 'row',

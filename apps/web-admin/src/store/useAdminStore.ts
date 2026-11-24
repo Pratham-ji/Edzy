@@ -115,6 +115,143 @@ export function calculateCbseGrade(percentage: number): string {
   return 'E';
 }
 
+export function normalizeExamTerm(raw: string): ExamTerm {
+  const upper = (raw || '').toUpperCase().replace(/[\s-]/g, '_');
+  if (upper.includes('PRE_BOARD') || upper.includes('PREBOARD')) return 'PRE_BOARD';
+  if (upper.includes('MIDTERM') || upper.includes('MID_TERM')) return 'MIDTERM';
+  return 'UNIT_TEST_1';
+}
+
+export function mapStudentRow(row: any): StudentRecord {
+  return {
+    id: row.id,
+    rollNo: String(row.roll_no || row.roll_number || '01').padStart(2, '0'),
+    name: row.name || row.full_name || 'Student',
+    classGrade: row.class_grade || 'Class 10-A',
+    section: row.section || (row.class_grade?.includes('-') ? row.class_grade.split('-')[1] : 'A'),
+    parentName: row.parent_name || 'Parent',
+    parentPhone: row.parent_phone || '',
+    parentPin: row.parent_pin || '1234',
+    annualFee: Number(row.annual_fee || row.total_fee || 48000),
+    totalPaid: Number(row.total_paid || row.paid_fee || 0),
+    totalPending: Number(
+      row.total_pending ??
+        (row.balance_due ?? (Number(row.annual_fee || row.total_fee || 48000) - Number(row.total_paid || row.paid_fee || 0)))
+    ),
+    atHomeHoursThisWeek: Number(row.at_home_hours || row.weekly_study_hours || 0),
+    streakDays: Number(row.streak_days || 0),
+    attendancePercent: Number(row.attendance_percent || row.attendance_pct || 95),
+  };
+}
+
+export function mapFeeRow(row: any, students?: StudentRecord[]): FeeInstallmentRecord {
+  const matchedStudent = students?.find((s) => s.id === row.student_id);
+  return {
+    id: row.id,
+    studentId: row.student_id,
+    studentName: row.student_name || matchedStudent?.name || 'Aarav Sharma',
+    classGrade: row.class_grade || matchedStudent?.classGrade || 'Class 10-A',
+    quarter: row.quarter || row.installment_title || 'Q1 (Apr - Jun 2026)',
+    amount: Number(row.amount || 12000),
+    status: (row.status as PaymentStatus) || 'PENDING',
+    paymentMethod: (row.payment_mode as PaymentMethod) || undefined,
+    paymentRef: row.payment_ref || row.reference_note || undefined,
+    receiptNumber: row.receipt_number || undefined,
+    paidDate: row.paid_at
+      ? new Date(row.paid_at).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : undefined,
+    dueDate: row.due_date ? String(row.due_date).split('T')[0] : '30 Nov 2026',
+    clerkNote: row.clerk_note || undefined,
+  };
+}
+
+export function mapMarkRow(row: any, students?: StudentRecord[]): StudentExamRecord {
+  const matchedStudent = students?.find((s) => s.id === row.student_id);
+  const term = normalizeExamTerm(row.term || row.exam_type || 'PRE_BOARD');
+
+  let scores: StudentSubjectScore[] = [];
+  if (Array.isArray(row.scores_json) && row.scores_json.length > 0) {
+    scores = row.scores_json.map((sc: any) => ({
+      subject: sc.subject,
+      marksObtained: Number(sc.marksObtained ?? sc.marks_obtained ?? 0),
+      maxMarks: Number(sc.maxMarks ?? sc.max_marks ?? 100),
+      grade: sc.grade || calculateCbseGrade(Number(sc.marksObtained ?? sc.marks_obtained ?? 0)),
+      remarks: sc.remarks || sc.teacher_remarks || 'Good performance',
+    }));
+  } else if (row.subject) {
+    scores = [
+      {
+        subject: row.subject,
+        marksObtained: Number(row.marks_obtained || 0),
+        maxMarks: Number(row.max_marks || 100),
+        grade: row.grade || calculateCbseGrade(Number(row.marks_obtained || 0)),
+        remarks: row.teacher_remarks || 'Consistent effort',
+      },
+    ];
+  }
+
+  const totalObtained = scores.reduce((sum, s) => sum + s.marksObtained, 0);
+  const totalMax = scores.reduce((sum, s) => sum + s.maxMarks, 0) || 100;
+  const aggregatePercentage = Number(row.aggregate_percentage || ((totalObtained / totalMax) * 100).toFixed(1));
+
+  return {
+    studentId: row.student_id,
+    studentName: row.student_name || matchedStudent?.name || 'Aarav Sharma',
+    classGrade: row.class_grade || matchedStudent?.classGrade || 'Class 10-A',
+    rollNo: row.roll_no ? String(row.roll_no).padStart(2, '0') : matchedStudent?.rollNo || '24',
+    term,
+    scores,
+    aggregatePercentage,
+    overallGrade: row.overall_grade || calculateCbseGrade(aggregatePercentage),
+    needsRemediation: Boolean(row.needs_remediation || aggregatePercentage < 60),
+  };
+}
+
+export function mapSyllabusRow(row: any): SyllabusChapterRecord {
+  return {
+    id: row.id,
+    fileName: row.file_name || row.pdf_filename || 'Chapter.pdf',
+    chapterNumber: Number(row.chapter_number || 1),
+    title: row.title || row.chapter_title || '',
+    classGrade: row.class_grade || 'Class 10-A',
+    subject: row.subject || 'Science',
+    fileSizeBytes: row.file_size_bytes || row.file_size_label || '4.5 MB',
+    uploadedAt: row.created_at
+      ? new Date(row.created_at).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : 'Today',
+    status: (row.status as any) || 'READY',
+    arModelMapped: (row.ar_model_mapped || row.ar_model_name || 'None') as ARModelType,
+    generatedMilestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
+  };
+}
+
+export function mapCircularRow(row: any): AdminCircular {
+  return {
+    id: row.id,
+    title: row.title || '',
+    targetClass: row.target_class || 'All',
+    category: (row.category ? row.category.toUpperCase() : 'GENERAL') as any,
+    date: row.published_at || row.created_at
+      ? new Date(row.published_at || row.created_at).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    author: row.published_by || row.author || 'Principal Office',
+    message: row.message || '',
+    attachmentName: row.attachment_name || undefined,
+  };
+}
+
 interface AdminState {
   schoolProfile: SchoolProfile;
   students: StudentRecord[];
@@ -1674,6 +1811,9 @@ const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
   },
 ];
 
+// Realtime channel reference for cleanup and re-subscriptions
+let adminRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
 export const useAdminStore = create<AdminState>((set, get) => ({
   schoolProfile: {
     name: 'Doon Valley Public School',
@@ -1702,98 +1842,53 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   initializeRealtimeSync: async () => {
     if (!isLiveSupabaseConfigured) {
-      set({ connectionMode: 'DEMO_MODE' });
+      set({ connectionMode: 'DEMO_MODE', isSyncing: false });
       return () => {};
     }
 
     try {
       set({ isSyncing: true });
-      const [studentsRes, feeRes, marksRes, syllabusRes] = await Promise.all([
+
+      // Clean up previous channel if any
+      if (adminRealtimeChannel) {
+        try {
+          supabase.removeChannel(adminRealtimeChannel);
+        } catch (e) {
+          // ignore
+        }
+        adminRealtimeChannel = null;
+      }
+
+      const [studentsRes, feeRes, marksRes, syllabusRes, circularsRes] = await Promise.all([
         supabase.from('students').select('*').order('roll_no', { ascending: true }),
         supabase.from('fee_ledger').select('*').order('due_date', { ascending: true }),
         supabase.from('exam_marks').select('*'),
         supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
+        supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
       ]);
 
       const updates: Partial<AdminState> = {};
+      let loadedStudents: StudentRecord[] = get().students;
 
       if (studentsRes.data && studentsRes.data.length > 0) {
-        updates.students = studentsRes.data.map((row: any) => ({
-          id: row.id,
-          rollNo: row.roll_no ? String(row.roll_no).padStart(2, '0') : '0',
-          name: row.name,
-          classGrade: row.class_grade,
-          section: row.section || 'A',
-          parentName: row.parent_name,
-          parentPhone: row.parent_phone,
-          parentPin: row.parent_pin || '1234',
-          annualFee: Number(row.annual_fee || 48000),
-          totalPaid: Number(row.total_paid || 0),
-          totalPending: Number(row.total_pending || 0),
-          atHomeHoursThisWeek: Number(row.at_home_hours || 0),
-          streakDays: Number(row.streak_days || 0),
-          attendancePercent: Number(row.attendance_percent || 95),
-        }));
+        loadedStudents = studentsRes.data.map((row: any) => mapStudentRow(row));
+        updates.students = loadedStudents;
       }
 
       if (feeRes.data && feeRes.data.length > 0) {
-        updates.feeInstallments = feeRes.data.map((row: any) => ({
-          id: row.id,
-          studentId: row.student_id,
-          studentName: row.student_name,
-          classGrade: row.class_grade,
-          quarter: row.quarter,
-          amount: Number(row.amount),
-          status: row.status as PaymentStatus,
-          paymentMethod: row.payment_mode as PaymentMethod | undefined,
-          paymentRef: row.payment_ref || undefined,
-          receiptNumber: row.receipt_number || undefined,
-          paidDate: row.paid_at
-            ? new Date(row.paid_at).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })
-            : undefined,
-          dueDate: row.due_date || '30 Nov 2026',
-          clerkNote: row.clerk_note || undefined,
-        }));
+        updates.feeInstallments = feeRes.data.map((row: any) => mapFeeRow(row, loadedStudents));
       }
 
       if (marksRes.data && marksRes.data.length > 0) {
-        updates.examMarks = marksRes.data.map((row: any) => ({
-          studentId: row.student_id,
-          studentName: row.student_name,
-          classGrade: row.class_grade,
-          rollNo: row.roll_no,
-          term: row.term as ExamTerm,
-          scores: Array.isArray(row.scores_json) ? row.scores_json : [],
-          aggregatePercentage: Number(row.aggregate_percentage || 0),
-          overallGrade: row.overall_grade || 'A1',
-          needsRemediation: Boolean(row.needs_remediation),
-        }));
+        updates.examMarks = marksRes.data.map((row: any) => mapMarkRow(row, loadedStudents));
       }
 
       if (syllabusRes.data && syllabusRes.data.length > 0) {
-        updates.syllabusVault = syllabusRes.data.map((row: any) => ({
-          id: row.id,
-          fileName: row.file_name || 'Chapter.pdf',
-          chapterNumber: Number(row.chapter_number),
-          title: row.title,
-          classGrade: row.class_grade,
-          subject: row.subject,
-          fileSizeBytes: row.file_size_bytes || '4.5 MB',
-          uploadedAt: row.created_at
-            ? new Date(row.created_at).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })
-            : 'Today',
-          status: (row.status as any) || 'READY',
-          arModelMapped: (row.ar_model_mapped as any) || 'None',
-          generatedMilestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
-        }));
+        updates.syllabusVault = syllabusRes.data.map((row: any) => mapSyllabusRow(row));
+      }
+
+      if (circularsRes.data && circularsRes.data.length > 0) {
+        updates.circulars = circularsRes.data.map((row: any) => mapCircularRow(row));
       }
 
       set({
@@ -1803,7 +1898,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       });
 
       // Subscribe to Realtime Postgres changes across all core tables
-      const channel = supabase
+      adminRealtimeChannel = supabase
         .channel('edzy-web-admin-realtime')
         .on(
           'postgres_changes',
@@ -1812,36 +1907,15 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
-              const mapped: FeeInstallmentRecord = {
-                id: row.id,
-                studentId: row.student_id,
-                studentName: row.student_name,
-                classGrade: row.class_grade,
-                quarter: row.quarter,
-                amount: Number(row.amount),
-                status: row.status as PaymentStatus,
-                paymentMethod: row.payment_mode as PaymentMethod | undefined,
-                paymentRef: row.payment_ref || undefined,
-                receiptNumber: row.receipt_number || undefined,
-                paidDate: row.paid_at
-                  ? new Date(row.paid_at).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })
-                  : undefined,
-                dueDate: row.due_date || '30 Nov 2026',
-                clerkNote: row.clerk_note || undefined,
-              };
-
-              const exists = state.feeInstallments.some((f) => f.id === row.id);
+              const mapped = mapFeeRow(row, state.students);
+              const exists = state.feeInstallments.some((f) => f.id === mapped.id);
               const updated = exists
-                ? state.feeInstallments.map((f) => (f.id === row.id ? mapped : f))
+                ? state.feeInstallments.map((f) => (f.id === mapped.id ? mapped : f))
                 : [mapped, ...state.feeInstallments];
 
               // Recompute student totalPaid / totalPending
               const updatedStudents = state.students.map((st) => {
-                if (st.id === row.student_id) {
+                if (st.id === mapped.studentId) {
                   const studentInstallments = updated.filter((f) => f.studentId === st.id);
                   const totalPaid = studentInstallments
                     .filter((f) => f.status === 'PAID')
@@ -1865,26 +1939,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
-              const mapped: StudentRecord = {
-                id: row.id,
-                rollNo: row.roll_no ? String(row.roll_no).padStart(2, '0') : '0',
-                name: row.name,
-                classGrade: row.class_grade,
-                section: row.section || 'A',
-                parentName: row.parent_name,
-                parentPhone: row.parent_phone,
-                parentPin: row.parent_pin || '1234',
-                annualFee: Number(row.annual_fee || 48000),
-                totalPaid: Number(row.total_paid || 0),
-                totalPending: Number(row.total_pending || 0),
-                atHomeHoursThisWeek: Number(row.at_home_hours || 0),
-                streakDays: Number(row.streak_days || 0),
-                attendancePercent: Number(row.attendance_percent || 95),
-              };
-              const exists = state.students.some((s) => s.id === row.id);
+              const mapped = mapStudentRow(row);
+              const exists = state.students.some((s) => s.id === mapped.id);
               return {
                 students: exists
-                  ? state.students.map((s) => (s.id === row.id ? mapped : s))
+                  ? state.students.map((s) => (s.id === mapped.id ? mapped : s))
                   : [...state.students, mapped],
               };
             });
@@ -1897,17 +1956,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
-              const mapped: StudentExamRecord = {
-                studentId: row.student_id,
-                studentName: row.student_name,
-                classGrade: row.class_grade,
-                rollNo: row.roll_no,
-                term: row.term as ExamTerm,
-                scores: Array.isArray(row.scores_json) ? row.scores_json : [],
-                aggregatePercentage: Number(row.aggregate_percentage || 0),
-                overallGrade: row.overall_grade || 'A1',
-                needsRemediation: Boolean(row.needs_remediation),
-              };
+              const mapped = mapMarkRow(row, state.students);
               const filtered = state.examMarks.filter(
                 (e) => !(e.studentId === mapped.studentId && e.term === mapped.term)
               );
@@ -1922,38 +1971,44 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
-              const mapped: SyllabusChapterRecord = {
-                id: row.id,
-                fileName: row.file_name || 'Chapter.pdf',
-                chapterNumber: Number(row.chapter_number),
-                title: row.title,
-                classGrade: row.class_grade,
-                subject: row.subject,
-                fileSizeBytes: row.file_size_bytes || '4.5 MB',
-                uploadedAt: row.created_at
-                  ? new Date(row.created_at).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })
-                  : 'Today',
-                status: (row.status as any) || 'READY',
-                arModelMapped: (row.ar_model_mapped as any) || 'None',
-                generatedMilestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
-              };
-              const exists = state.syllabusVault.some((s) => s.id === row.id);
+              const mapped = mapSyllabusRow(row);
+              const exists = state.syllabusVault.some((s) => s.id === mapped.id);
               return {
                 syllabusVault: exists
-                  ? state.syllabusVault.map((s) => (s.id === row.id ? mapped : s))
+                  ? state.syllabusVault.map((s) => (s.id === mapped.id ? mapped : s))
                   : [mapped, ...state.syllabusVault],
               };
             });
           }
         )
-        .subscribe();
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'school_circulars' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped = mapCircularRow(row);
+              const exists = state.circulars.some((c) => c.id === mapped.id);
+              return {
+                circulars: exists
+                  ? state.circulars.map((c) => (c.id === mapped.id ? mapped : c))
+                  : [mapped, ...state.circulars],
+              };
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[Edzy Cloud Web] Realtime SUBSCRIBED to all 5 school tables');
+          }
+        });
 
       return () => {
-        supabase.removeChannel(channel);
+        if (adminRealtimeChannel) {
+          supabase.removeChannel(adminRealtimeChannel);
+          adminRealtimeChannel = null;
+        }
       };
     } catch (err) {
       console.warn('Supabase Realtime fell back to Demo Mode:', err);
@@ -2375,9 +2430,30 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set((state) => ({
       circulars: [newCircular, ...state.circulars],
     }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('school_circulars')
+        .insert({
+          id: newCircular.id,
+          school_id: 'DVPS01',
+          title: newCircular.title,
+          category: newCircular.category,
+          target_class: newCircular.targetClass,
+          message: newCircular.message,
+          published_by: newCircular.author,
+          published_at: new Date().toISOString(),
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.warn('[Edzy Cloud Web] school_circulars insert note:', error.message);
+          }
+        });
+    }
   },
 
   toggleStudentAttendance: (studentId, status) => {
+    let targetPct = 95;
     set((state) => {
       const newRegister = {
         ...state.attendanceRegister,
@@ -2387,6 +2463,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         if (st.id === studentId) {
           const delta = status === 'PRESENT' ? 0.3 : -0.3;
           const newPct = Math.min(100, Math.max(70, parseFloat((st.attendancePercent + delta).toFixed(1))));
+          targetPct = newPct;
           return { ...st, attendancePercent: newPct };
         }
         return st;
@@ -2396,9 +2473,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         students: updatedStudents,
       };
     });
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('students')
+        .update({
+          attendance_percent: targetPct,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', studentId)
+        .then(({ error }) => {
+          if (error) console.warn('[Edzy Cloud Web] Attendance update note:', error.message);
+        });
+    }
   },
 
   markAllAttendance: (classGrade, status) => {
+    const updates: Array<{ id: string; pct: number }> = [];
     set((state) => {
       const newRegister = { ...state.attendanceRegister };
       const updatedStudents = state.students.map((st) => {
@@ -2406,6 +2497,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           newRegister[st.id] = status;
           const delta = status === 'PRESENT' ? 0.2 : -0.2;
           const newPct = Math.min(100, Math.max(70, parseFloat((st.attendancePercent + delta).toFixed(1))));
+          updates.push({ id: st.id, pct: newPct });
           return { ...st, attendancePercent: newPct };
         }
         return st;
@@ -2415,6 +2507,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         students: updatedStudents,
       };
     });
+
+    if (isLiveSupabaseConfigured && updates.length > 0) {
+      Promise.all(
+        updates.map((u) =>
+          supabase
+            .from('students')
+            .update({ attendance_percent: u.pct, updated_at: new Date().toISOString() })
+            .eq('id', u.id)
+        )
+      ).catch((err) => console.warn('[Edzy Cloud Web] Batch attendance update note:', err));
+    }
   },
 }));
 

@@ -12,6 +12,7 @@ import {
   UserPlus,
   Sun,
   Moon,
+  RefreshCw,
 } from 'lucide-react';
 import { isLiveSupabaseConfigured } from '../lib/supabase';
 import { useAdminStore } from '../store/useAdminStore';
@@ -31,7 +32,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenCsvModal,
   onOpenSyllabusModal,
 }) => {
-  const { schoolProfile, connectionMode, themeMode, toggleThemeMode } = useAdminStore();
+  const { schoolProfile, connectionMode, themeMode, toggleThemeMode, isSyncing, initializeRealtimeSync } = useAdminStore();
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs transition-colors">
@@ -87,18 +88,29 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
 
-        {/* Database Status Indicator: Live Cloud Sync vs Offline Demo Mode */}
-        {connectionMode === 'LIVE_CLOUD' ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Live Cloud Sync</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>Offline Demo Mode</span>
-          </div>
-        )}
+        {/* Database Status Indicator: Live Cloud Sync vs Offline Demo Mode + Force Sync */}
+        <div className="flex items-center gap-1.5">
+          {connectionMode === 'LIVE_CLOUD' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live Cloud Sync</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>Offline Demo Mode</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => initializeRealtimeSync()}
+            disabled={isSyncing}
+            title={isSyncing ? 'Syncing with Supabase...' : 'Force Cloud Sync'}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-600 dark:text-emerald-400' : ''}`} />
+          </button>
+        </div>
 
         {/* Academic Session Pill */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[11px] font-medium text-slate-700 dark:text-slate-300">
