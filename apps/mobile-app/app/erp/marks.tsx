@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Award,
   ShieldCheck,
@@ -17,6 +17,7 @@ import { useAppTheme, getCardShadow } from '@/theme/colors';
 const TERM_ORDER: Record<string, number> = { PRE_BOARD: 0, MIDTERM: 1, UNIT_TEST_1: 2 };
 
 export default function ExamMarksScreen() {
+  const insets = useSafeAreaInsets();
   const { examMarks, studentProfile } = useEdzyStore();
   const { theme, isDark } = useAppTheme();
   const [selectedTermId, setSelectedTermId] = useState<string>('PRE_BOARD');
@@ -32,7 +33,7 @@ export default function ExamMarksScreen() {
   const cardShadow = getCardShadow(isDark);
 
   return (
-    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.canvas }]} edges={['bottom', 'left', 'right']}>
       {/* Term Filter Scroller */}
       <View
         style={[
@@ -79,8 +80,16 @@ export default function ExamMarksScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 132 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: 16,
+            paddingHorizontal: 16,
+            paddingBottom: Math.max(insets.bottom, 24) + 16,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
       >
         {/* Aggregate Performance Overview Card */}
         <View
@@ -220,7 +229,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   scrollContent: {
-    padding: 16,
     gap: 14,
   },
   overviewCard: {

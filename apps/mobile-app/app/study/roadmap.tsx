@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   BookOpen,
@@ -22,10 +22,12 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import { useEdzyStore, MilestoneStatus } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { colors, useAppTheme } from '@/theme/colors';
 
 export default function SyllabusRoadmapScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   const { roadmaps, markMilestoneStatus, updateArDirective, incrementStudyHour } = useEdzyStore();
   const [selectedRoadmapId, setSelectedRoadmapId] = useState<string>(roadmaps[0]?.id || 'bio-ch6');
 
@@ -61,7 +63,7 @@ export default function SyllabusRoadmapScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.canvas }]} edges={['bottom', 'left', 'right']}>
       {/* Chapter Selection Horizontal Scroller */}
       <View style={styles.selectorHeader}>
         <ScrollView
@@ -101,7 +103,18 @@ export default function SyllabusRoadmapScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: 16,
+            paddingHorizontal: 16,
+            paddingBottom: Math.max(insets.bottom, 24) + 16,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+      >
         {/* Chapter Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
@@ -310,7 +323,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   scrollContent: {
-    padding: 16,
     gap: 14,
   },
   summaryCard: {

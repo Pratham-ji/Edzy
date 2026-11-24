@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   Send,
@@ -22,7 +22,7 @@ import {
   User,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { colors, useAppTheme } from '@/theme/colors';
 
 const QUICK_PROMPTS = [
   'Why is the left ventricle wall 3x thicker?',
@@ -33,6 +33,8 @@ const QUICK_PROMPTS = [
 
 export default function SocraticTutorScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   const { chatMessages, sendSocraticPrompt, updateArDirective } = useEdzyStore();
   const [inputText, setInputText] = useState('');
   const scrollViewRef = useRef<any>(null);
@@ -59,7 +61,7 @@ export default function SocraticTutorScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.canvas }]} edges={['bottom', 'left', 'right']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
@@ -87,8 +89,12 @@ export default function SocraticTutorScreen() {
         {/* Message Stream */}
         <ScrollView
           ref={scrollViewRef}
-          contentContainerStyle={styles.messagesScroll}
+          contentContainerStyle={[
+            styles.messagesScroll,
+            { paddingBottom: Math.max(insets.bottom, 16) + 16 },
+          ]}
           keyboardShouldPersistTaps="handled"
+          contentInsetAdjustmentBehavior="never"
         >
           {chatMessages.map((msg) => {
             const isStudent = msg.sender === 'STUDENT';

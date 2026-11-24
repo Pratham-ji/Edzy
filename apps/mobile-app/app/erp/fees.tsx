@@ -9,7 +9,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CreditCard,
   ShieldCheck,
@@ -28,9 +28,11 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useEdzyStore, FeeInstallment, PaymentMethod } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { colors, useAppTheme } from '@/theme/colors';
 
 export default function FeePassbookScreen() {
+  const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   const { feeInstallments, payFeeInstallment, studentProfile, initializeMobileSync } = useEdzyStore();
 
   React.useEffect(() => {
@@ -124,8 +126,19 @@ export default function FeePassbookScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['bottom', 'left', 'right']}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: 16,
+            paddingHorizontal: 16,
+            paddingBottom: Math.max(insets.bottom, 24) + 16,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+      >
         {/* ─── SUMMARY HERO CARD (PhonePe/Groww Style) ─── */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
@@ -438,7 +451,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 16,
     gap: 14,
   },
   summaryCard: {
