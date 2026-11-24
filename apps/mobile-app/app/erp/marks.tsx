@@ -5,17 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Award,
   BookOpen,
   TrendingUp,
   ShieldCheck,
   CheckCircle2,
-  UserCheck,
   Calendar,
   Sparkles,
+  GraduationCap,
 } from 'lucide-react-native';
 import { useEdzyStore, ExamTermRecord } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
@@ -33,7 +33,6 @@ export default function ExamMarksScreen() {
     <SafeAreaView style={styles.safeContainer}>
       {/* Term Filter Scroller */}
       <View style={styles.filterBar}>
-        <Text style={styles.filterTitle}>Select Examination Term:</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -62,7 +61,7 @@ export default function ExamMarksScreen() {
         <View style={styles.overviewCard}>
           <View style={styles.overviewTopRow}>
             <View style={styles.overviewBadge}>
-              <Award size={16} color={colors.student.secondaryLight} />
+              <Award size={14} color={colors.brand.primary} />
               <Text style={styles.overviewBadgeText}>CBSE MERIT SCORECARD</Text>
             </View>
             <View style={styles.rankPill}>
@@ -74,7 +73,7 @@ export default function ExamMarksScreen() {
 
           <Text style={styles.examMainTitle}>{activeExam.termName}</Text>
           <Text style={styles.examSub}>
-            Candidate: {studentProfile.name} • {studentProfile.classGrade} • Roll #{studentProfile.rollNo}
+            Candidate: {studentProfile.name} • {studentProfile.classGrade} (Roll #{studentProfile.rollNo})
           </Text>
 
           {/* Grid Stats */}
@@ -83,69 +82,66 @@ export default function ExamMarksScreen() {
               <Text style={styles.statBig}>{activeExam.percentage}%</Text>
               <Text style={styles.statLabel}>Aggregate Percentage</Text>
             </View>
+            <View style={styles.statDivider} />
             <View style={styles.statBox}>
               <Text style={styles.statBig}>
                 {activeExam.totalObtained}/{activeExam.totalMax}
               </Text>
               <Text style={styles.statLabel}>Total Marks Scored</Text>
             </View>
+            <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statBig}>{activeExam.attendancePercentage}%</Text>
+              <Text style={[styles.statBig, { color: colors.parent.primary }]}>
+                {activeExam.attendancePercentage}%
+              </Text>
               <Text style={styles.statLabel}>Term Attendance</Text>
             </View>
           </View>
 
           <View style={styles.endorseRow}>
-            <ShieldCheck size={14} color={colors.parent.primaryLight} />
+            <ShieldCheck size={14} color={colors.parent.primary} />
             <Text style={styles.endorseText}>
-              Official CBSE 9-point grading system standard applied (A1 top 1/8th).
+              Official CBSE Term Marksheet verified by Academic Coordinator
             </Text>
           </View>
         </View>
 
-        {/* Subject Scorecards List */}
-        <View style={styles.subjectsSection}>
-          <Text style={styles.sectionHeader}>Subject-Wise Score Breakdown</Text>
-          <Text style={styles.sectionSubtitle}>
-            Comparing student marks with Class 10-A batch average & teacher observations:
-          </Text>
+        {/* Individual Subject Scores */}
+        <Text style={styles.sectionHeading}>Subject-wise Breakdown</Text>
 
-          {activeExam.scores.map((score, idx) => {
-            const studentPercent = Math.round((score.marksObtained / score.maxMarks) * 100);
-            const classAvgPercent = Math.round((score.classAverage / score.maxMarks) * 100);
-
+        <View style={styles.subjectsList}>
+          {activeExam.scores.map((sc) => {
+            const percent = (sc.marksObtained / sc.maxMarks) * 100;
             return (
-              <View key={idx} style={styles.scoreCard}>
+              <View key={sc.subject} style={styles.scoreCard}>
                 <View style={styles.scoreCardHeader}>
                   <View style={styles.subjectNameCol}>
-                    <Text style={styles.subjectName}>{score.subject}</Text>
+                    <Text style={styles.subjectName}>{sc.subject}</Text>
                     <Text style={styles.subjectMarksRaw}>
-                      {score.marksObtained} / {score.maxMarks} Marks
+                      {sc.marksObtained} / {sc.maxMarks} Marks ({percent.toFixed(0)}%)
                     </Text>
                   </View>
-
                   <View style={styles.gradeBadge}>
-                    <Text style={styles.gradeBadgeText}>{score.grade}</Text>
+                    <Text style={styles.gradeBadgeText}>{sc.grade}</Text>
                   </View>
                 </View>
 
-                {/* Score vs Class Average Progress Bar */}
+                {/* Comparative Progress Bar */}
                 <View style={styles.barContainer}>
                   <View style={styles.barLabelRow}>
-                    <Text style={styles.barLabelStudent}>Aarav: {score.marksObtained}</Text>
-                    <Text style={styles.barLabelAvg}>Class Avg: {score.classAverage}</Text>
+                    <Text style={styles.barLabelStudent}>Scored: {percent.toFixed(0)}%</Text>
+                    <Text style={styles.barLabelAvg}>Class Avg: {sc.classAverage}%</Text>
                   </View>
                   <View style={styles.barTrack}>
-                    <View style={[styles.barFill, { width: `${studentPercent}%` }]} />
-                    {/* Class Avg tick marker */}
-                    <View style={[styles.avgTick, { left: `${classAvgPercent}%` }]} />
+                    <View style={[styles.barFill, { width: `${percent}%` }]} />
+                    <View style={[styles.avgTick, { left: `${sc.classAverage}%` }]} />
                   </View>
                 </View>
 
-                {/* Faculty Remarks */}
+                {/* Teacher Remarks */}
                 <View style={styles.remarksBox}>
-                  <Text style={styles.remarksLabel}>TEACHER REMARK:</Text>
-                  <Text style={styles.remarksText}>"{score.teacherRemarks}"</Text>
+                  <Text style={styles.remarksLabel}>TEACHER REMARK</Text>
+                  <Text style={styles.remarksText}>"{sc.teacherRemarks}"</Text>
                 </View>
               </View>
             );
@@ -163,34 +159,25 @@ const styles = StyleSheet.create({
   },
   filterBar: {
     backgroundColor: colors.surface,
-    paddingTop: 14,
-    paddingBottom: 10,
-    borderBottomColor: colors.cardBorder,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-  },
-  filterTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text.muted,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    letterSpacing: 0.5,
+    borderBottomColor: colors.surfaceBorder,
   },
   filterScroll: {
     paddingHorizontal: 16,
     gap: 8,
   },
   filterChip: {
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
   },
   filterChipActive: {
-    backgroundColor: colors.student.primary,
-    borderColor: colors.student.primaryLight,
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   filterChipText: {
     fontSize: 12,
@@ -203,15 +190,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    gap: 14,
   },
   overviewCard: {
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderRadius: 18,
+    borderColor: colors.surfaceBorder,
     padding: 16,
-    marginBottom: 20,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: colors.shadow.elevation,
   },
   overviewTopRow: {
     flexDirection: 'row',
@@ -223,49 +214,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: colors.brand.tint,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   overviewBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: colors.student.secondaryLight,
-    letterSpacing: 0.8,
+    color: colors.brand.primary,
+    letterSpacing: 0.5,
   },
   rankPill: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    backgroundColor: colors.status.successBg,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   rankPillText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.student.secondaryLight,
+    color: colors.status.success,
   },
   examMainTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
     color: colors.text.primary,
+    marginBottom: 2,
   },
   examSub: {
-    fontSize: 11,
-    color: colors.text.muted,
-    marginTop: 2,
+    fontSize: 12,
+    color: colors.text.secondary,
     marginBottom: 14,
   },
   statsGrid: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingVertical: 12,
     marginBottom: 12,
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
   },
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.surfaceBorder,
+  },
   statBig: {
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: 17,
+    fontWeight: '800',
     color: colors.text.primary,
   },
   statLabel: {
@@ -280,65 +279,69 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   endorseText: {
-    fontSize: 10,
-    color: colors.parent.primaryLight,
+    fontSize: 11,
+    color: colors.parent.primary,
     flex: 1,
+    lineHeight: 15,
   },
-  subjectsSection: {
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginTop: 4,
+  },
+  subjectsList: {
     gap: 12,
   },
-  sectionHeader: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.text.primary,
-  },
-  sectionSubtitle: {
-    fontSize: 11,
-    color: colors.text.muted,
-    marginBottom: 4,
-  },
   scoreCard: {
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
+    backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: 16,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: colors.shadow.opacity,
+    shadowRadius: colors.shadow.radius,
+    elevation: 1,
   },
   scoreCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  subjectNameCol: {},
+  subjectNameCol: {
+    flex: 1,
+  },
   subjectName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text.primary,
   },
   subjectMarksRaw: {
     fontSize: 12,
-    fontWeight: '800',
-    color: colors.student.secondaryLight,
+    fontWeight: '600',
+    color: colors.brand.primary,
     marginTop: 2,
   },
   gradeBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderColor: colors.student.primary,
+    backgroundColor: colors.brand.tint,
     borderWidth: 1,
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    borderColor: colors.brand.tintBorder,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   gradeBadgeText: {
     fontSize: 13,
     fontWeight: '800',
-    color: colors.student.primaryLight,
+    color: colors.brand.primary,
   },
   barContainer: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   barLabelRow: {
     flexDirection: 'row',
@@ -346,52 +349,50 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   barLabelStudent: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.brand.primary,
   },
   barLabelAvg: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.text.muted,
   },
   barTrack: {
-    height: 7,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    height: 8,
+    backgroundColor: colors.background,
     borderRadius: 4,
     position: 'relative',
     overflow: 'visible',
   },
   barFill: {
     height: '100%',
-    backgroundColor: colors.student.secondaryLight,
+    backgroundColor: colors.brand.primary,
     borderRadius: 4,
   },
   avgTick: {
     position: 'absolute',
-    top: -3,
-    bottom: -3,
+    top: -2,
+    bottom: -2,
     width: 2,
     backgroundColor: colors.status.warning,
     zIndex: 2,
   },
   remarksBox: {
-    backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
+    backgroundColor: colors.background,
     borderRadius: 10,
-    padding: 8,
+    padding: 10,
   },
   remarksLabel: {
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text.muted,
     letterSpacing: 0.5,
     marginBottom: 2,
   },
   remarksText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text.secondary,
     fontStyle: 'italic',
-    lineHeight: 15,
+    lineHeight: 16,
   },
 });

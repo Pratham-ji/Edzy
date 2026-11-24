@@ -1,42 +1,44 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { PressableScale } from '@/components/PressableScale';
 import {
-  School,
   Sparkles,
+  CreditCard,
   BookOpen,
   Boxes,
-  MessageSquareCode,
+  HelpCircle,
   Flame,
-  CreditCard,
-  Award,
+  CheckCircle2,
   Clock,
-  Bell,
   ArrowRight,
-  LogOut,
-  ChevronRight,
-  ShieldAlert,
-  CheckCircle,
-  Hourglass,
+  TrendingUp,
+  FileText,
   Lock,
-  Timer,
+  ChevronRight,
+  Heart,
+  Bell,
+  Settings,
   ShieldCheck,
-  X,
-  Coffee,
+  Calendar,
+  Layers,
+  GraduationCap,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
-import { HolographicHeartPreview } from '@/components/HolographicHeartPreview';
+
+const SUBJECT_CHIPS = ['All', 'Science', 'Mathematics', 'Physics', 'English'];
 
 export default function MasterBentoDashboard() {
   const router = useRouter();
@@ -45,8 +47,6 @@ export default function MasterBentoDashboard() {
     setActiveMode,
     studentProfile,
     roadmaps,
-    activeArDirective,
-    chatMessages,
     feeInstallments,
     examMarks,
     logout,
@@ -54,19 +54,18 @@ export default function MasterBentoDashboard() {
     sessionRemainingSeconds,
     isTimeLimitActive,
     isSessionLocked,
-    setTimeLimitMinutes,
     decrementSessionSecond,
     unlockOrExtendSession,
-    toggleTimeLimitActive,
     connectionMode,
     liveSyncToast,
     clearLiveSyncToast,
     initializeMobileSync,
   } = useEdzyStore();
 
+  const [selectedSubject, setSelectedSubject] = useState('All');
   const [parentOverridePin, setParentOverridePin] = useState('');
 
-  // Run the digital wellbeing time limit countdown
+  // Digital Wellbeing Countdown Timer
   useEffect(() => {
     const timer = setInterval(() => {
       decrementSessionSecond();
@@ -74,9 +73,8 @@ export default function MasterBentoDashboard() {
     return () => clearInterval(timer);
   }, [decrementSessionSecond]);
 
-  // Realtime Supabase live sync
+  // Realtime Supabase Live Sync
   useEffect(() => {
-    setActiveMode('PARENT');
     let cleanup: (() => void) | undefined;
     initializeMobileSync(studentProfile.id).then((c) => {
       cleanup = c;
@@ -84,29 +82,27 @@ export default function MasterBentoDashboard() {
     return () => {
       cleanup?.();
     };
-  }, [initializeMobileSync, studentProfile.id, setActiveMode]);
+  }, [initializeMobileSync, studentProfile.id]);
 
-  // Auto-dismiss live sync notification toast
+  // Auto-dismiss Live Sync Toast
   useEffect(() => {
     if (liveSyncToast) {
       const t = setTimeout(() => {
         clearLiveSyncToast();
-      }, 4500);
+      }, 3500);
       return () => clearTimeout(t);
     }
   }, [liveSyncToast, clearLiveSyncToast]);
 
-  const formatTimer = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const isStudent = activeMode === 'STUDENT';
+
+  // Format time remaining
+  const formatTimeRemaining = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    return `${m}m left`;
   };
 
-  const isStudent = activeMode === 'STUDENT';
-  const currentChapter = roadmaps.find((r) => r.isCurrent) || roadmaps[0];
-  const latestExam = examMarks[0];
-
-  // Fee calculation
+  // Fees calculations
   const totalPaid = feeInstallments
     .filter((f) => f.status === 'PAID')
     .reduce((sum, f) => sum + f.amount, 0);
@@ -115,128 +111,95 @@ export default function MasterBentoDashboard() {
     .filter((f) => f.status !== 'PAID')
     .reduce((sum, f) => sum + f.amount, 0);
 
-  const pendingQuarter = feeInstallments.find((f) => f.status !== 'PAID');
+  const pendingQuarter = feeInstallments.find((f) => f.status === 'PENDING' || f.status === 'OVERDUE');
+  const allFeesCleared = totalDue === 0;
 
-  const latestSocraticMsg = chatMessages[chatMessages.length - 1];
+  // Latest exam report
+  const latestExam = examMarks && examMarks.length > 0 ? examMarks[0] : null;
+
+  // Active roadmap
+  const activeRoadmap = roadmaps.find((r) => r.isCurrent) || roadmaps[0];
+
+  const handleParentUnlock = () => {
+    if (unlockOrExtendSession(parentOverridePin, 30)) {
+      setParentOverridePin('');
+      Alert.alert('Session Extended', '30 additional minutes granted for study.');
+    } else {
+      Alert.alert('Incorrect PIN', 'Please enter valid 4-digit Parent PIN.');
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      {/* 1. Sticky School Header */}
-      <View style={styles.headerBar}>
-        <View style={styles.schoolInfoRow}>
-          <View style={styles.schoolLogoSmall}>
-            <School size={18} color={isStudent ? colors.student.secondaryLight : colors.parent.primaryLight} />
-          </View>
-          <View style={styles.schoolTitleBox}>
-            <Text style={styles.schoolNameText} numberOfLines={1}>
-              {studentProfile.schoolName}
-            </Text>
-            <Text style={styles.schoolMetaText}>
-              {studentProfile.schoolCode} • CBSE Affiliated • Class 10
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={() => {
-              logout();
-              router.replace('/login');
-            }}
-          >
-            <LogOut size={16} color={colors.text.muted} />
-          </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea}>
+      {/* ─── LIVE SYNC TOAST ─── */}
+      {liveSyncToast && (
+        <View style={styles.toastContainer}>
+          <CheckCircle2 size={16} color="#FFFFFF" />
+          <Text style={styles.toastText} numberOfLines={1}>
+            {liveSyncToast}
+          </Text>
         </View>
+      )}
 
-        {/* Student / Parent Identity Bar */}
-        <View style={styles.identityBar}>
-          <View style={styles.avatarPill}>
-            <Text style={styles.avatarInitial}>
+      {/* ─── 1. COMPACT 1-ROW CONSUMER HEADER (Zomato/Blinkit Style) ─── */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>
               {isStudent ? studentProfile.name[0] : studentProfile.parentName[0]}
             </Text>
           </View>
-          <View style={styles.identityDetails}>
-            <Text style={styles.identityName}>
-              {isStudent ? studentProfile.name : `${studentProfile.parentName} (Parent)`}
+          <View style={styles.userInfo}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {isStudent ? `Hi, ${studentProfile.name.split(' ')[0]}` : `Hi, ${studentProfile.parentName.split(' ')[0]}`}
             </Text>
-            <Text style={styles.identityClass}>
-              {studentProfile.classGrade} • Roll #{studentProfile.rollNo} • ID: {studentProfile.id}
-            </Text>
-          </View>
-          <View style={styles.verifiedTag}>
-            <Text style={styles.verifiedText}>Active 26-27</Text>
-          </View>
-        </View>
-
-        {/* Digital Wellbeing Session Limit Indicator */}
-        <View style={styles.timeLimitBannerRow}>
-          <View style={styles.timeLimitLeft}>
-            <Hourglass
-              size={13}
-              color={
-                !isTimeLimitActive
-                  ? colors.text.muted
-                  : sessionRemainingSeconds < 300
-                  ? colors.status.error
-                  : colors.student.secondaryLight
-              }
-            />
-            <Text
-              style={[
-                styles.timeLimitBannerText,
-                sessionRemainingSeconds < 300 && isTimeLimitActive && { color: colors.status.error },
-              ]}
-            >
-              {isTimeLimitActive
-                ? `Focus Time Limit: ${formatTimer(sessionRemainingSeconds)} Left`
-                : 'Focus Time Limit: Disabled'}
-            </Text>
-          </View>
-          <View style={styles.timeLimitModeTag}>
-            <Text style={styles.timeLimitModeTagText}>
-              {isTimeLimitActive ? `${sessionTimeLimitMinutes}m Max` : 'Off'}
+            <Text style={styles.userSub} numberOfLines={1}>
+              {studentProfile.schoolName.split(' ')[0]} {studentProfile.schoolName.split(' ')[1] || ''} • {studentProfile.classGrade}
             </Text>
           </View>
         </View>
 
-        {/* Realtime Live Sync Notification Toast */}
-        {liveSyncToast && (
-          <View style={styles.liveSyncToastBanner}>
-            <View style={styles.pulseGreenDot} />
-            <Text style={styles.liveSyncToastText} numberOfLines={1}>
-              {liveSyncToast}
-            </Text>
-            <TouchableOpacity onPress={clearLiveSyncToast} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={13} color="#6EE7B7" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* 2. Master Mode Switcher: Study Space vs Parent ERP */}
-        <View style={styles.modeSwitcherContainer}>
+        <View style={styles.headerRight}>
+          {isTimeLimitActive && (
+            <View style={styles.timerPill}>
+              <Clock size={12} color={colors.brand.primary} />
+              <Text style={styles.timerText}>
+                {formatTimeRemaining(sessionRemainingSeconds)}
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
-            style={[
-              styles.modeTabButton,
-              isStudent && styles.modeTabStudentActive,
-            ]}
+            style={styles.iconButton}
+            onPress={() => router.push('/(tabs)/profile')}
+            activeOpacity={0.7}
+          >
+            <Settings size={18} color="#222222" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ─── 2. SLEEK SEGMENTED MODE PILL ─── */}
+      <View style={styles.modeContainer}>
+        <View style={styles.modeTrack}>
+          <TouchableOpacity
+            style={[styles.modeTab, isStudent && styles.modeTabActive]}
             onPress={() => setActiveMode('STUDENT')}
             activeOpacity={0.85}
           >
-            <Sparkles size={14} color={isStudent ? '#FFFFFF' : colors.text.muted} />
-            <Text style={[styles.modeTabText, isStudent && styles.modeTabTextActive]}>
-              Study Space (At-Home)
+            <Sparkles size={14} color={isStudent ? colors.brand.primary : colors.text.muted} />
+            <Text style={[styles.modeLabel, isStudent && styles.modeLabelActive]}>
+              Study Space
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.modeTabButton,
-              !isStudent && styles.modeTabParentActive,
-            ]}
+            style={[styles.modeTab, !isStudent && styles.modeTabActive]}
             onPress={() => setActiveMode('PARENT')}
             activeOpacity={0.85}
           >
-            <CreditCard size={14} color={!isStudent ? '#FFFFFF' : colors.text.muted} />
-            <Text style={[styles.modeTabText, !isStudent && styles.modeTabTextActive]}>
-              Parent ERP & Fees
+            <CreditCard size={14} color={!isStudent ? colors.parent.primary : colors.text.muted} />
+            <Text style={[styles.modeLabel, !isStudent && styles.modeLabelActiveParent]}>
+              Parent ERP
             </Text>
           </TouchableOpacity>
         </View>
@@ -248,392 +211,316 @@ export default function MasterBentoDashboard() {
       >
         {isStudent ? (
           /* =========================================================================
-             STUDENT BENTO GRID
+             STUDENT STUDY SPACE
              ========================================================================= */
-          <View style={styles.bentoGrid}>
-            {/* 1. HERO TILE: Active AI Syllabus Roadmap */}
-            <TouchableOpacity
-              style={[styles.bentoTile, styles.heroTile]}
-              onPress={() => router.push('/study/roadmap')}
-              activeOpacity={0.85}
+          <View style={styles.contentSection}>
+            {/* Subject Filter Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipsRow}
             >
-              <View style={styles.heroTopRow}>
-                <View style={styles.heroBadge}>
-                  <BookOpen size={14} color={colors.student.secondaryLight} />
-                  <Text style={styles.heroBadgeText}>{currentChapter.board}</Text>
+              {SUBJECT_CHIPS.map((chip) => {
+                const isActive = selectedSubject === chip;
+                return (
+                  <TouchableOpacity
+                    key={chip}
+                    style={[styles.chip, isActive && styles.chipActive]}
+                    onPress={() => setSelectedSubject(chip)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                      {chip}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* HERO CARD: Continue Learning */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.pillBadgeIndigo}>
+                  <BookOpen size={12} color={colors.brand.primary} />
+                  <Text style={styles.pillBadgeIndigoText}>
+                    {activeRoadmap?.subject || 'Science'} • Ch {activeRoadmap?.chapterNumber || 6}
+                  </Text>
                 </View>
-                <View style={styles.progressPill}>
-                  <Text style={styles.progressPillText}>{currentChapter.progressPercent}% DONE</Text>
-                </View>
+                <Text style={styles.cardMetaText}>NCERT Class 10</Text>
               </View>
 
-              <Text style={styles.heroSubject}>{currentChapter.subject}</Text>
               <Text style={styles.heroTitle}>
-                Ch {currentChapter.chapterNumber}: {currentChapter.title}
+                {activeRoadmap?.title || 'Life Processes & Human Heart'}
               </Text>
 
               {/* Progress Bar */}
-              <View style={styles.progressBarTrack}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    { width: `${currentChapter.progressPercent}%` },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.heroBottomRow}>
-                <Text style={styles.heroMilestoneSummary}>
-                  {currentChapter.completedSubtopics} of {currentChapter.totalSubtopics} Milestones Cleared
-                </Text>
-                <View style={styles.actionArrow}>
-                  <Text style={styles.actionArrowText}>Open Roadmap</Text>
-                  <ArrowRight size={14} color={colors.student.secondaryLight} />
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${activeRoadmap?.progressPercent || 65}%` },
+                    ]}
+                  />
                 </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* 2. WIDE 16:9 PREVIEW TILE: Interactive 3D Spatial AR Lab */}
-            <TouchableOpacity
-              style={[styles.bentoTile, styles.arPreviewTile]}
-              onPress={() => router.push('/study/ar-lab')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.arPreviewHeader}>
-                <View style={styles.spatialBadge}>
-                  <Boxes size={14} color={colors.spatial.nodeActive} />
-                  <Text style={styles.spatialBadgeText}>16:9 SPATIAL AR LAB</Text>
-                </View>
-                <View style={styles.fpsBadge}>
-                  <Text style={styles.fpsText}>
-                    {activeArDirective.fps} FPS • {activeArDirective.latencyMs}ms WebRTC
+                <View style={styles.progressLabelRow}>
+                  <Text style={styles.progressPercentText}>
+                    {activeRoadmap?.progressPercent || 65}% Mastered
+                  </Text>
+                  <Text style={styles.progressSubText}>
+                    {activeRoadmap?.completedSubtopics || 3} of {activeRoadmap?.totalSubtopics || 5} topics done
                   </Text>
                 </View>
               </View>
 
-              {/* High-Tech 16:9 Holographic Heart AR Wireframe Viewport */}
-              <View style={styles.aspect169PreviewContainer}>
-                <HolographicHeartPreview
-                  targetNode={activeArDirective.targetNode}
-                  fps={activeArDirective.fps}
-                  latencyMs={activeArDirective.latencyMs}
-                  rotation={activeArDirective.rotation}
-                />
-                <View style={styles.arOverlayInfo}>
-                  <Text style={styles.arModelTitle}>{activeArDirective.modelName}</Text>
-                  <Text style={styles.arModelSub} numberOfLines={1}>
-                    {activeArDirective.note}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.arLaunchFooter}>
-                <Text style={styles.arDirectiveAngle}>
-                  Spatial Orientation: {activeArDirective.rotation}
-                </Text>
-                <View style={styles.arLaunchButton}>
-                  <Text style={styles.arLaunchButtonText}>Launch 3D Viewport</Text>
-                  <ChevronRight size={14} color="#FFFFFF" />
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* TWO-COLUMN SPLIT TILES */}
-            <View style={styles.twoColumnRow}>
-              {/* 3. SOCRATIC DOUBT SOLVER TILE */}
               <TouchableOpacity
-                style={[styles.bentoTile, styles.halfTile]}
+                style={styles.primaryButton}
+                onPress={() => router.push('/study/roadmap')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryButtonText}>Continue Chapter</Text>
+                <ArrowRight size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* INTERACTIVE 3D LAB CARD (Clean Slot for AR Teammate) */}
+            <View style={styles.card}>
+              <View style={styles.arPreviewContainer}>
+                <View style={styles.arGradientBox}>
+                  <View style={styles.heartIconCircle}>
+                    <Heart size={36} color={colors.brand.primary} fill="#EEF2FF" />
+                  </View>
+                  <View style={styles.arModelBadge}>
+                    <Boxes size={12} color={colors.brand.primary} />
+                    <Text style={styles.arModelBadgeText}>Interactive 3D Model</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.arCardBody}>
+                <Text style={styles.cardTitle}>Human Heart — 3D Visual Lab</Text>
+                <Text style={styles.cardDescription}>
+                  Rotate, zoom, and explore chambers, valves, and blood flow in full 3D simulation.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.secondaryBrandButton}
+                  onPress={() => router.push('/study/ar-lab')}
+                  activeOpacity={0.85}
+                >
+                  <Boxes size={16} color={colors.brand.primary} />
+                  <Text style={styles.secondaryBrandButtonText}>Open 3D Lab</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 2-COLUMN QUICK ACTION GRID */}
+            <View style={styles.quickGrid}>
+              {/* Left Tile: AI Doubt Tutor */}
+              <TouchableOpacity
+                style={[styles.gridTile, styles.gridTileLeft]}
                 onPress={() => router.push('/study/tutor')}
                 activeOpacity={0.85}
               >
-                <View style={styles.tileHeaderRow}>
-                  <MessageSquareCode size={18} color={colors.student.primaryLight} />
-                  <View style={styles.miniTag}>
-                    <Text style={styles.miniTagText}>NCERT AI</Text>
-                  </View>
+                <View style={styles.iconCircleIndigo}>
+                  <HelpCircle size={22} color={colors.brand.primary} />
                 </View>
-                <Text style={styles.tileTitle}>Socratic Doubt Solver</Text>
-                <Text style={styles.tileDescription} numberOfLines={2}>
-                  {latestSocraticMsg ? latestSocraticMsg.text : 'Grounded in Class 10 School Notes'}
+                <Text style={styles.gridTileTitle}>AI Doubt Tutor</Text>
+                <Text style={styles.gridTileSub}>
+                  Ask anything grounded in school notes & NCERT
                 </Text>
-                <View style={styles.chipRow}>
-                  <Text style={styles.chipText}>Ask Ch 6 Bio Doubts</Text>
-                  <ArrowRight size={12} color={colors.student.primaryLight} />
+                <View style={styles.gridTileAction}>
+                  <Text style={styles.gridActionTextIndigo}>Ask Doubts →</Text>
                 </View>
               </TouchableOpacity>
 
-              {/* 4. AT-HOME DAILY MICRO-QUIZ & STREAK TILE */}
-              <View style={[styles.bentoTile, styles.halfTile]}>
-                <View style={styles.tileHeaderRow}>
-                  <Flame size={18} color="#F97316" />
-                  <View style={[styles.miniTag, { backgroundColor: 'rgba(249, 115, 22, 0.15)' }]}>
-                    <Text style={[styles.miniTagText, { color: '#F97316' }]}>12 DAYS</Text>
-                  </View>
+              {/* Right Tile: Study Streak */}
+              <View style={[styles.gridTile, styles.gridTileRight]}>
+                <View style={styles.iconCircleOrange}>
+                  <Flame size={22} color={colors.streak.primary} />
                 </View>
-                <Text style={styles.tileTitle}>Study Streak</Text>
-                <Text style={styles.streakSubText}>
-                  {studentProfile.weeklyStudyHours} hrs logged this week
+                <Text style={styles.gridTileTitle}>
+                  {studentProfile.streakDays || 12} Days
                 </Text>
-                <View style={styles.streakStatusPill}>
-                  <CheckCircle size={12} color={colors.parent.primary} />
-                  <Text style={styles.streakStatusText}>Today's Target: Met</Text>
+                <Text style={styles.gridTileSub}>
+                  {studentProfile.weeklyStudyHours || 6.5} hrs logged this week
+                </Text>
+                <View style={styles.streakBadgeRow}>
+                  <CheckCircle2 size={12} color={colors.status.success} />
+                  <Text style={styles.streakBadgeText}>Daily Goal Met</Text>
                 </View>
               </View>
             </View>
           </View>
         ) : (
           /* =========================================================================
-             PARENT ERP BENTO GRID
+             PARENT ERP MODE
              ========================================================================= */
-          <View style={styles.bentoGrid}>
-            {/* 1. HERO TILE: Live Fee Balance Summary */}
-            <TouchableOpacity
-              style={[styles.bentoTile, styles.heroTileParent]}
-              onPress={() => router.push('/erp/fees')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.heroTopRow}>
-                <View style={styles.parentBadge}>
-                  <CreditCard size={14} color={colors.parent.primaryLight} />
-                  <Text style={styles.parentBadgeText}>ACADEMIC SESSION 2026-2027</Text>
-                </View>
-                <View
-                  style={[
-                    styles.feeStatusTag,
-                    {
-                      backgroundColor:
-                        totalDue === 0 ? colors.status.successBg : colors.status.warningBg,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.feeStatusTagText,
-                      { color: totalDue === 0 ? colors.parent.primaryLight : colors.status.warning },
-                    ]}
-                  >
-                    {totalDue === 0 ? 'ALL CLEARED' : 'Q4 DUES PENDING'}
-                  </Text>
-                </View>
+          <View style={styles.contentSection}>
+            {/* PAYMENT SUMMARY CARD (PhonePe/Groww Style) */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardCategoryTitle}>School Fee Summary</Text>
+                {allFeesCleared ? (
+                  <View style={styles.badgeSuccess}>
+                    <CheckCircle2 size={12} color={colors.status.success} />
+                    <Text style={styles.badgeSuccessText}>All Dues Cleared</Text>
+                  </View>
+                ) : (
+                  <View style={styles.badgeWarning}>
+                    <Clock size={12} color={colors.status.warning} />
+                    <Text style={styles.badgeWarningText}>
+                      {pendingQuarter?.quarter.split(' ')[0] || 'Q4'} Due • 30 Nov
+                    </Text>
+                  </View>
+                )}
               </View>
 
-              <Text style={styles.heroSubject}>School Tuition & Transport Fee</Text>
-              <View style={styles.feeFiguresRow}>
+              <View style={styles.feeNumbersRow}>
                 <View>
-                  <Text style={styles.figureLabel}>Total Due Balance</Text>
-                  <Text
-                    style={[
-                      styles.figureBigValue,
-                      { color: totalDue === 0 ? colors.parent.primaryLight : colors.status.warning },
-                    ]}
-                  >
+                  <Text style={styles.feeLabel}>Outstanding Balance</Text>
+                  <Text style={[styles.feeAmountLarge, allFeesCleared && { color: colors.status.success }]}>
                     ₹{totalDue.toLocaleString('en-IN')}
                   </Text>
                 </View>
-                <View style={styles.figureDivider} />
-                <View>
-                  <Text style={styles.figureLabel}>Total Paid to Date</Text>
-                  <Text style={[styles.figureBigValue, { color: colors.text.primary }]}>
+                <View style={styles.feePaidColumn}>
+                  <Text style={styles.feeLabel}>Total Paid to Date</Text>
+                  <Text style={styles.feePaidAmount}>
                     ₹{totalPaid.toLocaleString('en-IN')}
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.parentHeroFooter}>
-                <Text style={styles.parentHeroFooterText}>
-                  {totalDue === 0
-                    ? 'Receipt #EDZ-9940 generated • Nil Outstanding'
-                    : `Upcoming: ${pendingQuarter?.quarter} due on ${pendingQuarter?.dueDate}`}
+              <TouchableOpacity
+                style={allFeesCleared ? styles.secondaryBrandButton : styles.primaryButtonEmerald}
+                onPress={() => router.push('/erp/fees')}
+                activeOpacity={0.85}
+              >
+                <Text style={allFeesCleared ? styles.secondaryBrandButtonText : styles.primaryButtonText}>
+                  {allFeesCleared ? 'View Receipts & Passbook' : 'Pay via UPI / View Passbook'}
                 </Text>
-                <View style={styles.actionArrowGreen}>
-                  <Text style={styles.actionArrowTextGreen}>
-                    {totalDue === 0 ? 'View Passbook' : 'Pay Now via UPI'}
+                <ChevronRight size={16} color={allFeesCleared ? colors.brand.primary : '#FFFFFF'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* EXAM REPORT CARD SUMMARY */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.pillBadgeEmerald}>
+                  <GraduationCap size={12} color={colors.parent.primary} />
+                  <Text style={styles.pillBadgeEmeraldText}>
+                    {latestExam?.termName || 'Pre-Board Examination'}
                   </Text>
-                  <ArrowRight size={14} color={colors.parent.primaryLight} />
                 </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* 2. EXAM MARKS & REPORT CARD SUMMARY */}
-            <TouchableOpacity
-              style={[styles.bentoTile, styles.reportCardTile]}
-              onPress={() => router.push('/erp/marks')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.tileHeaderRow}>
-                <View style={styles.reportTitleRow}>
-                  <Award size={18} color={colors.student.secondaryLight} />
-                  <Text style={styles.reportTileTitle}>{latestExam.termName}</Text>
-                </View>
-                <View style={styles.rankPill}>
-                  <Text style={styles.rankPillText}>Class Rank #{latestExam.rankInClass}</Text>
-                </View>
-              </View>
-
-              <View style={styles.metricsRow}>
-                <View style={styles.metricBox}>
-                  <Text style={styles.metricVal}>{latestExam.percentage}%</Text>
-                  <Text style={styles.metricLabel}>Aggregate</Text>
-                </View>
-                <View style={styles.metricBox}>
-                  <Text style={styles.metricVal}>
-                    {latestExam.totalObtained}/{latestExam.totalMax}
+                <View style={styles.rankBadge}>
+                  <Text style={styles.rankBadgeText}>
+                    Rank #{latestExam?.rankInClass || 2} of {latestExam?.totalStudents || 42}
                   </Text>
-                  <Text style={styles.metricLabel}>Score</Text>
-                </View>
-                <View style={styles.metricBox}>
-                  <Text style={styles.metricVal}>{latestExam.attendancePercentage}%</Text>
-                  <Text style={styles.metricLabel}>Attendance</Text>
                 </View>
               </View>
 
-              <View style={styles.topSubjectPillsRow}>
-                <View style={styles.subPill}>
-                  <Text style={styles.subPillText}>Science: 94/100 (A1)</Text>
+              <View style={styles.examScoreRow}>
+                <View>
+                  <Text style={styles.examAggregate}>
+                    {latestExam?.percentage || 92.6}%
+                  </Text>
+                  <Text style={styles.examAggregateLabel}>Overall Aggregate Score</Text>
                 </View>
-                <View style={styles.subPill}>
-                  <Text style={styles.subPillText}>Comp: 98/100 (A1)</Text>
-                </View>
-                <View style={styles.subPill}>
-                  <Text style={styles.subPillText}>Math: 91/100 (A1)</Text>
+                <View style={styles.attendanceColumn}>
+                  <Text style={styles.attendanceValue}>
+                    {latestExam?.attendancePercentage || 96.8}%
+                  </Text>
+                  <Text style={styles.attendanceLabel}>Attendance</Text>
                 </View>
               </View>
-            </TouchableOpacity>
 
-            {/* TWO-COLUMN SPLIT TILES FOR PARENT */}
-            <View style={styles.twoColumnRow}>
-              {/* 3. AT-HOME TUITION TRACKER TILE */}
-              <View style={[styles.bentoTile, styles.halfTile]}>
-                <View style={styles.tileHeaderRow}>
-                  <Clock size={18} color={colors.parent.primaryLight} />
-                  <View style={styles.miniTagGreen}>
-                    <Text style={styles.miniTagGreenText}>WEEKLY</Text>
+              {/* Subject Score Pills */}
+              <View style={styles.subjectPillsRow}>
+                {latestExam?.scores.slice(0, 3).map((sc) => (
+                  <View key={sc.subject} style={styles.subjectPill}>
+                    <Text style={styles.subjectPillName}>
+                      {sc.subject.split(' ')[0]}
+                    </Text>
+                    <Text style={styles.subjectPillScore}>
+                      {sc.marksObtained}/{sc.maxMarks}
+                    </Text>
                   </View>
-                </View>
-                <Text style={styles.tileTitle}>At-Home Study Hours</Text>
-                <Text style={styles.studyHourBig}>{studentProfile.weeklyStudyHours} hrs</Text>
-                <Text style={styles.tileDescription}>
-                  3 NCERT chapters & 7 AR simulations explored this week.
-                </Text>
+                ))}
               </View>
 
-              {/* 4. OFFICIAL SCHOOL CIRCULARS & SYLLABUS LOG */}
-              <View style={[styles.bentoTile, styles.halfTile]}>
-                <View style={styles.tileHeaderRow}>
-                  <Bell size={18} color={colors.parent.secondary} />
-                  <View style={styles.miniTagAmber}>
-                    <Text style={styles.miniTagAmberText}>NEW</Text>
-                  </View>
+              <TouchableOpacity
+                style={styles.outlineButton}
+                onPress={() => router.push('/erp/marks')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.outlineButtonText}>View Full Report Card</Text>
+                <ChevronRight size={16} color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* AT-HOME STUDY PROOF CARD */}
+            <View style={styles.card}>
+              <View style={styles.proofHeaderRow}>
+                <View style={styles.iconCircleIndigoSmall}>
+                  <ShieldCheck size={18} color={colors.brand.primary} />
                 </View>
-                <Text style={styles.tileTitle}>School Circulars</Text>
-                <Text style={styles.tileDescription} numberOfLines={2}>
-                  CBSE Pre-Board Practical Date-Sheet released by Principal.
-                </Text>
-                <Text style={styles.circularTime}>Synced 2 hours ago</Text>
+                <View style={styles.proofHeaderText}>
+                  <Text style={styles.cardTitle}>Verified At-Home Study</Text>
+                  <Text style={styles.cardDescription}>
+                    {studentProfile.name} studied {studentProfile.weeklyStudyHours || 6.5} hrs at home this week — 3 school chapters covered.
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* 5. PARENTAL DIGITAL WELLBEING & STUDY TIME LIMIT TILE */}
-            <View style={[styles.bentoTile, styles.parentTimeLimitTile]}>
-              <View style={styles.tileHeaderRow}>
-                <View style={styles.reportTitleRow}>
-                  <Timer size={18} color={colors.parent.primaryLight} />
-                  <Text style={styles.reportTileTitle}>Parental Session Time Limit</Text>
+            {/* SCHOOL CIRCULAR / NOTICE CARD */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.noticeHeaderLeft}>
+                  <Bell size={14} color={colors.brand.primary} />
+                  <Text style={styles.cardCategoryTitle}>School Circular</Text>
                 </View>
-                <TouchableOpacity
-                  style={[
-                    styles.toggleTagBtn,
-                    isTimeLimitActive ? styles.toggleTagBtnActive : styles.toggleTagBtnInactive,
-                  ]}
-                  onPress={toggleTimeLimitActive}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.toggleTagBtnText}>
-                    {isTimeLimitActive ? 'ACTIVE' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
+                <Text style={styles.cardMetaText}>21 Nov 2026</Text>
               </View>
-
-              <Text style={styles.tileDescription}>
-                Sets a strict study time limit so your child avoids digital fatigue and does not waste excess screen time.
+              <Text style={styles.noticeBody}>
+                Pre-Board practical schedules released. Please ensure all outstanding term dues are cleared before hall tickets are generated.
               </Text>
-
-              <View style={styles.presetRow}>
-                {[15, 30, 45, 60, 90].map((mins) => (
-                  <TouchableOpacity
-                    key={mins}
-                    style={[
-                      styles.presetBtn,
-                      sessionTimeLimitMinutes === mins && styles.presetBtnActive,
-                    ]}
-                    onPress={() => setTimeLimitMinutes(mins)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.presetBtnText,
-                        sessionTimeLimitMinutes === mins && styles.presetBtnTextActive,
-                      ]}
-                    >
-                      {mins}m
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           </View>
         )}
       </ScrollView>
 
-      {/* SESSION TIME LIMIT EXPIRED BREAK MODAL */}
-      <Modal
-        visible={isSessionLocked}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
-        <View style={styles.lockModalBackdrop}>
-          <View style={styles.lockModalCard}>
+      {/* ─── DIGITAL WELLBEING SESSION LOCK MODAL ─── */}
+      <Modal visible={isSessionLocked} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.lockCard}>
             <View style={styles.lockIconCircle}>
-              <Coffee size={32} color={colors.student.secondaryLight} />
+              <Lock size={28} color={colors.brand.primary} />
             </View>
-            <Text style={styles.lockModalTitle}>Study Time Limit Reached 🛑</Text>
-            <Text style={styles.lockModalSub}>
-              You have completed your scheduled {sessionTimeLimitMinutes}-minute focused study block. To protect your vision and concentration, take a 10-minute break.
+            <Text style={styles.lockTitle}>Daily Focus Limit Reached</Text>
+            <Text style={styles.lockDescription}>
+              Great job today! To avoid digital fatigue, this device is temporarily paused.
+              Ask your parent to enter their 4-digit PIN to extend study time.
             </Text>
 
-            <View style={styles.parentOverrideSection}>
-              <Text style={styles.parentOverrideLabel}>
-                PARENT PIN OVERRIDE (+15 MINS EXTENSION):
-              </Text>
-              <View style={styles.overrideInputRow}>
-                <TextInput
-                  style={styles.overrideInput}
-                  value={parentOverridePin}
-                  onChangeText={setParentOverridePin}
-                  placeholder="PIN: 1234"
-                  placeholderTextColor={colors.text.disabled}
-                  secureTextEntry
-                  keyboardType="numeric"
-                  maxLength={4}
-                />
-                <TouchableOpacity
-                  style={styles.overrideSubmitBtn}
-                  onPress={() => {
-                    const success = unlockOrExtendSession(parentOverridePin, 15);
-                    if (success) {
-                      setParentOverridePin('');
-                      Alert.alert('Study Session Extended', 'Added +15 minutes of study time.');
-                    } else {
-                      Alert.alert('Invalid PIN', 'Enter 4-digit Parent PIN (Demo: 1234).');
-                    }
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.overrideSubmitBtnText}>Extend +15m</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <TextInput
+              style={styles.pinInput}
+              placeholder="Enter 4-digit Parent PIN"
+              placeholderTextColor={colors.text.muted}
+              secureTextEntry
+              keyboardType="numeric"
+              maxLength={4}
+              value={parentOverridePin}
+              onChangeText={setParentOverridePin}
+            />
+
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleParentUnlock}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Extend 30 Minutes</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -642,765 +529,718 @@ export default function MasterBentoDashboard() {
 }
 
 const styles = StyleSheet.create({
-  safeContainer: {
+  safeArea: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerBar: {
-    backgroundColor: colors.background,
-    borderBottomColor: colors.cardBorder,
-    borderBottomWidth: 1,
+  toastContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
+    backgroundColor: colors.status.success,
+    borderRadius: 12,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-    maxWidth: 920,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  schoolInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    zIndex: 999,
+    shadowColor: colors.shadow.color,
+    shadowOffset: colors.shadow.offset,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  schoolLogoSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  schoolTitleBox: {
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
     flex: 1,
   },
-  schoolNameText: {
+
+  // 1-Row Compact Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceBorder,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  avatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  userSub: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.brand.tint,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+    }),
+  },
+
+  // Mode Switcher Pill
+  modeContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+    backgroundColor: colors.background,
+  },
+  modeTrack: {
+    flexDirection: 'row',
+    backgroundColor: '#EAEEF4',
+    borderRadius: 25,
+    padding: 3,
+  },
+  modeTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 22,
+  },
+  modeTabActive: {
+    backgroundColor: colors.surface,
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text.muted,
+  },
+  modeLabelActive: {
+    color: colors.brand.primary,
+    fontWeight: '700',
+  },
+  modeLabelActiveParent: {
+    color: colors.parent.primary,
+    fontWeight: '700',
+  },
+
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 116,
+  },
+  contentSection: {
+    gap: 12,
+  },
+
+  // Subject Chips Row
+  chipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  chipActive: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // Airbnb Standard Clean White Card
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+    }),
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  cardCategoryTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.text.primary,
   },
-  schoolMetaText: {
-    fontSize: 11,
+  cardMetaText: {
+    fontSize: 12,
     color: colors.text.muted,
-    marginTop: 1,
   },
-  logoutButton: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-  },
-  identityBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
-    marginTop: 12,
-    gap: 10,
-  },
-  avatarPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.student.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitial: {
+  cardTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  identityDetails: {
-    flex: 1,
-  },
-  identityName: {
-    fontSize: 13,
     fontWeight: '700',
     color: colors.text.primary,
-  },
-  identityClass: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    marginTop: 1,
-  },
-  verifiedTag: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  verifiedText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.parent.primaryLight,
-  },
-  liveSyncToastBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 8,
-    gap: 8,
-  },
-  pulseGreenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  liveSyncToastText: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6EE7B7',
-  },
-  modeSwitcherContainer: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 4,
-    marginTop: 12,
-    gap: 4,
-  },
-  modeTabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 9,
-    gap: 6,
-  },
-  modeTabStudentActive: {
-    backgroundColor: colors.student.primary,
-    shadowColor: colors.student.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  modeTabParentActive: {
-    backgroundColor: colors.parent.primary,
-    shadowColor: colors.parent.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  modeTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.muted,
-  },
-  modeTabTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    maxWidth: 920,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  bentoGrid: {
-    gap: 14,
-  },
-  bentoTile: {
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
-  },
-  heroTile: {
-    backgroundColor: colors.student.cardBg,
-    borderColor: colors.student.border,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  heroBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
-  },
-  progressPill: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  progressPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
-  },
-  heroSubject: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.secondary,
     marginBottom: 4,
   },
+  cardDescription: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+
+  // Pills
+  pillBadgeIndigo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.brand.tint,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  pillBadgeIndigoText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
+  pillBadgeEmerald: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.parent.cardBg,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  pillBadgeEmeraldText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.parent.primary,
+  },
+
+  // Hero Card
   heroTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text.primary,
+    marginBottom: 12,
+  },
+  progressContainer: {
     marginBottom: 14,
-    lineHeight: 24,
   },
   progressBarTrack: {
-    height: 7,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: colors.background,
+    borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.student.secondaryLight,
-    borderRadius: 4,
+    backgroundColor: colors.brand.primary,
+    borderRadius: 3,
   },
-  heroBottomRow: {
+  progressLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  heroMilestoneSummary: {
+  progressPercentText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
+  progressSubText: {
     fontSize: 12,
     color: colors.text.muted,
   },
-  actionArrow: {
+
+  // Buttons
+  primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-  },
-  actionArrowText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
-  },
-  arPreviewTile: {
-    borderColor: colors.spatial.telemetryBorder,
-    backgroundColor: '#0C1527',
-  },
-  arPreviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  spatialBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  spatialBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.spatial.nodeActive,
-    letterSpacing: 0.8,
-  },
-  fpsBadge: {
-    backgroundColor: colors.spatial.telemetryBg,
-    borderColor: colors.spatial.telemetryBorder,
-    borderWidth: 0.8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  fpsText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.spatial.nodeActive,
-    fontFamily: 'Menlo',
-  },
-  aspect169PreviewContainer: {
-    aspectRatio: 16 / 9,
-    width: '100%',
-    maxHeight: 260,
-    backgroundColor: '#060B14',
-    borderRadius: 12,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-    alignSelf: 'center',
-  },
-  wireframeGrid: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.brand.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  targetNodeReticle: {
-    alignItems: 'center',
-  },
-  pulseRing: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderColor: colors.student.secondaryLight,
-    borderWidth: 2,
-    backgroundColor: 'rgba(6, 182, 212, 0.25)',
-    marginBottom: 6,
-  },
-  reticleLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.spatial.nodeActive,
-    letterSpacing: 1,
-  },
-  arOverlayInfo: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    right: 8,
-    backgroundColor: 'rgba(15, 23, 42, 0.90)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-  },
-  arModelTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  arModelSub: {
-    fontSize: 10,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  arLaunchFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  arDirectiveAngle: {
-    fontSize: 11,
-    color: colors.text.muted,
-    fontFamily: 'Menlo',
-  },
-  arLaunchButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.student.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  arLaunchButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
+  primaryButtonText: {
     color: '#FFFFFF',
-  },
-  twoColumnRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  halfTile: {
-    flex: 1,
-    minHeight: 140,
-    justifyContent: 'space-between',
-  },
-  tileHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  miniTag: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  miniTagText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.student.primaryLight,
-  },
-  tileTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.text.primary,
-    marginTop: 6,
   },
-  tileDescription: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    marginTop: 4,
-    lineHeight: 15,
-  },
-  chipRow: {
+  primaryButtonEmerald: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 8,
-  },
-  chipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.student.primaryLight,
-  },
-  streakSubText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    marginTop: 4,
-  },
-  streakStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    marginTop: 8,
-  },
-  streakStatusText: {
-    fontSize: 11,
-    color: colors.parent.primaryLight,
-    fontWeight: '600',
-  },
-  heroTileParent: {
-    backgroundColor: colors.parent.cardBg,
-    borderColor: colors.parent.border,
-  },
-  parentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  parentBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.parent.primaryLight,
-    letterSpacing: 0.5,
-  },
-  feeStatusTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  feeStatusTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  feeFiguresRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 14,
-  },
-  figureLabel: {
-    fontSize: 11,
-    color: colors.text.muted,
-  },
-  figureBigValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  figureDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: colors.cardBorder,
-    marginHorizontal: 20,
-  },
-  parentHeroFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopColor: colors.cardBorder,
-    borderTopWidth: 1,
-    paddingTop: 10,
-  },
-  parentHeroFooterText: {
-    fontSize: 11,
-    color: colors.text.muted,
-    flex: 1,
-  },
-  actionArrowGreen: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  actionArrowTextGreen: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.parent.primaryLight,
-  },
-  reportCardTile: {
-    backgroundColor: colors.bentoCard,
-  },
-  reportTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  reportTileTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  rankPill: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  rankPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.student.secondaryLight,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 14,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.parent.primary,
+    paddingVertical: 12,
     borderRadius: 12,
-    padding: 12,
   },
-  metricBox: {
-    alignItems: 'center',
-  },
-  metricVal: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text.primary,
-  },
-  metricLabel: {
-    fontSize: 10,
-    color: colors.text.muted,
-    marginTop: 2,
-  },
-  topSubjectPillsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  subPill: {
-    backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  subPillText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.text.secondary,
-  },
-  miniTagGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  miniTagGreenText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.parent.primaryLight,
-  },
-  studyHourBig: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.parent.primaryLight,
-    marginTop: 4,
-  },
-  miniTagAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  miniTagAmberText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.parent.secondary,
-  },
-  circularTime: {
-    fontSize: 10,
-    color: colors.text.disabled,
-    marginTop: 8,
-  },
-  timeLimitBannerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(6, 182, 212, 0.08)',
-    borderColor: 'rgba(6, 182, 212, 0.25)',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 8,
-  },
-  timeLimitLeft: {
+  secondaryBrandButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    backgroundColor: colors.brand.tint,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  timeLimitBannerText: {
-    fontSize: 11,
+  secondaryBrandButtonText: {
+    color: colors.brand.primary,
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.student.secondaryLight,
-    fontFamily: 'Menlo',
   },
-  timeLimitModeTag: {
-    backgroundColor: 'rgba(6, 182, 212, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  timeLimitModeTagText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.student.secondaryLight,
-  },
-  parentTimeLimitTile: {
-    backgroundColor: colors.surface,
-  },
-  toggleTagBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  toggleTagBtnActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-  },
-  toggleTagBtnInactive: {
-    backgroundColor: 'rgba(100, 116, 139, 0.2)',
-  },
-  toggleTagBtnText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.parent.primaryLight,
-  },
-  presetRow: {
+  outlineButton: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    paddingVertical: 11,
+    borderRadius: 12,
     marginTop: 10,
   },
-  presetBtn: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 8,
-  },
-  presetBtnActive: {
-    borderColor: colors.parent.primary,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  presetBtnText: {
-    fontSize: 11,
+  outlineButtonText: {
+    color: colors.text.secondary,
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.text.muted,
   },
-  presetBtnTextActive: {
-    color: colors.parent.primaryLight,
-    fontWeight: '800',
+
+  // AR 3D Lab Preview
+  arPreviewContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
   },
-  lockModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+  arGradientBox: {
+    height: 120,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    borderRadius: 12,
+    position: 'relative',
   },
-  lockModalCard: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.student.secondary,
-    borderWidth: 1.5,
-    borderRadius: 22,
-    padding: 24,
-    alignItems: 'center',
-  },
-  lockIconCircle: {
+  heartIconCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  lockModalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+  arModelBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  arModelBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.brand.primary,
+  },
+  arCardBody: {
+    paddingHorizontal: 2,
+  },
+
+  // 2-Column Quick Grid
+  quickGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  gridTile: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    padding: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+      },
+    }),
+  },
+  gridTileLeft: {},
+  gridTileRight: {},
+  iconCircleIndigo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.brand.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  iconCircleOrange: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.streak.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  iconCircleIndigoSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.brand.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridTileTitle: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text.primary,
-    textAlign: 'center',
+    marginBottom: 4,
   },
-  lockModalSub: {
+  gridTileSub: {
     fontSize: 12,
     color: colors.text.secondary,
-    textAlign: 'center',
-    marginTop: 8,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  gridTileAction: {
+    marginTop: 'auto',
+  },
+  gridActionTextIndigo: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
+  streakBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 'auto',
+  },
+  streakBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.status.success,
+  },
+
+  // Parent ERP Cards
+  badgeSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.status.successBg,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  badgeSuccessText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.status.success,
+  },
+  badgeWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.status.warningBg,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  badgeWarningText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.status.warning,
+  },
+  feeNumbersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginVertical: 12,
+  },
+  feeLabel: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginBottom: 4,
+  },
+  feeAmountLarge: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.status.error,
+  },
+  feePaidColumn: {
+    alignItems: 'flex-end',
+  },
+  feePaidAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.status.success,
+  },
+
+  // Exam Score Card
+  rankBadge: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  rankBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text.secondary,
+  },
+  examScoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginVertical: 10,
+  },
+  examAggregate: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.text.primary,
+  },
+  examAggregateLabel: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  attendanceColumn: {
+    alignItems: 'flex-end',
+  },
+  attendanceValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.parent.primary,
+  },
+  attendanceLabel: {
+    fontSize: 11,
+    color: colors.text.muted,
+    marginTop: 2,
+  },
+  subjectPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  subjectPill: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  subjectPillName: {
+    fontSize: 11,
+    color: colors.text.secondary,
+  },
+  subjectPillScore: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginTop: 2,
+  },
+
+  // Proof Card
+  proofHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  proofHeaderText: {
+    flex: 1,
+  },
+
+  // School Circular
+  noticeHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  noticeBody: {
+    fontSize: 13,
+    color: colors.text.secondary,
     lineHeight: 18,
   },
-  parentOverrideSection: {
-    width: '100%',
-    marginTop: 20,
-    borderTopColor: colors.cardBorder,
-    borderTopWidth: 1,
-    paddingTop: 14,
+
+  // Session Lock Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
-  parentOverrideLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.text.muted,
-    letterSpacing: 0.8,
+  lockCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  lockIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.brand.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  lockTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text.primary,
     marginBottom: 8,
     textAlign: 'center',
   },
-  overrideInputRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  overrideInput: {
-    flex: 1,
-    height: 42,
-    backgroundColor: colors.background,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 10,
+  lockDescription: {
+    fontSize: 13,
+    color: colors.text.secondary,
     textAlign: 'center',
-    color: colors.text.primary,
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  pinInput: {
+    width: '100%',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 16,
-    fontWeight: '700',
-  },
-  overrideSubmitBtn: {
-    backgroundColor: colors.student.primary,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  overrideSubmitBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text.primary,
+    textAlign: 'center',
+    letterSpacing: 4,
+    marginBottom: 16,
   },
 });
