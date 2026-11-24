@@ -8,6 +8,8 @@ import {
   Switch,
   Alert,
   Platform,
+  Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -29,6 +31,10 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
+  X,
+  ExternalLink,
+  Lock,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { lightTheme, darkTheme } from '@/theme/colors';
@@ -52,6 +58,8 @@ export default function ProfileScreen() {
 
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [showPin, setShowPin] = React.useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = React.useState(false);
+  const [showAboutModal, setShowAboutModal] = React.useState(false);
 
   const isDark = themeMode === 'dark';
   const activeTheme = isDark ? darkTheme : lightTheme;
@@ -369,7 +377,7 @@ export default function ProfileScreen() {
         <View style={[styles.card, { backgroundColor: activeTheme.surface, borderColor: activeTheme.surfaceBorder }]}>
           <TouchableOpacity
             style={styles.menuRow}
-            onPress={() => Alert.alert('Privacy Policy', 'Edzy Indian School OS complies with India DPDP Act 2023. Student records are encrypted with 256-bit AES.')}
+            onPress={() => setShowPrivacyModal(true)}
             activeOpacity={0.7}
           >
             <View style={[styles.menuIconCircle, { backgroundColor: isDark ? '#1C222C' : '#F8FAFC' }]}>
@@ -383,7 +391,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             style={styles.menuRow}
-            onPress={() => Alert.alert('About Edzy', 'Edzy Unified K-12 Spatial Learning & School ERP • Version 1.0.0')}
+            onPress={() => setShowAboutModal(true)}
             activeOpacity={0.7}
           >
             <View style={[styles.menuIconCircle, { backgroundColor: isDark ? '#1C222C' : '#F8FAFC' }]}>
@@ -404,6 +412,168 @@ export default function ProfileScreen() {
           <Text style={[styles.logoutButtonText, { color: activeTheme.status.error }]}>Sign Out of School Account</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ─── PRIVACY POLICY MODAL ─── */}
+      <Modal
+        visible={showPrivacyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPrivacyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: activeTheme.surface, borderColor: activeTheme.surfaceBorder }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalHeaderBadgeTitle}>
+                <View style={[styles.modalIconBadge, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : '#EEF2FF' }]}>
+                  <Shield size={20} color={activeTheme.brand.primary} />
+                </View>
+                <View>
+                  <Text style={[styles.modalTitle, { color: activeTheme.text.ink }]}>Privacy & Data Security</Text>
+                  <Text style={[styles.modalSubtitle, { color: activeTheme.text.secondary }]}>India DPDP Act 2023 Compliant</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowPrivacyModal(false)}
+                style={[styles.modalCloseBtn, { backgroundColor: isDark ? '#1E2530' : '#F1F5F9' }]}
+                activeOpacity={0.7}
+              >
+                <X size={18} color={activeTheme.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              <View style={[styles.policyCard, { backgroundColor: isDark ? '#161B22' : '#F8FAFC', borderColor: activeTheme.surfaceBorder }]}>
+                <View style={styles.policyCardHeader}>
+                  <CheckCircle2 size={16} color={activeTheme.status.success} />
+                  <Text style={[styles.policyCardTitle, { color: activeTheme.text.ink }]}>Zero-Storage Camera / AR Policy</Text>
+                </View>
+                <Text style={[styles.policyCardBody, { color: activeTheme.text.secondary }]}>
+                  Device camera permissions are strictly executed in-memory to project real-time 3D spatial models. Edzy NEVER records, stores, or transmits student faces, home backgrounds, or classroom video streams to any cloud server.
+                </Text>
+              </View>
+
+              <View style={[styles.policyCard, { backgroundColor: isDark ? '#161B22' : '#F8FAFC', borderColor: activeTheme.surfaceBorder }]}>
+                <View style={styles.policyCardHeader}>
+                  <Lock size={16} color={activeTheme.brand.primary} />
+                  <Text style={[styles.policyCardTitle, { color: activeTheme.text.ink }]}>Bank-Grade UPI & Fee Safety</Text>
+                </View>
+                <Text style={[styles.policyCardBody, { color: activeTheme.text.secondary }]}>
+                  Fee payments are handled via NPCI-certified UPI protocols with 256-bit bank encryption. Edzy does not store parent UPI MPINs, CVVs, or debit/credit card numbers. Instant receipts are cryptographically signed.
+                </Text>
+              </View>
+
+              <View style={[styles.policyCard, { backgroundColor: isDark ? '#161B22' : '#F8FAFC', borderColor: activeTheme.surfaceBorder }]}>
+                <View style={styles.policyCardHeader}>
+                  <School size={16} color={activeTheme.status.info} />
+                  <Text style={[styles.policyCardTitle, { color: activeTheme.text.ink }]}>Campus Tenant Isolation</Text>
+                </View>
+                <Text style={[styles.policyCardBody, { color: activeTheme.text.secondary }]}>
+                  Student attendance, exam scores, and roll numbers are strictly sandboxed under Doon Valley Public School (DVPS01). Academic records are never commercialized, harvested, or sold to advertising brokers.
+                </Text>
+              </View>
+
+              <View style={[styles.policyCard, { backgroundColor: isDark ? '#161B22' : '#F8FAFC', borderColor: activeTheme.surfaceBorder }]}>
+                <View style={styles.policyCardHeader}>
+                  <FileText size={16} color={activeTheme.streak.primary} />
+                  <Text style={[styles.policyCardTitle, { color: activeTheme.text.ink }]}>Google Play Data Safety & Deletion</Text>
+                </View>
+                <Text style={[styles.policyCardBody, { color: activeTheme.text.secondary }]}>
+                  Parents and students have full rights to request profile anonymization or complete account deletion. To request data purging, email our grievance officer at support@edzy.in or submit through school administration.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooterActions}>
+              <TouchableOpacity
+                style={[styles.webPolicyLinkBtn, { borderColor: activeTheme.brand.primary }]}
+                onPress={() => Linking.openURL('https://edzy-admin.pages.dev/privacy-policy')}
+                activeOpacity={0.8}
+              >
+                <ExternalLink size={14} color={activeTheme.brand.primary} />
+                <Text style={[styles.webPolicyLinkText, { color: activeTheme.brand.primary }]}>Open Web Policy ↗</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalPrimaryBtn, { backgroundColor: activeTheme.brand.primary }]}
+                onPress={() => setShowPrivacyModal(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalPrimaryBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── ABOUT EDZY MODAL ─── */}
+      <Modal
+        visible={showAboutModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: activeTheme.surface, borderColor: activeTheme.surfaceBorder }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalHeaderBadgeTitle}>
+                <View style={[styles.modalIconBadge, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : '#EEF2FF' }]}>
+                  <Sparkles size={20} color={activeTheme.brand.primary} />
+                </View>
+                <View>
+                  <Text style={[styles.modalTitle, { color: activeTheme.text.ink }]}>Edzy Indian School OS</Text>
+                  <Text style={[styles.modalSubtitle, { color: activeTheme.text.secondary }]}>Version 1.0.0 • Build 1</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAboutModal(false)}
+                style={[styles.modalCloseBtn, { backgroundColor: isDark ? '#1E2530' : '#F1F5F9' }]}
+                activeOpacity={0.7}
+              >
+                <X size={18} color={activeTheme.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              <View style={[styles.aboutHeroBanner, { backgroundColor: isDark ? '#161B22' : '#F5F7FA', borderColor: activeTheme.surfaceBorder }]}>
+                <Text style={[styles.aboutHeroTagline, { color: activeTheme.brand.primary }]}>
+                  "Education Made Easy for Gen-Z"
+                </Text>
+                <Text style={[styles.aboutHeroBody, { color: activeTheme.text.ink }]}>
+                  Edzy is India's premier unified K-12 Spatial Learning & School ERP platform. Designed to give students deep conceptual clarity via 3D interactive labs while offering schools a zero-leakage hybrid fee counter and instant parent circular broadcast.
+                </Text>
+              </View>
+
+              <View style={styles.aboutSpecsList}>
+                <View style={styles.aboutSpecRow}>
+                  <Text style={[styles.aboutSpecLabel, { color: activeTheme.text.secondary }]}>Architectural Core:</Text>
+                  <Text style={[styles.aboutSpecValue, { color: activeTheme.text.ink }]}>Supabase Realtime Cloud</Text>
+                </View>
+                <View style={styles.aboutSpecRow}>
+                  <Text style={[styles.aboutSpecLabel, { color: activeTheme.text.secondary }]}>Curriculum Engine:</Text>
+                  <Text style={[styles.aboutSpecValue, { color: activeTheme.text.ink }]}>CBSE / ICSE / State Board</Text>
+                </View>
+                <View style={styles.aboutSpecRow}>
+                  <Text style={[styles.aboutSpecLabel, { color: activeTheme.text.secondary }]}>Spatial Renderer:</Text>
+                  <Text style={[styles.aboutSpecValue, { color: activeTheme.text.ink }]}>Three.js & ARKit/ARCore</Text>
+                </View>
+                <View style={styles.aboutSpecRow}>
+                  <Text style={[styles.aboutSpecLabel, { color: activeTheme.text.secondary }]}>Technical Support:</Text>
+                  <Text style={[styles.aboutSpecValue, { color: activeTheme.brand.primary }]}>support@edzy.in</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooterActions}>
+              <TouchableOpacity
+                style={[styles.modalPrimaryBtn, { backgroundColor: activeTheme.brand.primary, flex: 1 }]}
+                onPress={() => setShowAboutModal(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalPrimaryBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -676,6 +846,147 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: {
     fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    maxHeight: '85%',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  modalHeaderBadgeTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalScrollView: {
+    marginVertical: 4,
+  },
+  policyCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+  },
+  policyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  policyCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  policyCardBody: {
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+  modalFooterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+  },
+  webPolicyLinkBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  webPolicyLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalPrimaryBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 13,
+  },
+  modalPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // About Modal
+  aboutHeroBanner: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+  },
+  aboutHeroTagline: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
+  aboutHeroBody: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  aboutSpecsList: {
+    gap: 10,
+    marginBottom: 8,
+  },
+  aboutSpecRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  aboutSpecLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  aboutSpecValue: {
+    fontSize: 13,
     fontWeight: '700',
   },
 });

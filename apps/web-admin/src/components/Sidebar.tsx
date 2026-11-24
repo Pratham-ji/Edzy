@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Bell,
+  ExternalLink,
 } from 'lucide-react';
 import { useAdminStore } from '../store/useAdminStore';
 
@@ -19,9 +20,10 @@ export type NavTab = 'dashboard' | 'fees' | 'students' | 'circulars' | 'syllabus
 interface SidebarProps {
   activeTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
+  onNavigatePath?: (path: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavigatePath }) => {
   const { schoolProfile, feeInstallments } = useAdminStore();
 
   const pendingDuesCount = feeInstallments.filter((f) => f.status === 'PENDING' || f.status === 'OVERDUE').length;
@@ -126,6 +128,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
         <p className="text-[11px] text-slate-400 leading-tight">
           Parent & Student App Active • Cloud Synced
         </p>
+
+        {/* Public Pitch & Privacy Links */}
+        <div className="mt-3 pt-3 border-t border-slate-800/70 flex items-center justify-between text-[11px]">
+          <button
+            onClick={() => onNavigatePath ? onNavigatePath('/pitch') : (window.location.href = '/pitch')}
+            className="text-slate-400 hover:text-cyan-400 font-semibold transition-colors flex items-center gap-1 group"
+          >
+            <span>Public Pitch ↗</span>
+          </button>
+          <button
+            onClick={() => onNavigatePath ? onNavigatePath('/privacy-policy') : (window.location.href = '/privacy-policy')}
+            className="text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            Privacy Policy
+          </button>
+        </div>
       </div>
     </aside>
   );

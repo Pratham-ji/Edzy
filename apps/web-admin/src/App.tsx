@@ -9,14 +9,36 @@ import { CircularsAttendancePage } from './pages/CircularsAttendancePage';
 import SyllabusPage from './pages/SyllabusPage';
 import MarksPage from './pages/MarksPage';
 import SettingsPage from './pages/SettingsPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import SchoolPitchPage from './pages/SchoolPitchPage';
 
 import OfflineFeeModal from './components/OfflineFeeModal';
 import CsvImportModal from './components/CsvImportModal';
 import UploadSyllabusModal from './components/UploadSyllabusModal';
 
 export default function App() {
+  const [pathname, setPathname] = useState(
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const { initializeRealtimeSync } = useAdminStore();
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const navigateTo = (path: string) => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', path);
+      setPathname(path);
+    }
+  };
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -27,6 +49,25 @@ export default function App() {
       cleanup?.();
     };
   }, [initializeRealtimeSync]);
+
+  // Public Standalone Pages
+  if (pathname === '/privacy-policy') {
+    return (
+      <PrivacyPolicyPage
+        onNavigateHome={() => navigateTo('/')}
+        onNavigatePitch={() => navigateTo('/pitch')}
+      />
+    );
+  }
+
+  if (pathname === '/pitch') {
+    return (
+      <SchoolPitchPage
+        onNavigateHome={() => navigateTo('/')}
+        onNavigatePrivacy={() => navigateTo('/privacy-policy')}
+      />
+    );
+  }
 
   // Global Quick Modals
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
@@ -84,7 +125,11 @@ export default function App() {
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased overflow-hidden font-sans transition-colors">
       {/* Deep Navy Sidebar */}
-      <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
+      <Sidebar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onNavigatePath={navigateTo}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

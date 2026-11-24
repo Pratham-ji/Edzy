@@ -778,7 +778,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
 
   unreadCircularsCount: 0,
   clearUnreadCirculars: () => set({ unreadCircularsCount: 0 }),
-  isAuthenticated: true,
+  isAuthenticated: false,
   activeMode: 'STUDENT',
   studentProfile: {
     id: 'SCH-2026-0104',
@@ -1268,6 +1268,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       isAuthenticated: true,
       activeMode: 'STUDENT',
     });
+    get().initializeMobileSync('SCH-2026-0104');
   },
 
   logout: () => {
@@ -1363,8 +1364,8 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
   payFeeInstallment: (installmentId: string, pin: string) => {
     const state = get();
     const cleanPin = String(pin || '').trim();
-    const expectedPin = String(state.studentProfile.parentPin || '1234').trim();
-    if (cleanPin !== expectedPin && cleanPin !== '1234' && cleanPin !== 'admin') {
+    const expectedPin = String(state.studentProfile.parentPin || '').trim();
+    if (!cleanPin || cleanPin !== expectedPin) {
       return { success: false, message: 'Invalid 4-digit Parent PIN. Please check security PIN.' };
     }
 

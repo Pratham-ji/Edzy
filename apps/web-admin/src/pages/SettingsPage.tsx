@@ -17,7 +17,7 @@ import {
   Moon,
 } from 'lucide-react';
 import { useAdminStore } from '../store/useAdminStore';
-import { isLiveSupabaseConfigured } from '../lib/supabase';
+import { isLiveSupabaseConfigured, supabase } from '../lib/supabase';
 
 export default function SettingsPage() {
   const {
@@ -30,6 +30,58 @@ export default function SettingsPage() {
   } = useAdminStore();
   const [formData, setFormData] = useState({ ...schoolProfile });
   const [saveToast, setSaveToast] = useState(false);
+
+  // Pilot School Provisioning State
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [newSchoolCode, setNewSchoolCode] = useState('');
+  const [newBoard, setNewBoard] = useState('CBSE');
+  const [newPrincipal, setNewPrincipal] = useState('');
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [provisionSuccess, setProvisionSuccess] = useState<string | null>(null);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+
+  const handleProvisionSchool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = newSchoolCode.trim().toUpperCase();
+    const cleanName = newSchoolName.trim();
+    const cleanPrincipal = newPrincipal.trim();
+
+    if (!cleanCode || !cleanName) {
+      setProvisionError('School Code and School Name are required.');
+      return;
+    }
+
+    setIsProvisioning(true);
+    setProvisionError(null);
+    setProvisionSuccess(null);
+
+    try {
+      if (isLiveSupabaseConfigured) {
+        const { error } = await supabase.from('schools').insert({
+          id: cleanCode,
+          school_code: cleanCode,
+          name: cleanName,
+          board: newBoard,
+          academic_session: '2026-2027',
+          principal_name: cleanPrincipal || 'Principal In-Charge',
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+      }
+
+      setProvisionSuccess(`Pilot school "${cleanName}" (${cleanCode}) successfully provisioned on Edzy Cloud!`);
+      setNewSchoolName('');
+      setNewSchoolCode('');
+      setNewPrincipal('');
+      setTimeout(() => setProvisionSuccess(null), 6000);
+    } catch (err: any) {
+      setProvisionError(err?.message || 'Failed to provision pilot school in database.');
+    } finally {
+      setIsProvisioning(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -353,6 +405,107 @@ export default function SettingsPage() {
           </div>
         </div>
       </form>
+
+      {/* Provision New Pilot School Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold text-base">
+            <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <span>Provision New Pilot School Entity</span>
+          </div>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+            Multi-Tenant Core
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+          Deploy a clean tenant schema for a new K-12 partner school on Edzy Postgres. Once provisioned, admission rosters and fee schedules can be imported via CSV.
+        </p>
+
+        {provisionSuccess && (
+          <div className="mb-5 p-3.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{provisionSuccess}</span>
+          </div>
+        )}
+
+        {provisionError && (
+          <div className="mb-5 p-3.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-semibold">
+            {provisionError}
+          </div>
+        )}
+
+        <form onSubmit={handleProvisionSchool} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Official Institution Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. St. Joseph's Senior Secondary School"
+                value={newSchoolName}
+                onChange={(e) => setNewSchoolName(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Unique Campus Code (Tenant ID) *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. SJSS01"
+                value={newSchoolCode}
+                onChange={(e) => setNewSchoolCode(e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 font-mono focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Board Affiliation
+              </label>
+              <select
+                value={newBoard}
+                onChange={(e) => setNewBoard(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="CBSE">CBSE (Central Board of Secondary Education)</option>
+                <option value="ICSE">CISCE / ICSE (Indian Certificate of Secondary Education)</option>
+                <option value="State Board">State Board (UBSE, UPMSP, MSBSHSE)</option>
+                <option value="Cambridge / IB">Cambridge International / IB</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Principal / Head of Institution
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Dr. Rajeshwari Nair"
+                value={newPrincipal}
+                onChange={(e) => setNewPrincipal(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={isProvisioning}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-lg shadow-sm transition-colors cursor-pointer"
+            >
+              <Building2 className="w-4 h-4" />
+              <span>{isProvisioning ? 'Provisioning Tenant...' : 'Provision Pilot School'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Cloud & Supabase Diagnostics Card */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6">
