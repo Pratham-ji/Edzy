@@ -34,9 +34,11 @@ import {
   Calendar,
   Layers,
   GraduationCap,
+  X,
+  Download,
 } from 'lucide-react-native';
-import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { useEdzyStore, SchoolCircular } from '@/store/useEdzyStore';
+import { colors, lightTheme, darkTheme } from '@/theme/colors';
 
 const SUBJECT_CHIPS = ['All', 'Science', 'Mathematics', 'Physics', 'English'];
 
@@ -60,10 +62,16 @@ export default function MasterBentoDashboard() {
     liveSyncToast,
     clearLiveSyncToast,
     initializeMobileSync,
+    themeMode,
+    circulars,
   } = useEdzyStore();
 
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [parentOverridePin, setParentOverridePin] = useState('');
+  const [selectedCircular, setSelectedCircular] = useState<SchoolCircular | null>(null);
+
+  const isDark = themeMode === 'dark';
+  const activeTheme = isDark ? darkTheme : lightTheme;
 
   // Digital Wellbeing Countdown Timer
   useEffect(() => {
@@ -114,8 +122,12 @@ export default function MasterBentoDashboard() {
   const pendingQuarter = feeInstallments.find((f) => f.status === 'PENDING' || f.status === 'OVERDUE');
   const allFeesCleared = totalDue === 0;
 
-  // Latest exam report
-  const latestExam = examMarks && examMarks.length > 0 ? examMarks[0] : null;
+  // Latest exam report - prioritizes Class 10 Pre-Board Examination (92.6%)
+  const latestExam =
+    examMarks?.find((m) => m.termId === 'PRE_BOARD') ||
+    (examMarks && examMarks.length > 0 ? examMarks[0] : null);
+
+  const activeCircular = circulars && circulars.length > 0 ? circulars[0] : null;
 
   // Active roadmap
   const activeRoadmap = roadmaps.find((r) => r.isCurrent) || roadmaps[0];
@@ -474,18 +486,74 @@ export default function MasterBentoDashboard() {
             </View>
 
             {/* SCHOOL CIRCULAR / NOTICE CARD */}
-            <View style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.noticeHeaderLeft}>
-                  <Bell size={14} color={colors.brand.primary} />
-                  <Text style={styles.cardCategoryTitle}>School Circular</Text>
+            {activeCircular && (
+              <PressableScale
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: activeTheme.surface,
+                    borderColor: activeTheme.surfaceBorder,
+                  },
+                ]}
+                onPress={() => setSelectedCircular(activeCircular)}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.noticeHeaderLeft}>
+                    <Bell size={14} color={activeTheme.brand.primary} />
+                    <Text style={[styles.cardCategoryTitle, { color: activeTheme.text.ink }]}>
+                      Official School Circular
+                    </Text>
+                  </View>
+                  <Text style={[styles.cardMetaText, { color: activeTheme.text.muted }]}>
+                    {activeCircular.date}
+                  </Text>
                 </View>
-                <Text style={styles.cardMetaText}>21 Nov 2026</Text>
-              </View>
-              <Text style={styles.noticeBody}>
-                Pre-Board practical schedules released. Please ensure all outstanding term dues are cleared before hall tickets are generated.
-              </Text>
-            </View>
+                <Text
+                  style={[
+                    styles.cardTitle,
+                    { color: activeTheme.text.ink, fontSize: 15, marginBottom: 4 },
+                  ]}
+                >
+                  {activeCircular.title}
+                </Text>
+                <Text
+                  style={[styles.noticeBody, { color: activeTheme.text.secondary }]}
+                  numberOfLines={2}
+                >
+                  {activeCircular.message}
+                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: 10,
+                    paddingTop: 10,
+                    borderTopWidth: 1,
+                    borderTopColor: activeTheme.divider,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '600',
+                      color: activeTheme.brand.primary,
+                    }}
+                  >
+                    {activeCircular.author}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '700',
+                      color: activeTheme.brand.primary,
+                    }}
+                  >
+                    Read Full Circular →
+                  </Text>
+                </View>
+              </PressableScale>
+            )}
           </View>
         )}
       </ScrollView>
@@ -520,6 +588,176 @@ export default function MasterBentoDashboard() {
               activeOpacity={0.85}
             >
               <Text style={styles.primaryButtonText}>Extend 30 Minutes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* ─── SCHOOL CIRCULAR FULL VIEW MODAL ─── */}
+      <Modal visible={Boolean(selectedCircular)} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.lockCard,
+              {
+                backgroundColor: activeTheme.surface,
+                borderColor: activeTheme.surfaceBorder,
+                maxWidth: 420,
+              },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+                marginBottom: 14,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor:
+                    selectedCircular?.category === 'EXAM'
+                      ? activeTheme.status.warningBg
+                      : selectedCircular?.category === 'HOLIDAY'
+                      ? activeTheme.status.errorBg
+                      : activeTheme.brand.tint,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 10,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color:
+                      selectedCircular?.category === 'EXAM'
+                        ? activeTheme.status.warning
+                        : selectedCircular?.category === 'HOLIDAY'
+                        ? activeTheme.status.error
+                        : activeTheme.brand.primary,
+                  }}
+                >
+                  {selectedCircular?.category} CIRCULAR
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedCircular(null)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: isDark ? '#1F242C' : '#F3F4F6',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={16} color={activeTheme.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '700',
+                color: activeTheme.text.ink,
+                marginBottom: 6,
+                textAlign: 'left',
+                width: '100%',
+              }}
+            >
+              {selectedCircular?.title}
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: activeTheme.text.muted,
+                marginBottom: 14,
+                width: '100%',
+              }}
+            >
+              Issued {selectedCircular?.date} • Target: {selectedCircular?.targetClass}
+            </Text>
+
+            <View
+              style={{
+                backgroundColor: isDark ? '#1C222C' : '#F8FAFC',
+                borderRadius: 12,
+                padding: 14,
+                width: '100%',
+                marginBottom: 16,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  lineHeight: 20,
+                  color: activeTheme.text.primary,
+                }}
+              >
+                {selectedCircular?.message}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+                marginBottom: 16,
+                paddingTop: 8,
+                borderTopWidth: 1,
+                borderTopColor: activeTheme.divider,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '600',
+                  color: activeTheme.text.secondary,
+                }}
+              >
+                By {selectedCircular?.author}
+              </Text>
+              {selectedCircular?.attachmentName && (
+                <TouchableOpacity
+                  onPress={() =>
+                    Alert.alert(
+                      'Download Attachment',
+                      `Downloaded ${selectedCircular.attachmentName} to school files.`
+                    )
+                  }
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <Download size={13} color={activeTheme.brand.primary} />
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '700',
+                      color: activeTheme.brand.primary,
+                    }}
+                  >
+                    PDF Attached
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                { width: '100%', backgroundColor: activeTheme.brand.primary },
+              ]}
+              onPress={() => setSelectedCircular(null)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Acknowledge & Close</Text>
             </TouchableOpacity>
           </View>
         </View>

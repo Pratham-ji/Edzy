@@ -78,6 +78,17 @@ export interface StudentExamRecord {
   needsRemediation: boolean;
 }
 
+export interface AdminCircular {
+  id: string;
+  title: string;
+  targetClass: string;
+  category: 'ACADEMIC' | 'EXAM' | 'HOLIDAY' | 'SPORTS' | 'GENERAL';
+  date: string;
+  author: string;
+  message: string;
+  attachmentName?: string;
+}
+
 export interface SchoolProfile {
   name: string;
   code: string;
@@ -110,11 +121,19 @@ interface AdminState {
   feeInstallments: FeeInstallmentRecord[];
   syllabusVault: SyllabusChapterRecord[];
   examMarks: StudentExamRecord[];
+  circulars: AdminCircular[];
+  attendanceRegister: Record<string, 'PRESENT' | 'ABSENT'>;
   receiptCounter: number;
   connectionMode: 'LIVE_CLOUD' | 'DEMO_MODE';
   isSyncing: boolean;
+  themeMode: 'light' | 'dark';
 
   // Actions
+  toggleThemeMode: () => void;
+  setThemeMode: (mode: 'light' | 'dark') => void;
+  addCircular: (payload: Omit<AdminCircular, 'id' | 'date'>) => void;
+  toggleStudentAttendance: (studentId: string, status: 'PRESENT' | 'ABSENT') => void;
+  markAllAttendance: (classGrade: string, status: 'PRESENT' | 'ABSENT') => void;
   initializeRealtimeSync: () => Promise<() => void>;
   collectOfflineFee: (
     installmentId: string,
@@ -398,9 +417,9 @@ const INITIAL_STUDENTS: StudentRecord[] = [
   },
 ];
 
-// Pre-seeded fee installments matching mobile app
+// Pre-seeded fee installments matching mobile app (60 installments across 15 students)
 const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
-  // Aarav Sharma
+  // 1. Aarav Sharma (Class 10-A, Roll 24)
   {
     id: 'inst-0104-q1',
     studentId: 'SCH-2026-0104',
@@ -457,7 +476,7 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Ananya Gupta (All Paid)
+  // 2. Ananya Gupta (Class 10-A, Roll 01)
   {
     id: 'inst-0101-q1',
     studentId: 'SCH-2026-0101',
@@ -515,7 +534,119 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Kabir Sen (Defaulter: Q3 & Q4 Pending)
+  // 3. Rohan Mehra (Class 10-A, Roll 12)
+  {
+    id: 'inst-0102-q1',
+    studentId: 'SCH-2026-0102',
+    studentName: 'Rohan Mehra',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ1021',
+    receiptNumber: '#EDZ-1021',
+    paidDate: '14 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0102-q2',
+    studentId: 'SCH-2026-0102',
+    studentName: 'Rohan Mehra',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Desk #1 Receipt Book',
+    receiptNumber: '#SCH-2041',
+    paidDate: '18 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0102-q3',
+    studentId: 'SCH-2026-0102',
+    studentName: 'Rohan Mehra',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP88219',
+    receiptNumber: '#EDZ-3042',
+    paidDate: '12 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0102-q4',
+    studentId: 'SCH-2026-0102',
+    studentName: 'Rohan Mehra',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PENDING',
+    dueDate: '30 Nov 2026',
+  },
+
+  // 4. Diya Verma (Class 10-A, Roll 15)
+  {
+    id: 'inst-0103-q1',
+    studentId: 'SCH-2026-0103',
+    studentName: 'Diya Verma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'SBI Cheque #118290',
+    receiptNumber: '#SCH-1103',
+    paidDate: '15 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0103-q2',
+    studentId: 'SCH-2026-0103',
+    studentName: 'Diya Verma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT81920',
+    receiptNumber: '#EDZ-2103',
+    paidDate: '16 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0103-q3',
+    studentId: 'SCH-2026-0103',
+    studentName: 'Diya Verma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ3103',
+    receiptNumber: '#EDZ-3103',
+    paidDate: '08 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0103-q4',
+    studentId: 'SCH-2026-0103',
+    studentName: 'Diya Verma',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP4103',
+    receiptNumber: '#EDZ-4103',
+    paidDate: '05 Nov 2026',
+    dueDate: '30 Nov 2026',
+  },
+
+  // 5. Kabir Sen (Class 10-A, Roll 27)
   {
     id: 'inst-0105-q1',
     studentId: 'SCH-2026-0105',
@@ -525,6 +656,7 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     amount: 12000,
     status: 'PAID',
     paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Counter #2',
     receiptNumber: '#SCH-1055',
     paidDate: '28 Apr 2026',
     dueDate: '30 Apr 2026',
@@ -538,8 +670,8 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     amount: 12000,
     status: 'PAID',
     paymentMethod: 'OFFLINE_CHEQUE',
-    receiptNumber: '#SCH-2201',
     paymentRef: 'SBI Chq #441029',
+    receiptNumber: '#SCH-2201',
     paidDate: '29 Jul 2026',
     dueDate: '31 Jul 2026',
   },
@@ -564,19 +696,107 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Rohan Mehra (Q4 Pending)
+  // 6. Sanjana Nair (Class 10-A, Roll 31)
   {
-    id: 'inst-0102-q4',
-    studentId: 'SCH-2026-0102',
-    studentName: 'Rohan Mehra',
+    id: 'inst-0106-q1',
+    studentId: 'SCH-2026-0106',
+    studentName: 'Sanjana Nair',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP1106',
+    receiptNumber: '#EDZ-1106',
+    paidDate: '09 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0106-q2',
+    studentId: 'SCH-2026-0106',
+    studentName: 'Sanjana Nair',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ2106',
+    receiptNumber: '#EDZ-2106',
+    paidDate: '12 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0106-q3',
+    studentId: 'SCH-2026-0106',
+    studentName: 'Sanjana Nair',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT3106',
+    receiptNumber: '#EDZ-3106',
+    paidDate: '04 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0106-q4',
+    studentId: 'SCH-2026-0106',
+    studentName: 'Sanjana Nair',
     classGrade: 'Class 10-A',
     quarter: 'Q4 (Jan - Mar 2027)',
     amount: 12000,
-    status: 'PENDING',
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP4106',
+    receiptNumber: '#EDZ-4106',
+    paidDate: '02 Nov 2026',
     dueDate: '30 Nov 2026',
   },
 
-  // Vivaan Joshi (Q4 Pending)
+  // 7. Vivaan Joshi (Class 10-A, Roll 38)
+  {
+    id: 'inst-0107-q1',
+    studentId: 'SCH-2026-0107',
+    studentName: 'Vivaan Joshi',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'ICICI Chq #881290',
+    receiptNumber: '#SCH-1107',
+    paidDate: '18 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0107-q2',
+    studentId: 'SCH-2026-0107',
+    studentName: 'Vivaan Joshi',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ2107',
+    receiptNumber: '#EDZ-2107',
+    paidDate: '19 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0107-q3',
+    studentId: 'SCH-2026-0107',
+    studentName: 'Vivaan Joshi',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Counter #1',
+    receiptNumber: '#SCH-3107',
+    paidDate: '15 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
   {
     id: 'inst-0107-q4',
     studentId: 'SCH-2026-0107',
@@ -588,7 +808,165 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Class 9-B: Tanvi Deshmukh (Q4 Pending)
+  // 8. Meera Pillai (Class 10-A, Roll 40)
+  {
+    id: 'inst-0108-q1',
+    studentId: 'SCH-2026-0108',
+    studentName: 'Meera Pillai',
+    classGrade: 'Class 10-A',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP1108',
+    receiptNumber: '#EDZ-1108',
+    paidDate: '08 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0108-q2',
+    studentId: 'SCH-2026-0108',
+    studentName: 'Meera Pillai',
+    classGrade: 'Class 10-A',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'Axis Chq #662190',
+    receiptNumber: '#SCH-2108',
+    paidDate: '10 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0108-q3',
+    studentId: 'SCH-2026-0108',
+    studentName: 'Meera Pillai',
+    classGrade: 'Class 10-A',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ3108',
+    receiptNumber: '#EDZ-3108',
+    paidDate: '03 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0108-q4',
+    studentId: 'SCH-2026-0108',
+    studentName: 'Meera Pillai',
+    classGrade: 'Class 10-A',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 12000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT4108',
+    receiptNumber: '#EDZ-4108',
+    paidDate: '04 Nov 2026',
+    dueDate: '30 Nov 2026',
+  },
+
+  // 9. Ishaan Agarwal (Class 9-B, Roll 04)
+  {
+    id: 'inst-0201-q1',
+    studentId: 'SCH-2026-0201',
+    studentName: 'Ishaan Agarwal',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP1201',
+    receiptNumber: '#EDZ-1201',
+    paidDate: '07 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0201-q2',
+    studentId: 'SCH-2026-0201',
+    studentName: 'Ishaan Agarwal',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ2201',
+    receiptNumber: '#EDZ-2201',
+    paidDate: '10 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0201-q3',
+    studentId: 'SCH-2026-0201',
+    studentName: 'Ishaan Agarwal',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'PNB Chq #332190',
+    receiptNumber: '#SCH-3201',
+    paidDate: '09 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0201-q4',
+    studentId: 'SCH-2026-0201',
+    studentName: 'Ishaan Agarwal',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP4201',
+    receiptNumber: '#EDZ-4201',
+    paidDate: '02 Nov 2026',
+    dueDate: '30 Nov 2026',
+  },
+
+  // 10. Tanvi Deshmukh (Class 9-B, Roll 09)
+  {
+    id: 'inst-0202-q1',
+    studentId: 'SCH-2026-0202',
+    studentName: 'Tanvi Deshmukh',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT1202',
+    receiptNumber: '#EDZ-1202',
+    paidDate: '11 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0202-q2',
+    studentId: 'SCH-2026-0202',
+    studentName: 'Tanvi Deshmukh',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Desk #2',
+    receiptNumber: '#SCH-2202',
+    paidDate: '15 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0202-q3',
+    studentId: 'SCH-2026-0202',
+    studentName: 'Tanvi Deshmukh',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ3202',
+    receiptNumber: '#EDZ-3202',
+    paidDate: '10 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
   {
     id: 'inst-0202-q4',
     studentId: 'SCH-2026-0202',
@@ -600,7 +978,93 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Class 9-B: Riya Sengupta (Q3 Overdue, Q4 Pending)
+  // 11. Aditya Kulkarni (Class 9-B, Roll 14)
+  {
+    id: 'inst-0203-q1',
+    studentId: 'SCH-2026-0203',
+    studentName: 'Aditya Kulkarni',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP1203',
+    receiptNumber: '#EDZ-1203',
+    paidDate: '06 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0203-q2',
+    studentId: 'SCH-2026-0203',
+    studentName: 'Aditya Kulkarni',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ2203',
+    receiptNumber: '#EDZ-2203',
+    paidDate: '08 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0203-q3',
+    studentId: 'SCH-2026-0203',
+    studentName: 'Aditya Kulkarni',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT3203',
+    receiptNumber: '#EDZ-3203',
+    paidDate: '02 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0203-q4',
+    studentId: 'SCH-2026-0203',
+    studentName: 'Aditya Kulkarni',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP4203',
+    receiptNumber: '#EDZ-4203',
+    paidDate: '01 Nov 2026',
+    dueDate: '30 Nov 2026',
+  },
+
+  // 12. Riya Sengupta (Class 9-B, Roll 21)
+  {
+    id: 'inst-0204-q1',
+    studentId: 'SCH-2026-0204',
+    studentName: 'Riya Sengupta',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Counter #1',
+    receiptNumber: '#SCH-1204',
+    paidDate: '25 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0204-q2',
+    studentId: 'SCH-2026-0204',
+    studentName: 'Riya Sengupta',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'HDFC Chq #771290',
+    receiptNumber: '#SCH-2204',
+    paidDate: '26 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
   {
     id: 'inst-0204-q3',
     studentId: 'SCH-2026-0204',
@@ -622,7 +1086,49 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Class 9-B: Aryan Kapoor (Q4 Pending)
+  // 13. Aryan Kapoor (Class 9-B, Roll 25)
+  {
+    id: 'inst-0205-q1',
+    studentId: 'SCH-2026-0205',
+    studentName: 'Aryan Kapoor',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'Canara Chq #551290',
+    receiptNumber: '#SCH-1205',
+    paidDate: '16 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0205-q2',
+    studentId: 'SCH-2026-0205',
+    studentName: 'Aryan Kapoor',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ2205',
+    receiptNumber: '#EDZ-2205',
+    paidDate: '17 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0205-q3',
+    studentId: 'SCH-2026-0205',
+    studentName: 'Aryan Kapoor',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP3205',
+    receiptNumber: '#EDZ-3205',
+    paidDate: '11 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
   {
     id: 'inst-0205-q4',
     studentId: 'SCH-2026-0205',
@@ -634,7 +1140,107 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 
-  // Class 9-B: Shlok Bhatia (Q4 Pending)
+  // 14. Sneha Reddy (Class 9-B, Roll 33)
+  {
+    id: 'inst-0206-q1',
+    studentId: 'SCH-2026-0206',
+    studentName: 'Sneha Reddy',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'GPay GP1206',
+    receiptNumber: '#EDZ-1206',
+    paidDate: '05 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0206-q2',
+    studentId: 'SCH-2026-0206',
+    studentName: 'Sneha Reddy',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CHEQUE',
+    paymentRef: 'SBI Chq #991209',
+    receiptNumber: '#SCH-2206',
+    paidDate: '08 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0206-q3',
+    studentId: 'SCH-2026-0206',
+    studentName: 'Sneha Reddy',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ3206',
+    receiptNumber: '#EDZ-3206',
+    paidDate: '04 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
+  {
+    id: 'inst-0206-q4',
+    studentId: 'SCH-2026-0206',
+    studentName: 'Sneha Reddy',
+    classGrade: 'Class 9-B',
+    quarter: 'Q4 (Jan - Mar 2027)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT4206',
+    receiptNumber: '#EDZ-4206',
+    paidDate: '03 Nov 2026',
+    dueDate: '30 Nov 2026',
+  },
+
+  // 15. Shlok Bhatia (Class 9-B, Roll 37)
+  {
+    id: 'inst-0207-q1',
+    studentId: 'SCH-2026-0207',
+    studentName: 'Shlok Bhatia',
+    classGrade: 'Class 9-B',
+    quarter: 'Q1 (Apr - Jun 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'Paytm PT1207',
+    receiptNumber: '#EDZ-1207',
+    paidDate: '12 Apr 2026',
+    dueDate: '30 Apr 2026',
+  },
+  {
+    id: 'inst-0207-q2',
+    studentId: 'SCH-2026-0207',
+    studentName: 'Shlok Bhatia',
+    classGrade: 'Class 9-B',
+    quarter: 'Q2 (Jul - Sep 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'OFFLINE_CASH',
+    paymentRef: 'Desk #1',
+    receiptNumber: '#SCH-2207',
+    paidDate: '14 Jul 2026',
+    dueDate: '31 Jul 2026',
+  },
+  {
+    id: 'inst-0207-q3',
+    studentId: 'SCH-2026-0207',
+    studentName: 'Shlok Bhatia',
+    classGrade: 'Class 9-B',
+    quarter: 'Q3 (Oct - Dec 2026)',
+    amount: 11000,
+    status: 'PAID',
+    paymentMethod: 'ONLINE_UPI',
+    paymentRef: 'PhonePe EDZ3207',
+    receiptNumber: '#EDZ-3207',
+    paidDate: '09 Oct 2026',
+    dueDate: '31 Oct 2026',
+  },
   {
     id: 'inst-0207-q4',
     studentId: 'SCH-2026-0207',
@@ -646,6 +1252,57 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
     dueDate: '30 Nov 2026',
   },
 ];
+
+const INITIAL_CIRCULARS: AdminCircular[] = [
+  {
+    id: 'circ-001',
+    title: 'CBSE Class 10 Pre-Board Examination Schedule & Guidelines',
+    targetClass: 'Class 10-A',
+    category: 'EXAM',
+    date: '20 Nov 2026',
+    author: 'Examination Controller',
+    message: 'Pre-Board practical submissions and theory examination commences from 15th December 2026. Hall tickets and admit cards are available for verification.',
+    attachmentName: 'CBSE_PreBoard_Schedule_2026-27.pdf',
+  },
+  {
+    id: 'circ-002',
+    title: 'Annual Athletic Meet & Sports Day Participation Consent',
+    targetClass: 'All Classes',
+    category: 'SPORTS',
+    date: '18 Nov 2026',
+    author: 'Physical Education Dept',
+    message: 'Registration is now open for Track & Field events for the upcoming Annual Inter-House Sports Championship. Parents are requested to sign the digital consent slip.',
+    attachmentName: 'Sports_Day_Events_Consent.pdf',
+  },
+  {
+    id: 'circ-003',
+    title: 'Parent-Teacher Meeting (PTM) for Term-1 Academic Review',
+    targetClass: 'All Classes',
+    category: 'ACADEMIC',
+    date: '15 Nov 2026',
+    author: 'Principal Office',
+    message: 'Mandatory parent-teacher conference will be conducted on Saturday from 9:00 AM to 1:30 PM. Parents can check time slots directly in the Edzy Parent App.',
+    attachmentName: 'PTM_Schedule_Slot_Matrix.pdf',
+  },
+];
+
+const INITIAL_ATTENDANCE: Record<string, 'PRESENT' | 'ABSENT'> = {
+  'SCH-2026-0104': 'PRESENT',
+  'SCH-2026-0101': 'PRESENT',
+  'SCH-2026-0102': 'PRESENT',
+  'SCH-2026-0103': 'PRESENT',
+  'SCH-2026-0105': 'PRESENT',
+  'SCH-2026-0106': 'PRESENT',
+  'SCH-2026-0107': 'PRESENT',
+  'SCH-2026-0108': 'PRESENT',
+  'SCH-2026-0201': 'PRESENT',
+  'SCH-2026-0202': 'PRESENT',
+  'SCH-2026-0203': 'PRESENT',
+  'SCH-2026-0204': 'PRESENT',
+  'SCH-2026-0205': 'PRESENT',
+  'SCH-2026-0206': 'PRESENT',
+  'SCH-2026-0207': 'ABSENT',
+};
 
 const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
   {
@@ -1036,9 +1693,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   feeInstallments: INITIAL_INSTALLMENTS,
   syllabusVault: INITIAL_SYLLABUS,
   examMarks: INITIAL_EXAM_MARKS,
+  circulars: INITIAL_CIRCULARS,
+  attendanceRegister: INITIAL_ATTENDANCE,
   receiptCounter: 3240,
   connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
   isSyncing: false,
+  themeMode: (typeof window !== 'undefined' && (localStorage.getItem('edzy_admin_theme') as 'light' | 'dark')) || 'light',
 
   initializeRealtimeSync: async () => {
     if (!isLiveSupabaseConfigured) {
@@ -1674,4 +2334,95 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       },
     }));
   },
+
+  toggleThemeMode: () => {
+    set((state) => {
+      const next = state.themeMode === 'light' ? 'dark' : 'light';
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('edzy_admin_theme', next);
+      }
+      if (typeof document !== 'undefined') {
+        if (next === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+      return { themeMode: next };
+    });
+  },
+
+  setThemeMode: (mode) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('edzy_admin_theme', mode);
+    }
+    if (typeof document !== 'undefined') {
+      if (mode === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+    set({ themeMode: mode });
+  },
+
+  addCircular: (payload) => {
+    const newCircular: AdminCircular = {
+      ...payload,
+      id: `circ-${Date.now().toString(36)}`,
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    set((state) => ({
+      circulars: [newCircular, ...state.circulars],
+    }));
+  },
+
+  toggleStudentAttendance: (studentId, status) => {
+    set((state) => {
+      const newRegister = {
+        ...state.attendanceRegister,
+        [studentId]: status,
+      };
+      const updatedStudents = state.students.map((st) => {
+        if (st.id === studentId) {
+          const delta = status === 'PRESENT' ? 0.3 : -0.3;
+          const newPct = Math.min(100, Math.max(70, parseFloat((st.attendancePercent + delta).toFixed(1))));
+          return { ...st, attendancePercent: newPct };
+        }
+        return st;
+      });
+      return {
+        attendanceRegister: newRegister,
+        students: updatedStudents,
+      };
+    });
+  },
+
+  markAllAttendance: (classGrade, status) => {
+    set((state) => {
+      const newRegister = { ...state.attendanceRegister };
+      const updatedStudents = state.students.map((st) => {
+        if (st.classGrade === classGrade) {
+          newRegister[st.id] = status;
+          const delta = status === 'PRESENT' ? 0.2 : -0.2;
+          const newPct = Math.min(100, Math.max(70, parseFloat((st.attendancePercent + delta).toFixed(1))));
+          return { ...st, attendancePercent: newPct };
+        }
+        return st;
+      });
+      return {
+        attendanceRegister: newRegister,
+        students: updatedStudents,
+      };
+    });
+  },
 }));
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const initialTheme = localStorage.getItem('edzy_admin_theme');
+  if (initialTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}

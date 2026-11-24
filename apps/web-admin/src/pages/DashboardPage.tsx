@@ -14,6 +14,8 @@ import {
   ArrowRight,
   ChevronRight,
   ShieldCheck,
+  Receipt,
+  IndianRupee,
 } from 'lucide-react';
 import {
   BarChart,
@@ -37,14 +39,10 @@ interface DashboardPageProps {
 }
 
 const MONTHLY_FEE_DATA = [
-  { month: 'Apr', onlineUpi: 144000, offlineCashCheque: 120000 },
-  { month: 'May', onlineUpi: 36000, offlineCashCheque: 24000 },
-  { month: 'Jun', onlineUpi: 24000, offlineCashCheque: 12000 },
-  { month: 'Jul', onlineUpi: 156000, offlineCashCheque: 96000 },
-  { month: 'Aug', onlineUpi: 48000, offlineCashCheque: 24000 },
-  { month: 'Sep', onlineUpi: 24000, offlineCashCheque: 12000 },
-  { month: 'Oct', onlineUpi: 168000, offlineCashCheque: 72000 },
-  { month: 'Nov', onlineUpi: 60000, offlineCashCheque: 36000 },
+  { month: 'Apr 26 (Q1)', onlineUpi: 120000, offlineCashCheque: 90000 },
+  { month: 'Jul 26 (Q2)', onlineUpi: 110000, offlineCashCheque: 50000 },
+  { month: 'Oct 26 (Q3)', onlineUpi: 110000, offlineCashCheque: 45000 },
+  { month: 'Nov 26 (Q4)', onlineUpi: 52000, offlineCashCheque: 0 },
 ];
 
 const SYLLABUS_ENGAGEMENT_DATA = [
@@ -78,9 +76,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     .filter((f) => f.paymentMethod === 'OFFLINE_CASH' || f.paymentMethod === 'OFFLINE_CHEQUE')
     .reduce((sum, f) => sum + f.amount, 0);
 
+  // Recent fee receipts
+  const recentPayments = paidInstallments.slice(-5).reverse();
+
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Pitch Banner for School Principals */}
+    <div className="space-y-6">
+      {/* Top Banner for School Principals */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-96 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.25),transparent_70%)] pointer-events-none" />
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
@@ -99,7 +100,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </p>
           </div>
 
-          {/* Quick Pitch Action Buttons */}
+          {/* Quick Action Buttons */}
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={onOpenFeeModal}
@@ -129,63 +130,63 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* 4 CORE EXECUTIVE KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Total Expected Revenue */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Expected Fees
             </span>
-            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">
+          <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">
             ₹{totalExpectedFees.toLocaleString('en-IN')}
           </p>
-          <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-2">
-            <span className="font-semibold text-slate-800">{students.length} Enrolled Students</span>
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+            <span className="font-semibold text-slate-800 dark:text-slate-200">{students.length} Enrolled Students</span>
             <span>across Class 9 & 10</span>
           </div>
         </div>
 
         {/* KPI 2: Fees Collected (Split Online vs Offline) */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
               Fees Collected to Date
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <CreditCard className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-emerald-600 mt-2">
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2">
             ₹{totalCollectedFees.toLocaleString('en-IN')}
           </p>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100 font-medium">
-            <span>Online UPI: <strong className="text-indigo-600">₹{upiCollected.toLocaleString('en-IN')}</strong></span>
-            <span>Offline: <strong className="text-slate-700">₹{offlineCollected.toLocaleString('en-IN')}</strong></span>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 font-medium">
+            <span>Online UPI: <strong className="text-indigo-600 dark:text-indigo-400">₹{upiCollected.toLocaleString('en-IN')}</strong></span>
+            <span>Offline: <strong className="text-slate-700 dark:text-slate-300">₹{offlineCollected.toLocaleString('en-IN')}</strong></span>
           </div>
         </div>
 
         {/* KPI 3: Pending Dues */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
+            <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
               Pending Dues
             </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-amber-600 mt-2">
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2">
             ₹{totalPendingDues.toLocaleString('en-IN')}
           </p>
           <div className="flex items-center justify-between text-[11px] mt-2">
-            <span className="text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-full">
+            <span className="text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-full">
               {defaultersCount} Students with Dues
             </span>
             <button
               onClick={() => onNavigate?.('fees')}
-              className="text-indigo-600 hover:text-indigo-700 font-bold inline-flex items-center gap-0.5 text-[11px]"
+              className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-bold inline-flex items-center gap-0.5 text-[11px]"
             >
               Collect <ArrowRight className="w-3 h-3" />
             </button>
@@ -193,19 +194,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* KPI 4: Active At-Home Study Hours */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
               At-Home Study Hours
             </span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-indigo-600 mt-2">
+          <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
             {totalAtHomeHours.toFixed(1)} hrs
           </p>
-          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 mt-2 font-semibold">
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 mt-2 font-semibold">
             <Sparkles className="w-3.5 h-3.5" />
             <span>ROI: Replaces external tuition fees</span>
           </div>
@@ -215,25 +216,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* RECHARTS DATA VISUALIZATIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart 1: Monthly Fee Collection (Online UPI vs Offline Cash/Cheque) */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Monthly Fee Collection Stream (FY 2026-27)
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                Quarterly Fee Collection Stream (FY 2026-27)
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 Comparing Edzy Mobile UPI vs Physical Cash/Cheque Receptions
               </p>
             </div>
-            <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
-              ₹7.2L Collected
+            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800">
+              ₹{(totalCollectedFees / 100000).toFixed(2)}L Collected
             </span>
           </div>
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={MONTHLY_FEE_DATA} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
                 <YAxis
                   tick={{ fontSize: 11, fill: '#64748B' }}
@@ -258,17 +259,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Chart 2: Class-Wise Syllabus Mastery & AR Engagement */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 Syllabus Mastery & At-Home AR Engagement
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 Average milestone completion % and student spatial lab hours
               </p>
             </div>
-            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800">
               {syllabusVault.length} Chapters Published
             </span>
           </div>
@@ -286,7 +287,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
                 <XAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748B' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
                 <Tooltip
@@ -321,41 +322,89 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* Flagship Student Highlight: Aarav Sharma Side-by-Side Sync */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs">
+      {/* Recent Fee & Activity Feed */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-sm font-bold text-slate-900">
-              Active Demo Flagship Student Sync Record
+            <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Recent Fee & Activity Feed
             </h3>
           </div>
-          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
-            Mirrors apps/mobile-app
-          </span>
+          <button
+            onClick={() => onNavigate?.('fees')}
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1"
+          >
+            View Full Ledger <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Student Name</span>
-            <p className="text-sm font-bold text-slate-900 mt-0.5">Aarav Sharma</p>
-            <p className="text-xs font-mono text-indigo-600">SCH-2026-0104</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Class & Roll</span>
-            <p className="text-sm font-bold text-slate-900 mt-0.5">Class 10-A</p>
-            <p className="text-xs text-slate-600">Roll #24 • Parent: Rajesh Sharma</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Fee Status</span>
-            <p className="text-sm font-bold text-amber-600 mt-0.5">₹36,000 Paid / ₹12,000 Due</p>
-            <p className="text-xs text-slate-500">Q4 Due 30 Nov 2026</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Active Spatial Study</span>
-            <p className="text-sm font-bold text-emerald-600 mt-0.5">6.5 hrs this week (12d Streak)</p>
-            <p className="text-xs text-slate-500">Bio Ch 6: Human Heart 3D</p>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase">
+                <th className="py-2.5 px-3">Receipt #</th>
+                <th className="py-2.5 px-3">Student Name</th>
+                <th className="py-2.5 px-3">Class & Roll</th>
+                <th className="py-2.5 px-3">Quarter</th>
+                <th className="py-2.5 px-3">Amount</th>
+                <th className="py-2.5 px-3">Instrument</th>
+                <th className="py-2.5 px-3">Date</th>
+                <th className="py-2.5 px-3">Study Telemetry</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {recentPayments.map((inst) => {
+                const st = students.find((s) => s.id === inst.studentId);
+                const isOnline = inst.paymentMethod === 'ONLINE_UPI';
+
+                return (
+                  <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                    <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      {inst.receiptNumber?.startsWith('#') ? inst.receiptNumber : `#${inst.receiptNumber || 'REC'}`}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{inst.studentName}</div>
+                      <div className="text-[11px] font-mono text-slate-400">{inst.studentId}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                      <div>{inst.classGrade}</div>
+                      <div className="text-[11px] text-slate-400">Roll #{st?.rollNo || '--'}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300 font-medium">
+                      {inst.quarter.split(' ')[0]}
+                    </td>
+                    <td className="py-3 px-3 font-bold text-emerald-600 dark:text-emerald-400">
+                      ₹{inst.amount.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          isOnline
+                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                            : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        }`}
+                      >
+                        {isOnline ? 'Online UPI' : inst.paymentMethod === 'OFFLINE_CHEQUE' ? 'Cheque' : 'Cash'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
+                      {inst.paidDate || 'Paid'}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
+                        <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>{st?.atHomeHoursThisWeek || 0} hrs/wk</span>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          ({st?.streakDays || 0}d streak)
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

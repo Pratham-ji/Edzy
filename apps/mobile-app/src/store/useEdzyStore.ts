@@ -101,7 +101,27 @@ export interface StudentProfile {
   avatarUrl?: string;
 }
 
+export interface SchoolCircular {
+  id: string;
+  title: string;
+  date: string;
+  category: 'EXAM' | 'HOLIDAY' | 'GENERAL';
+  targetClass: string;
+  message: string;
+  author: string;
+  attachmentName?: string;
+}
+
 interface EdzyState {
+  // Theme & Appearance
+  themeMode: 'light' | 'dark';
+  toggleThemeMode: () => void;
+  setThemeMode: (mode: 'light' | 'dark') => void;
+
+  // School Circulars & Notices
+  circulars: SchoolCircular[];
+  addCircular: (circular: Omit<SchoolCircular, 'id' | 'date'>) => void;
+
   // Auth & Mode
   isAuthenticated: boolean;
   activeMode: UserMode;
@@ -143,6 +163,38 @@ interface EdzyState {
   unlockOrExtendSession: (pin: string, additionalMinutes: number) => boolean;
   toggleTimeLimitActive: () => void;
 }
+
+const INITIAL_CIRCULARS: SchoolCircular[] = [
+  {
+    id: 'circ-1',
+    title: 'CBSE Class 10 Pre-Board Examination Schedule',
+    date: '24 Nov 2026',
+    category: 'EXAM',
+    targetClass: 'Class 10-A',
+    message: 'Dear Parents, Pre-Board examinations commence from December 8, 2026. Hall tickets and roll numbers have been generated on the Edzy portal. Students must report in full school uniform by 8:15 AM.',
+    author: 'Principal Office, Doon Valley Public School',
+    attachmentName: 'pre_board_schedule_2026.pdf',
+  },
+  {
+    id: 'circ-2',
+    title: 'Winter Break & Science Exhibition Notification',
+    date: '20 Nov 2026',
+    category: 'GENERAL',
+    targetClass: 'All',
+    message: 'The annual Doon Valley Inter-School Science & AI Exhibition will take place on December 22, 2026. Working 3D spatial models and biological prototypes developed during labs will be showcased.',
+    author: 'Academic Council',
+    attachmentName: 'science_fair_guidelines.pdf',
+  },
+  {
+    id: 'circ-3',
+    title: 'Guru Nanak Jayanti School Holiday',
+    date: '14 Nov 2026',
+    category: 'HOLIDAY',
+    targetClass: 'All',
+    message: 'The school will remain closed on Friday, November 27, 2026 on account of Guru Nanak Jayanti. Normal offline classes resume Monday.',
+    author: 'Administration Desk',
+  },
+];
 
 const INITIAL_ROADMAPS: SyllabusRoadmap[] = [
   {
@@ -508,6 +560,26 @@ const INITIAL_EXAMS: ExamTermRecord[] = [
 ];
 
 export const useEdzyStore = create<EdzyState>((set, get) => ({
+  // Theme & Appearance
+  themeMode: 'light',
+  toggleThemeMode: () =>
+    set((state) => ({ themeMode: state.themeMode === 'light' ? 'dark' : 'light' })),
+  setThemeMode: (mode) => set({ themeMode: mode }),
+
+  // School Circulars
+  circulars: INITIAL_CIRCULARS,
+  addCircular: (circ) =>
+    set((state) => ({
+      circulars: [
+        {
+          ...circ,
+          id: `circ-${Date.now()}`,
+          date: '24 Nov 2026',
+        },
+        ...state.circulars,
+      ],
+    })),
+
   isAuthenticated: true,
   activeMode: 'PARENT',
   studentProfile: {

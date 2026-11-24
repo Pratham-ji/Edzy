@@ -10,10 +10,11 @@ import {
   School,
   ShieldCheck,
   ChevronRight,
+  Bell,
 } from 'lucide-react';
 import { useAdminStore } from '../store/useAdminStore';
 
-export type NavTab = 'dashboard' | 'fees' | 'students' | 'syllabus' | 'marks' | 'settings';
+export type NavTab = 'dashboard' | 'fees' | 'students' | 'circulars' | 'syllabus' | 'marks' | 'settings';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -29,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     { id: 'dashboard' as NavTab, label: 'Principal Command', icon: LayoutDashboard },
     { id: 'fees' as NavTab, label: 'Hybrid Fee Counter', icon: CreditCard, badge: pendingDuesCount },
     { id: 'students' as NavTab, label: 'Student Directory & CSV', icon: Users },
+    { id: 'circulars' as NavTab, label: 'Circulars & Attendance', icon: Bell },
     { id: 'syllabus' as NavTab, label: 'Syllabus Vault & AR', icon: BookOpen },
     { id: 'marks' as NavTab, label: 'CBSE Marks & Gradebook', icon: GraduationCap },
     { id: 'settings' as NavTab, label: 'School ERP Settings', icon: Settings },
@@ -122,7 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
           <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
         </div>
         <p className="text-[11px] text-slate-400 leading-tight">
-          Live B2B pitch mode for Indian K-12 School Principals.
+          Parent & Student App Active • Cloud Synced
         </p>
       </div>
     </aside>

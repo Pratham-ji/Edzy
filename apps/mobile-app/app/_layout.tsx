@@ -4,10 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { lightTheme, darkTheme } from '@/theme/colors';
 
 export default function RootLayout() {
-  const { isAuthenticated } = useEdzyStore();
+  const { isAuthenticated, themeMode } = useEdzyStore();
+  const isDark = themeMode === 'dark';
+  const activeTheme = isDark ? darkTheme : lightTheme;
   const segments = useSegments();
   const router = useRouter();
 
@@ -30,22 +32,22 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.container}>
-        <StatusBar style="dark" />
+      <View style={[styles.container, { backgroundColor: activeTheme.background }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
             headerStyle: {
-              backgroundColor: colors.surface,
+              backgroundColor: activeTheme.surface,
             },
-            headerTintColor: colors.text.primary,
+            headerTintColor: activeTheme.text.primary,
             headerTitleStyle: {
               fontWeight: '700',
               fontSize: 17,
-              color: colors.text.primary,
+              color: activeTheme.text.primary,
             },
             headerShadowVisible: false,
             contentStyle: {
-              backgroundColor: colors.background,
+              backgroundColor: activeTheme.background,
             },
           }}
         >
@@ -95,6 +97,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
 });

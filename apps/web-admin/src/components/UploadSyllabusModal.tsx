@@ -108,7 +108,7 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
                 </span>
               </p>
               <p className="text-[11px] text-slate-500 mt-1">
-                Class notes will be parsed by Edzy Class-Wise RAG pipeline (`packages/rag-pipeline`).
+                Class notes will be automatically parsed into milestone roadmaps and attached to AI doubt tutoring.
               </p>
             </div>
 

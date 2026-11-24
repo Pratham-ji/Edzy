@@ -17,24 +17,34 @@ import {
   Boxes,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { colors, lightTheme, darkTheme } from '@/theme/colors';
 import { PressableScale } from '@/components/PressableScale';
 
 export default function SyllabusScreen() {
   const router = useRouter();
-  const { roadmaps, studentProfile } = useEdzyStore();
+  const { roadmaps, studentProfile, themeMode } = useEdzyStore();
+  const isDark = themeMode === 'dark';
+  const activeTheme = isDark ? darkTheme : lightTheme;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: activeTheme.background }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: activeTheme.surface,
+            borderBottomColor: activeTheme.surfaceBorder,
+          },
+        ]}
+      >
         <View>
-          <Text style={styles.headerTitle}>CBSE Syllabus</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: activeTheme.text.ink }]}>CBSE Syllabus</Text>
+          <Text style={[styles.headerSubtitle, { color: activeTheme.text.secondary }]}>
             {studentProfile.classGrade} • Academic Session 2026-27
           </Text>
         </View>
         <View style={styles.badgePill}>
-          <Sparkles size={12} color={colors.brand.primary} />
+          <Sparkles size={12} color={activeTheme.brand.primary} />
           <Text style={styles.badgePillText}>AI Synced</Text>
         </View>
       </View>

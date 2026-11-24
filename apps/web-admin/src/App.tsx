@@ -5,6 +5,7 @@ import { useAdminStore } from './store/useAdminStore';
 import DashboardPage from './pages/DashboardPage';
 import FeesPage from './pages/FeesPage';
 import StudentsPage from './pages/StudentsPage';
+import { CircularsAttendancePage } from './pages/CircularsAttendancePage';
 import SyllabusPage from './pages/SyllabusPage';
 import MarksPage from './pages/MarksPage';
 import SettingsPage from './pages/SettingsPage';
@@ -50,10 +51,15 @@ export default function App() {
           title: 'Student Directory & Access Passes',
           subtitle: 'CBSE Enrollment Roster, Mobile Pass Slips, and At-Home Study Telemetry',
         };
+      case 'circulars':
+        return {
+          title: 'Official Circulars & Attendance Register',
+          subtitle: 'Digital Broadcasts to Parent App & Daily Class Attendance Tracking',
+        };
       case 'syllabus':
         return {
-          title: 'Syllabus RAG & 3D Spatial Vault',
-          subtitle: 'CBSE NCERT Textbook PDF Ingestion with Milestone Graphs and 3D AR Assets',
+          title: 'Curriculum Vault & 3D Labs',
+          subtitle: 'CBSE Chapter Ingestion with Guided Study Roadmaps and 3D Visual Labs',
         };
       case 'marks':
         return {
@@ -76,7 +82,7 @@ export default function App() {
   const headerInfo = getHeaderInfo();
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-800 antialiased overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased overflow-hidden font-sans transition-colors">
       {/* Deep Navy Sidebar */}
       <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
 
@@ -104,6 +110,7 @@ export default function App() {
             )}
             {activeTab === 'fees' && <FeesPage />}
             {activeTab === 'students' && <StudentsPage />}
+            {activeTab === 'circulars' && <CircularsAttendancePage />}
             {activeTab === 'syllabus' && <SyllabusPage />}
             {activeTab === 'marks' && <MarksPage />}
             {activeTab === 'settings' && <SettingsPage />}

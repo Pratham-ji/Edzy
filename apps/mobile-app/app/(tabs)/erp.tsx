@@ -23,11 +23,13 @@ import {
   QrCode,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { colors, lightTheme, darkTheme } from '@/theme/colors';
 
 export default function ErpHubScreen() {
   const router = useRouter();
-  const { feeInstallments, examMarks, studentProfile } = useEdzyStore();
+  const { feeInstallments, examMarks, studentProfile, themeMode } = useEdzyStore();
+  const isDark = themeMode === 'dark';
+  const activeTheme = isDark ? darkTheme : lightTheme;
   const [activeTab, setActiveTab] = useState<'FEES' | 'MARKS'>('FEES');
 
   const totalPaid = feeInstallments
@@ -41,12 +43,22 @@ export default function ErpHubScreen() {
   const allCleared = totalDue === 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: activeTheme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: activeTheme.surface,
+            borderBottomColor: activeTheme.surfaceBorder,
+          },
+        ]}
+      >
         <View>
-          <Text style={styles.headerTitle}>Parent ERP Hub</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: activeTheme.text.ink }]}>
+            Parent ERP Hub
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: activeTheme.text.secondary }]}>
             {studentProfile.name} • {studentProfile.classGrade} (Roll #{studentProfile.rollNo})
           </Text>
         </View>
@@ -242,7 +254,7 @@ export default function ErpHubScreen() {
                     <View>
                       <Text style={styles.examTermTitle}>{exam.termName}</Text>
                       <Text style={styles.examTermMeta}>
-                        Session {exam.academicYear} • Class {studentProfile.classGrade}
+                        Session {exam.academicYear} • {studentProfile.classGrade.startsWith('Class ') ? studentProfile.classGrade : `Class ${studentProfile.classGrade}`}
                       </Text>
                     </View>
                     <View style={styles.rankPill}>
