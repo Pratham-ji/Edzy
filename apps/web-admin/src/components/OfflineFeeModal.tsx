@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   CreditCard,
@@ -29,13 +29,22 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
     installment ||
     (preselectedStudentId
       ? feeInstallments.find((f) => f.studentId === preselectedStudentId && f.status !== 'PAID')
-      : feeInstallments.find((f) => f.status !== 'PAID')) ||
-    null;
+      : null);
 
   const [mode, setMode] = useState<'OFFLINE_CASH' | 'OFFLINE_CHEQUE'>('OFFLINE_CASH');
   const [referenceNo, setReferenceNo] = useState('');
   const [clerkNote, setClerkNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   if (!activeInstallment) return null;
 
@@ -59,8 +68,14 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -75,8 +90,9 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition p-1 rounded-md"
+            className="text-slate-400 hover:text-white transition p-1 rounded-md cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

@@ -290,9 +290,9 @@ export default function ErpHubScreen() {
             <Text style={[styles.sectionHeader, { color: theme.textPrimary }]}>CBSE Term Examinations</Text>
 
             <View style={styles.examList}>
-              {sortedExamMarks.map((exam) => (
+              {sortedExamMarks.map((exam, idx) => (
                 <View
-                  key={exam.termId}
+                  key={`${exam.termId}-${idx}`}
                   style={[
                     styles.examCard,
                     cardShadow,

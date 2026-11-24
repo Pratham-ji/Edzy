@@ -560,8 +560,119 @@ const INITIAL_EXAMS: ExamTermRecord[] = [
   },
 ];
 
-// Realtime channel reference for mobile client
+// Realtime channel references for mobile client
 let mobileRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let mobileBroadcastChannel: ReturnType<typeof supabase.channel> | null = null;
+
+export function isCircularForStudent(targetClass?: string, studentClassGrade?: string): boolean {
+  if (!targetClass) return true;
+  const tc = String(targetClass).trim().toLowerCase();
+  if (tc === 'all' || tc === 'all classes' || tc === 'all class' || tc === 'general') return true;
+  if (!studentClassGrade) return true;
+  const sc = String(studentClassGrade).trim().toLowerCase();
+  return tc === sc || tc.includes(sc) || sc.includes(tc);
+}
+
+export function normalizeExamTermId(raw: string): 'PRE_BOARD' | 'MIDTERM' | 'UNIT_TEST_1' {
+  const upper = String(raw || '').toUpperCase();
+  if (upper.includes('PRE')) return 'PRE_BOARD';
+  if (upper.includes('MID')) return 'MIDTERM';
+  return 'UNIT_TEST_1';
+}
+
+export function consolidateMobileExamRows(
+  rows: any[],
+  baseTerms: ExamTermRecord[] = INITIAL_EXAMS
+): ExamTermRecord[] {
+  // Map keyed by canonical termId ('PRE_BOARD' | 'MIDTERM' | 'UNIT_TEST_1')
+  const termMap = new Map<string, ExamTermRecord>();
+
+  // Initialize with clones of baseTerms so all 3 terms exist cleanly
+  for (const term of baseTerms) {
+    termMap.set(term.termId, {
+      ...term,
+      scores: term.scores.map((s) => ({ ...s })),
+    });
+  }
+
+  for (const row of rows) {
+    if (!row) continue;
+    const termId = normalizeExamTermId(row.term || row.exam_type || 'PRE_BOARD');
+    const termName =
+      termId === 'PRE_BOARD'
+        ? 'Class 10 Pre-Board Examination'
+        : termId === 'MIDTERM'
+        ? 'Class 10 Midterm Examination'
+        : 'Class 10 Unit Test 1';
+
+    let currentTerm = termMap.get(termId);
+    if (!currentTerm) {
+      currentTerm = {
+        termId,
+        termName,
+        academicYear: '2026-2027',
+        totalObtained: 0,
+        totalMax: 0,
+        percentage: 0,
+        rankInClass: 2,
+        totalStudents: 42,
+        attendancePercentage: 96.8,
+        scores: [],
+      };
+      termMap.set(termId, currentTerm);
+    }
+
+    if (Array.isArray(row.scores_json) && row.scores_json.length > 0) {
+      for (const sc of row.scores_json) {
+        const scObj: ExamSubjectScore = {
+          subject: sc.subject,
+          marksObtained: Number(sc.marksObtained ?? sc.marks_obtained ?? 0),
+          maxMarks: Number(sc.maxMarks ?? sc.max_marks ?? 100),
+          grade: sc.grade || 'A1',
+          classAverage: Number(sc.classAverage ?? sc.class_average ?? 78),
+          teacherRemarks: sc.remarks || sc.teacher_remarks || 'Good performance',
+        };
+        const idx = currentTerm.scores.findIndex((s) => s.subject === sc.subject);
+        if (idx >= 0) {
+          currentTerm.scores[idx] = scObj;
+        } else {
+          currentTerm.scores.push(scObj);
+        }
+      }
+    } else if (row.subject) {
+      const scObj: ExamSubjectScore = {
+        subject: row.subject,
+        marksObtained: Number(row.marks_obtained ?? 0),
+        maxMarks: Number(row.max_marks ?? 100),
+        grade: row.grade || 'A1',
+        classAverage: Number(row.class_average ?? 75),
+        teacherRemarks: row.teacher_remarks || 'Consistent effort',
+      };
+      const idx = currentTerm.scores.findIndex((s) => s.subject === row.subject);
+      if (idx >= 0) {
+        currentTerm.scores[idx] = scObj;
+      } else {
+        currentTerm.scores.push(scObj);
+      }
+    }
+
+    // Recalculate totals & percentage
+    if (currentTerm.scores.length > 0) {
+      const totalObtained = currentTerm.scores.reduce((sum, s) => sum + s.marksObtained, 0);
+      const totalMax = currentTerm.scores.reduce((sum, s) => sum + s.maxMarks, 0) || 100;
+      currentTerm.totalObtained = totalObtained;
+      currentTerm.totalMax = totalMax;
+      currentTerm.percentage = Number(
+        row.aggregate_percentage || ((totalObtained / totalMax) * 100).toFixed(1)
+      );
+    }
+  }
+
+  const ORDER: Record<string, number> = { PRE_BOARD: 0, MIDTERM: 1, UNIT_TEST_1: 2 };
+  return Array.from(termMap.values()).sort(
+    (a, b) => (ORDER[a.termId] ?? 99) - (ORDER[b.termId] ?? 99)
+  );
+}
 
 export function mapMobileFeeRow(row: any): FeeInstallment {
   const qTitle = row.quarter || row.installment_title || 'Fee Installment';
@@ -591,65 +702,7 @@ export function mapMobileFeeRow(row: any): FeeInstallment {
 }
 
 export function mapMobileExamRow(row: any): ExamTermRecord {
-  const rawTerm = (row.term || row.exam_type || 'PRE_BOARD').toUpperCase();
-  const termId = rawTerm.includes('PRE')
-    ? 'PRE_BOARD'
-    : rawTerm.includes('MID')
-    ? 'MIDTERM'
-    : 'UNIT_TEST_1';
-
-  const termName =
-    termId === 'PRE_BOARD'
-      ? 'Class 10 Pre-Board Examination'
-      : termId === 'MIDTERM'
-      ? 'Class 10 Midterm Examination'
-      : 'Class 10 Unit Test 1';
-
-  let scores: ExamSubjectScore[] = [];
-  if (Array.isArray(row.scores_json) && row.scores_json.length > 0) {
-    scores = row.scores_json.map((sc: any) => ({
-      subject: sc.subject,
-      marksObtained: Number(sc.marksObtained ?? sc.marks_obtained ?? 0),
-      maxMarks: Number(sc.maxMarks ?? sc.max_marks ?? 100),
-      grade: sc.grade || 'A1',
-      classAverage: Number(sc.classAverage ?? sc.class_average ?? 78),
-      teacherRemarks: sc.remarks || sc.teacher_remarks || 'Good performance',
-    }));
-  } else if (row.subject) {
-    scores = [
-      {
-        subject: row.subject,
-        marksObtained: Number(row.marks_obtained || 0),
-        maxMarks: Number(row.max_marks || 100),
-        grade: row.grade || 'A1',
-        classAverage: Number(row.class_average || 75),
-        teacherRemarks: row.teacher_remarks || 'Consistent effort',
-      },
-    ];
-  }
-
-  const totalObtained = scores.length > 0
-    ? scores.reduce((sum, s) => sum + s.marksObtained, 0)
-    : Number(row.total_obtained || 463);
-  const totalMax = scores.length > 0
-    ? scores.reduce((sum, s) => sum + s.maxMarks, 0)
-    : 500;
-  const percentage = Number(
-    row.aggregate_percentage || ((totalObtained / totalMax) * 100).toFixed(1)
-  );
-
-  return {
-    termId,
-    termName,
-    academicYear: '2026-2027',
-    totalObtained,
-    totalMax,
-    percentage,
-    rankInClass: 2,
-    totalStudents: 42,
-    attendancePercentage: 96.8,
-    scores,
-  };
+  return consolidateMobileExamRows([row])[0];
 }
 
 export function mapMobileRoadmapRow(row: any): SyllabusRoadmap {
@@ -800,7 +853,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       }
 
       if (marksRes.data && marksRes.data.length > 0) {
-        updates.examMarks = marksRes.data.map((row: any) => mapMobileExamRow(row));
+        updates.examMarks = consolidateMobileExamRows(marksRes.data, get().examMarks);
       }
 
       if (syllabusRes.data && syllabusRes.data.length > 0) {
@@ -808,7 +861,11 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       }
 
       if (circRes.data && circRes.data.length > 0) {
-        updates.circulars = circRes.data.map((row: any) => mapMobileCircularRow(row));
+        updates.circulars = circRes.data
+          .map((row: any) => mapMobileCircularRow(row))
+          .filter((c: SchoolCircular) =>
+            isCircularForStudent(c.targetClass, updates.studentProfile?.classGrade || get().studentProfile.classGrade)
+          );
       }
 
       set({
@@ -816,7 +873,95 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         connectionMode: 'LIVE_CLOUD',
       });
 
-      // Realtime subscription filtered for student
+      // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
+      if (mobileBroadcastChannel) {
+        try {
+          supabase.removeChannel(mobileBroadcastChannel);
+        } catch (e) {}
+        mobileBroadcastChannel = null;
+      }
+
+      mobileBroadcastChannel = supabase.channel('edzy-live:DVPS01');
+      mobileBroadcastChannel
+        .on('broadcast', { event: 'edzy-event' }, ({ payload }) => {
+          if (!payload || !payload.type) return;
+
+          if (payload.type === 'FEE_UPDATED') {
+            if (payload.studentId === targetId) {
+              set((state) => {
+                const updated = state.feeInstallments.map((inst) =>
+                  inst.id === payload.installmentId ||
+                  (inst.quarter.includes('Q4') && String(payload.installmentId || '').toLowerCase().includes('q4'))
+                    ? {
+                        ...inst,
+                        status: 'PAID' as const,
+                        paymentMethod: (payload.paymentMode as PaymentMethod) || 'OFFLINE_CASH',
+                        receiptNumber: payload.receiptNumber,
+                        paidDate: new Date().toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        }),
+                      }
+                    : inst
+                );
+                return {
+                  feeInstallments: updated,
+                  liveSyncToast: `Fee Receipt #${payload.receiptNumber} synced from School Desk`,
+                };
+              });
+            }
+          } else if (payload.type === 'CIRCULAR_ADDED') {
+            const circ = payload.circular;
+            if (
+              circ &&
+              isCircularForStudent(
+                circ.targetClass || circ.target_class,
+                get().studentProfile.classGrade
+              )
+            ) {
+              const mapped = mapMobileCircularRow(circ);
+              set((state) => {
+                const exists = state.circulars.some((c) => c.id === mapped.id);
+                return {
+                  circulars: exists ? state.circulars : [mapped, ...state.circulars],
+                  liveSyncToast: `New Circular: ${mapped.title}`,
+                };
+              });
+            }
+          } else if (payload.type === 'MARK_UPDATED') {
+            if (payload.studentId === targetId) {
+              set((state) => {
+                const updatedExamMarks = consolidateMobileExamRows([payload], state.examMarks);
+                return {
+                  examMarks: updatedExamMarks,
+                  liveSyncToast: `Exam Marks updated by teacher: ${payload.term || 'Pre-Board'}`,
+                };
+              });
+            }
+          } else if (payload.type === 'ATTENDANCE_UPDATED') {
+            if (payload.studentId === targetId) {
+              set((state) => ({
+                studentProfile: {
+                  ...state.studentProfile,
+                },
+                liveSyncToast: `Attendance updated: ${payload.attendancePct}%`,
+              }));
+            }
+          } else if (payload.type === 'SYLLABUS_ADDED') {
+            const mapped = mapMobileRoadmapRow(payload.record);
+            set((state) => {
+              const exists = state.roadmaps.some((r) => r.id === mapped.id);
+              return {
+                roadmaps: exists ? state.roadmaps : [mapped, ...state.roadmaps],
+                liveSyncToast: `New Syllabus Chapter synced: Ch ${mapped.chapterNumber}`,
+              };
+            });
+          }
+        })
+        .subscribe();
+
+      // Layer B: Scoped postgres_changes subscription for durable delivery
       mobileRealtimeChannel = supabase
         .channel(`mobile-sync-${targetId}`)
         .on(
@@ -889,11 +1034,10 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
-              const mapped = mapMobileExamRow(row);
-              const filtered = state.examMarks.filter((m) => m.termId !== mapped.termId);
+              const updatedExamMarks = consolidateMobileExamRows([row], state.examMarks);
               return {
-                examMarks: [mapped, ...filtered],
-                liveSyncToast: `Exam Marks updated by teacher: ${mapped.termName}`,
+                examMarks: updatedExamMarks,
+                liveSyncToast: `Exam Marks updated by teacher: ${row.subject || row.term || 'Pre-Board'}`,
               };
             });
           }
@@ -922,8 +1066,11 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
+            const mapped = mapMobileCircularRow(row);
+            if (!isCircularForStudent(mapped.targetClass, get().studentProfile.classGrade)) {
+              return;
+            }
             set((state) => {
-              const mapped = mapMobileCircularRow(row);
               const exists = state.circulars.some((c) => c.id === mapped.id);
               return {
                 circulars: exists
@@ -945,10 +1092,16 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
           supabase.removeChannel(mobileRealtimeChannel);
           mobileRealtimeChannel = null;
         }
+        if (mobileBroadcastChannel) {
+          supabase.removeChannel(mobileBroadcastChannel);
+          mobileBroadcastChannel = null;
+        }
       };
     } catch (err) {
-      console.warn('Mobile Supabase Realtime fell back to Demo Mode:', err);
-      set({ connectionMode: 'DEMO_MODE' });
+      console.warn('[Edzy Cloud Mobile] Sync error, maintaining live connection state:', err);
+      if (!isLiveSupabaseConfigured) {
+        set({ connectionMode: 'DEMO_MODE' });
+      }
       return () => {};
     }
   },
@@ -1007,9 +1160,10 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
           ]);
 
           const mappedFees = feeRes.data && feeRes.data.length > 0 ? feeRes.data.map((r: any) => mapMobileFeeRow(r)) : get().feeInstallments;
-          const mappedMarks = marksRes.data && marksRes.data.length > 0 ? marksRes.data.map((r: any) => mapMobileExamRow(r)) : get().examMarks;
+          const mappedMarks = marksRes.data && marksRes.data.length > 0 ? consolidateMobileExamRows(marksRes.data, get().examMarks) : get().examMarks;
           const mappedRoadmaps = syllabusRes.data && syllabusRes.data.length > 0 ? syllabusRes.data.map((r: any) => mapMobileRoadmapRow(r)) : get().roadmaps;
-          const mappedCircs = circRes.data && circRes.data.length > 0 ? circRes.data.map((r: any) => mapMobileCircularRow(r)) : get().circulars;
+          const mappedCircs = (circRes.data && circRes.data.length > 0 ? circRes.data.map((r: any) => mapMobileCircularRow(r)) : get().circulars)
+            .filter((c: SchoolCircular) => isCircularForStudent(c.targetClass, profile.classGrade));
 
           set({
             isAuthenticated: true,
@@ -1214,10 +1368,9 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         .update({
           status: 'PAID',
           payment_mode: 'ONLINE_UPI',
-          payment_ref: `UPI-RAZOR-${Date.now().toString().slice(-6)}`,
           receipt_number: generatedReceipt,
           paid_at: nowIso,
-          clerk_note: 'Paid via Instant UPI on Mobile App',
+          reference_note: `Instant UPI • Ref #UPI-RAZOR-${Date.now().toString().slice(-6)}`,
           updated_at: nowIso,
         })
         .eq('id', installmentId)
@@ -1235,14 +1388,31 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       supabase
         .from('students')
         .update({
-          total_paid: totalPaid,
-          total_pending: remainingPending,
+          paid_fee: totalPaid,
+          balance_due: remainingPending,
           updated_at: nowIso,
         })
         .eq('id', state.studentProfile.id)
         .then(({ error }) => {
           if (error) console.warn('[Edzy Cloud Mobile] Error updating student totals:', error);
         });
+
+      if (mobileBroadcastChannel) {
+        mobileBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'FEE_UPDATED',
+            installmentId,
+            studentId: state.studentProfile.id,
+            status: 'PAID',
+            paymentMode: 'ONLINE_UPI',
+            receiptNumber: generatedReceipt,
+            referenceNote: `Instant UPI • Ref #UPI-RAZOR-${Date.now().toString().slice(-6)}`,
+            amount: targetInstallment.amount,
+          },
+        });
+      }
     }
 
     return {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   X,
   Printer,
@@ -18,6 +18,16 @@ interface ReceiptModalProps {
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose }) => {
   const { schoolProfile, students } = useAdminStore();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!installment) return null;
 
   const student = students.find((s) => s.id === installment.studentId);
@@ -27,8 +37,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Control Bar (Hidden when printing) */}
         <div className="no-print px-6 py-3 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -37,15 +53,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print / Save PDF</span>
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white transition rounded-md"
+              className="p-1 text-slate-400 hover:text-white transition rounded-md cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

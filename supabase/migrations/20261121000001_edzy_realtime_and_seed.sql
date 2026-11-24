@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS public.fee_ledger (
     receipt_number TEXT,
     paid_at TIMESTAMPTZ,
     due_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    clerk_note TEXT,
+    reference_note TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -226,7 +226,7 @@ ON CONFLICT (id) DO UPDATE SET
     updated_at = NOW();
 
 -- Insert Aarav's 4 Quarterly Fee Installments
-INSERT INTO public.fee_ledger (id, school_id, school_code, student_id, student_name, class_grade, quarter, amount, status, payment_mode, payment_ref, receipt_number, paid_at, due_date, clerk_note)
+INSERT INTO public.fee_ledger (id, school_id, school_code, student_id, student_name, class_grade, quarter, amount, status, payment_mode, payment_ref, receipt_number, paid_at, due_date, reference_note)
 VALUES
 ('FEE-2026-104-Q1', 'DVPS01', 'DVPS01', 'SCH-2026-0104', 'Aarav Sharma', 'Class 10-A', 'Q1 (Apr - Jun 2026)', 12000, 'PAID', 'OFFLINE_CASH', 'Counter #1 (Clerk Cash Memo)', '#SCH-1042', '2026-04-12 11:30:00+00', '2026-04-30', 'Handed physical receipt duplicate to father.'),
 ('FEE-2026-104-Q2', 'DVPS01', 'DVPS01', 'SCH-2026-0104', 'Aarav Sharma', 'Class 10-A', 'Q2 (Jul - Sep 2026)', 12000, 'PAID', 'OFFLINE_CHEQUE', 'HDFC Bank Chq #440912', '#SCH-2190', '2026-07-10 14:15:00+00', '2026-07-31', 'Cleared successfully on 12-Jul-2026.'),

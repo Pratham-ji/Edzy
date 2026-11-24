@@ -289,22 +289,26 @@ export const FeesPage: React.FC = () => {
       </div>
 
       {/* Active Modals */}
-      <OfflineFeeModal
-        installment={activeCollectModal}
-        onClose={() => setActiveCollectModal(null)}
-        onSuccess={(info) => {
-          const updated = feeInstallments.find((f) => f.receiptNumber === info.receiptNumber);
-          setActiveCollectModal(null);
-          if (updated) {
-            setActiveReceiptModal(updated);
-          }
-        }}
-      />
+      {activeCollectModal && (
+        <OfflineFeeModal
+          installment={activeCollectModal}
+          onClose={() => setActiveCollectModal(null)}
+          onSuccess={(info) => {
+            const updated = feeInstallments.find((f) => f.receiptNumber === info.receiptNumber);
+            setActiveCollectModal(null);
+            if (updated) {
+              setActiveReceiptModal(updated);
+            }
+          }}
+        />
+      )}
 
-      <ReceiptModal
-        installment={activeReceiptModal}
-        onClose={() => setActiveReceiptModal(null)}
-      />
+      {activeReceiptModal && (
+        <ReceiptModal
+          installment={activeReceiptModal}
+          onClose={() => setActiveReceiptModal(null)}
+        />
+      )}
     </div>
   );
 };

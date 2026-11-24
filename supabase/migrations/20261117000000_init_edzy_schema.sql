@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS public.fee_ledger (
     receipt_number TEXT,
     paid_at TIMESTAMPTZ,
     due_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    clerk_note TEXT,
+    reference_note TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

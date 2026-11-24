@@ -62,6 +62,7 @@ export default function MasterBentoDashboard() {
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [parentOverridePin, setParentOverridePin] = useState('');
   const [selectedCircular, setSelectedCircular] = useState<SchoolCircular | null>(null);
+  const [showAllCircularsModal, setShowAllCircularsModal] = useState(false);
 
   // Digital Wellbeing Countdown Timer
   useEffect(() => {
@@ -208,8 +209,8 @@ export default function MasterBentoDashboard() {
               { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
             ]}
             onPress={() => {
-              if (activeCircular) {
-                setSelectedCircular(activeCircular);
+              if (circulars && circulars.length > 0) {
+                setShowAllCircularsModal(true);
               } else {
                 Alert.alert('Notice Board', 'No new circulars issued today.');
               }
@@ -791,6 +792,170 @@ export default function MasterBentoDashboard() {
               <Text style={[styles.switchModeLinkText, { color: theme.brandPrimary }]}>
                 Switch to Parent View
               </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── SCHOOL CIRCULAR NOTICE BOARD (ALL NOTICES) MODAL ─── */}
+      <Modal visible={showAllCircularsModal} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.circularModalCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                maxHeight: '80%',
+              },
+            ]}
+          >
+            <View style={styles.circularModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    backgroundColor: theme.brandTint,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Bell size={16} color={theme.brandPrimary} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: theme.textPrimary }}>
+                    School Notice Board
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textMuted }}>
+                    Official notices for {studentProfile.classGrade}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAllCircularsModal(false)}
+                style={[styles.closeButton, { backgroundColor: theme.surfaceSubtle }]}
+              >
+                <X size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
+              {circulars && circulars.length > 0 ? (
+                circulars.map((circ, idx) => (
+                  <TouchableOpacity
+                    key={`${circ.id}-${idx}`}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setShowAllCircularsModal(false);
+                      setSelectedCircular(circ);
+                    }}
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: theme.surfaceSubtle,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 6,
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.categoryPill,
+                          {
+                            backgroundColor:
+                              circ.category === 'EXAM'
+                                ? theme.warningTint
+                                : circ.category === 'HOLIDAY'
+                                ? theme.dangerTint
+                                : theme.brandTint,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryPillText,
+                            {
+                              color:
+                                circ.category === 'EXAM'
+                                  ? theme.warning
+                                  : circ.category === 'HOLIDAY'
+                                  ? theme.danger
+                                  : theme.brandPrimary,
+                            },
+                          ]}
+                        >
+                          {circ.category}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: theme.textMuted, fontWeight: '500' }}>
+                        {circ.date}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '700',
+                        color: theme.textPrimary,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {circ.title}
+                    </Text>
+
+                    <Text
+                      style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}
+                      numberOfLines={2}
+                    >
+                      {circ.message}
+                    </Text>
+
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTopWidth: 1,
+                        borderTopColor: theme.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, color: theme.textMuted }}>
+                        Target: {circ.targetClass}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: theme.brandPrimary, fontWeight: '600' }}>
+                        Tap to Read Full Notice →
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={{ textAlign: 'center', color: theme.textMuted, padding: 20 }}>
+                  No circulars currently published.
+                </Text>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                { width: '100%', backgroundColor: theme.brandPrimary, marginTop: 10 },
+              ]}
+              onPress={() => setShowAllCircularsModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Close Notice Board</Text>
             </TouchableOpacity>
           </View>
         </View>

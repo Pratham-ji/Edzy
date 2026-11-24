@@ -165,7 +165,7 @@ export function mapFeeRow(row: any, students?: StudentRecord[]): FeeInstallmentR
         })
       : undefined,
     dueDate: row.due_date ? String(row.due_date).split('T')[0] : '30 Nov 2026',
-    clerkNote: row.clerk_note || undefined,
+    clerkNote: row.reference_note || undefined,
   };
 }
 
@@ -1811,8 +1811,9 @@ const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
   },
 ];
 
-// Realtime channel reference for cleanup and re-subscriptions
+// Realtime channel references for cleanup and re-subscriptions
 let adminRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let adminBroadcastChannel: ReturnType<typeof supabase.channel> | null = null;
 
 export const useAdminStore = create<AdminState>((set, get) => ({
   schoolProfile: {
@@ -1858,6 +1859,54 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         }
         adminRealtimeChannel = null;
       }
+      if (adminBroadcastChannel) {
+        try {
+          supabase.removeChannel(adminBroadcastChannel);
+        } catch (e) {
+          // ignore
+        }
+        adminBroadcastChannel = null;
+      }
+
+      // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
+      adminBroadcastChannel = supabase.channel('edzy-live:DVPS01');
+      adminBroadcastChannel
+        .on('broadcast', { event: 'edzy-event' }, ({ payload }) => {
+          if (!payload || !payload.type) return;
+          if (payload.type === 'FEE_UPDATED') {
+            set((state) => {
+              const updated = state.feeInstallments.map((inst) =>
+                inst.id === payload.installmentId ||
+                (inst.studentId === payload.studentId && inst.quarter.includes('Q4'))
+                  ? {
+                      ...inst,
+                      status: 'PAID' as PaymentStatus,
+                      paymentMethod: (payload.paymentMode as PaymentMethod) || 'ONLINE_UPI',
+                      paymentRef: payload.referenceNote || 'Instant UPI',
+                      receiptNumber: payload.receiptNumber,
+                      paidDate: new Date().toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      }),
+                      clerkNote: payload.referenceNote || 'Paid via Instant UPI on Mobile App',
+                    }
+                  : inst
+              );
+              const updatedStudents = state.students.map((st) => {
+                if (st.id === payload.studentId) {
+                  const studentInsts = updated.filter((f) => f.studentId === st.id);
+                  const totalPaid = studentInsts.filter((f) => f.status === 'PAID').reduce((sum, f) => sum + f.amount, 0);
+                  const totalPending = studentInsts.filter((f) => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
+                  return { ...st, totalPaid, totalPending };
+                }
+                return st;
+              });
+              return { feeInstallments: updated, students: updatedStudents };
+            });
+          }
+        })
+        .subscribe();
 
       const [studentsRes, feeRes, marksRes, syllabusRes, circularsRes] = await Promise.all([
         supabase.from('students').select('*').order('roll_no', { ascending: true }),
@@ -2009,10 +2058,18 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           supabase.removeChannel(adminRealtimeChannel);
           adminRealtimeChannel = null;
         }
+        if (adminBroadcastChannel) {
+          supabase.removeChannel(adminBroadcastChannel);
+          adminBroadcastChannel = null;
+        }
       };
     } catch (err) {
-      console.warn('Supabase Realtime fell back to Demo Mode:', err);
-      set({ connectionMode: 'DEMO_MODE', isSyncing: false });
+      console.warn('Supabase Realtime fell back note:', err);
+      if (!isLiveSupabaseConfigured) {
+        set({ connectionMode: 'DEMO_MODE', isSyncing: false });
+      } else {
+        set({ isSyncing: false });
+      }
       return () => {};
     }
   },
@@ -2031,16 +2088,20 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       year: 'numeric',
     });
 
+    const refNote = referenceNo
+      ? `${referenceNo}${clerkNote ? ' • ' + clerkNote : ''}`
+      : (clerkNote || `Collected by Accounts Desk on ${todayStr}`);
+
     const updatedInstallments = state.feeInstallments.map((item) => {
       if (item.id === installmentId) {
         return {
           ...item,
           status: 'PAID' as PaymentStatus,
           paymentMethod: mode,
-          paymentRef: referenceNo || (mode === 'OFFLINE_CASH' ? 'Cash at Counter #1' : 'Cheque In-Hand'),
+          paymentRef: refNote,
           receiptNumber: nextReceiptNum,
           paidDate: todayStr,
-          clerkNote: clerkNote || `Collected by Accounts Desk on ${todayStr}`,
+          clerkNote: refNote,
         };
       }
       return item;
@@ -2071,10 +2132,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         .update({
           status: 'PAID',
           payment_mode: mode,
-          payment_ref: referenceNo || (mode === 'OFFLINE_CASH' ? 'Cash at Counter #1' : 'Cheque In-Hand'),
           receipt_number: nextReceiptNum,
           paid_at: nowIso,
-          clerk_note: clerkNote || `Collected by Accounts Desk on ${todayStr}`,
+          reference_note: refNote,
           updated_at: nowIso,
         })
         .eq('id', installmentId)
@@ -2084,14 +2144,31 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             supabase
               .from('students')
               .update({
-                total_paid: st.totalPaid,
-                total_pending: st.totalPending,
+                paid_fee: st.totalPaid,
+                balance_due: st.totalPending,
                 updated_at: nowIso,
               })
               .eq('id', st.id)
               .then(() => {});
           }
         });
+
+      if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'FEE_UPDATED',
+            installmentId,
+            studentId: inst.studentId,
+            status: 'PAID',
+            paymentMode: mode,
+            receiptNumber: nextReceiptNum,
+            referenceNote: refNote,
+            amount: inst.amount,
+          },
+        });
+      }
     }
 
     return {
@@ -2280,6 +2357,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           is_current: false,
         })
         .then(() => {});
+
+      if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'SYLLABUS_ADDED',
+            record: newRecord,
+          },
+        });
+      }
     }
 
     return newRecord;
@@ -2369,6 +2457,22 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             updated_at: new Date().toISOString(),
           })
           .then(() => {});
+
+        if (adminBroadcastChannel) {
+          adminBroadcastChannel.send({
+            type: 'broadcast',
+            event: 'edzy-event',
+            payload: {
+              type: 'MARK_UPDATED',
+              studentId: updatedRecord.studentId,
+              term: updatedRecord.term,
+              scores: updatedRecord.scores,
+              aggregatePercentage: updatedRecord.aggregatePercentage,
+              overallGrade: updatedRecord.overallGrade,
+              needsRemediation: updatedRecord.needsRemediation,
+            },
+          });
+        }
       }
 
       const filtered = state.examMarks.filter(
@@ -2449,6 +2553,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             console.warn('[Edzy Cloud Web] school_circulars insert note:', error.message);
           }
         });
+
+      if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'CIRCULAR_ADDED',
+            circular: newCircular,
+          },
+        });
+      }
     }
   },
 
@@ -2478,13 +2593,25 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       supabase
         .from('students')
         .update({
-          attendance_percent: targetPct,
+          attendance_pct: targetPct,
           updated_at: new Date().toISOString(),
         })
         .eq('id', studentId)
         .then(({ error }) => {
           if (error) console.warn('[Edzy Cloud Web] Attendance update note:', error.message);
         });
+
+      if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'ATTENDANCE_UPDATED',
+            studentId,
+            attendancePct: targetPct,
+          },
+        });
+      }
     }
   },
 

@@ -66,7 +66,8 @@ CREATE TABLE public.students (
     weekly_study_hours NUMERIC(5, 2) DEFAULT 0.00,
     streak_days INTEGER DEFAULT 0,
     attendance_pct NUMERIC(5, 2) DEFAULT 95.00,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3.3 FEE LEDGER (Quarterly Hybrid Fees: Cash, Cheque & UPI)
@@ -82,7 +83,8 @@ CREATE TABLE public.fee_ledger (
     receipt_number TEXT, -- e.g. '#SCH-1042', '#EDZ-5581'
     reference_note TEXT,
     paid_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3.4 EXAM MARKS (Granular Subject Marks with CBSE Grading)
@@ -128,20 +130,25 @@ CREATE TABLE public.school_circulars (
 );
 
 -- ====================================================================
--- 4. COMPOSITE PERFORMANCE INDEXES
+-- 4. COMPOSITE PERFORMANCE INDEXES (MULTI-TENANT SCALE)
 -- ====================================================================
 CREATE INDEX IF NOT EXISTS idx_students_school_student ON public.students (school_id, id);
 CREATE INDEX IF NOT EXISTS idx_students_school_class ON public.students (school_id, class_grade);
 CREATE INDEX IF NOT EXISTS idx_students_roll ON public.students (roll_number);
 
+CREATE INDEX IF NOT EXISTS idx_fee_ledger_tenant ON public.fee_ledger (school_id, student_id, status);
 CREATE INDEX IF NOT EXISTS idx_fee_ledger_school_student ON public.fee_ledger (school_id, student_id);
 CREATE INDEX IF NOT EXISTS idx_fee_ledger_status ON public.fee_ledger (status);
 CREATE INDEX IF NOT EXISTS idx_fee_ledger_due ON public.fee_ledger (due_date);
 
+CREATE INDEX IF NOT EXISTS idx_exam_marks_tenant ON public.exam_marks (school_id, student_id, exam_type);
 CREATE INDEX IF NOT EXISTS idx_exam_marks_lookup ON public.exam_marks (school_id, student_id, exam_type);
 CREATE INDEX IF NOT EXISTS idx_exam_marks_subject ON public.exam_marks (subject);
 
+CREATE INDEX IF NOT EXISTS idx_syllabus_tenant ON public.syllabus_roadmaps (school_id, class_grade);
 CREATE INDEX IF NOT EXISTS idx_syllabus_lookup ON public.syllabus_roadmaps (school_id, class_grade, chapter_number);
+
+CREATE INDEX IF NOT EXISTS idx_circulars_tenant ON public.school_circulars (school_id, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_circulars_lookup ON public.school_circulars (school_id, published_at DESC);
 
 -- ====================================================================
@@ -528,3 +535,6 @@ SELECT
     (SELECT COUNT(*) FROM public.exam_marks) AS total_exam_marks,
     (SELECT COUNT(*) FROM public.syllabus_roadmaps) AS total_syllabi,
     (SELECT COUNT(*) FROM public.school_circulars) AS total_circulars;
+
+-- Reload PostgREST schema cache to ensure instantaneous reflection of column/index definitions
+NOTIFY pgrst, 'reload schema';
