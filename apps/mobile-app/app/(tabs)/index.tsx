@@ -5,12 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { PressableScale } from '@/components/PressableScale';
 import {
   Sparkles,
   CreditCard,
@@ -171,7 +173,7 @@ export default function MasterBentoDashboard() {
             onPress={() => router.push('/(tabs)/profile')}
             activeOpacity={0.7}
           >
-            <Settings size={18} color={colors.text.secondary} />
+            <Settings size={18} color="#222222" />
           </TouchableOpacity>
         </View>
       </View>
@@ -620,14 +622,31 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.background,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+    }),
   },
 
   // Mode Switcher Pill
@@ -677,7 +696,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 24,
+    paddingBottom: 116,
   },
   contentSection: {
     gap: 12,
@@ -711,18 +730,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Clean White Card
+  // Airbnb Standard Clean White Card
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#EBEBEB',
     padding: 16,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: colors.shadow.elevation,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+    }),
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -929,16 +960,28 @@ const styles = StyleSheet.create({
   },
   gridTile: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#EBEBEB',
     padding: 14,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: colors.shadow.elevation,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+      },
+    }),
   },
   gridTileLeft: {},
   gridTileRight: {},

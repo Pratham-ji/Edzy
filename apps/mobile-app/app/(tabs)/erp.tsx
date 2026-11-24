@@ -5,11 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
-  Receipt,
+  Wallet,
   GraduationCap,
   ChevronRight,
   CheckCircle2,
@@ -59,7 +60,7 @@ export default function ErpHubScreen() {
             onPress={() => setActiveTab('FEES')}
             activeOpacity={0.85}
           >
-            <Receipt
+            <Wallet
               size={15}
               color={activeTab === 'FEES' ? colors.brand.primary : colors.text.muted}
             />
@@ -217,7 +218,7 @@ export default function ErpHubScreen() {
                         </View>
                         {item.receiptNumber && (
                           <Text style={styles.receiptNumberText}>
-                            Receipt {item.receiptNumber}
+                            Receipt #{item.receiptNumber.replace(/^#/, '')}
                           </Text>
                         )}
                       </View>
@@ -322,8 +323,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: colors.text.primary,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    color: '#222222',
   },
   headerSubtitle: {
     fontSize: 12,
@@ -369,22 +371,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 116,
   },
   contentSection: {
     gap: 14,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#EBEBEB',
     padding: 16,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: colors.shadow.elevation,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+    }),
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -475,16 +491,28 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   installmentCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#EBEBEB',
     padding: 14,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+      },
+    }),
   },
   installmentTopRow: {
     flexDirection: 'row',
@@ -561,16 +589,28 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   examCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#EBEBEB',
     padding: 16,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+    }),
   },
   examCardHeader: {
     flexDirection: 'row',

@@ -5,11 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CreditCard,
   ShieldCheck,
@@ -19,7 +19,7 @@ import {
   Download,
   X,
   Lock,
-  Receipt,
+  FileText,
   Building2,
   QrCode,
   Smartphone,
@@ -80,7 +80,7 @@ export default function FeePassbookScreen() {
         setActivePaymentModal(null);
         Alert.alert(
           'Payment Successful! 🎉',
-          `${res.message}\nReceipt ${res.receiptNo} has been generated and archived to your passbook.`,
+          `${res.message}\nReceipt #${(res.receiptNo || '').replace(/^#/, '')} has been generated and archived to your passbook.`,
           [
             {
               text: 'View Receipt',
@@ -130,7 +130,7 @@ export default function FeePassbookScreen() {
         <View style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
             <View style={styles.sessionPill}>
-              <Receipt size={12} color={colors.parent.primary} />
+              <FileText size={12} color={colors.parent.primary} />
               <Text style={styles.sessionPillText}>Hybrid Fee Ledger 2026-27</Text>
             </View>
             {allCleared ? (
@@ -232,7 +232,7 @@ export default function FeePassbookScreen() {
                     <View style={styles.paidDetailsRow}>
                       {renderPaymentBadge(inst.paymentMethod)}
                       {inst.receiptNumber && (
-                        <Text style={styles.receiptNumber}>Receipt {inst.receiptNumber}</Text>
+                        <Text style={styles.receiptNumber}>Receipt #{inst.receiptNumber.replace(/^#/, '')}</Text>
                       )}
                     </View>
                     {inst.paidDate && (
@@ -244,7 +244,7 @@ export default function FeePassbookScreen() {
                       onPress={() => setActiveReceiptModal(inst)}
                       activeOpacity={0.8}
                     >
-                      <Receipt size={14} color={colors.brand.primary} />
+                      <FileText size={14} color={colors.brand.primary} />
                       <Text style={styles.receiptButtonText}>Official School Receipt</Text>
                     </TouchableOpacity>
                   </View>

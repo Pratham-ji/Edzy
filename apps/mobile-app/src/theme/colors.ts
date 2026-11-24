@@ -1,7 +1,9 @@
 /**
  * Edzy Light-First Consumer Design System
- * Unicorn-grade palette inspired by Zomato, Blinkit, Groww, Duolingo
+ * Unicorn-grade palette inspired by Zomato, Blinkit, Groww, Duolingo, Airbnb
  */
+
+import { Platform, ViewStyle, TextStyle } from 'react-native';
 
 export const colors = {
   // Canvas & Surfaces
@@ -73,6 +75,9 @@ export const colors = {
     disabled: '#D1D5DB',     // Very light
     inverse: '#FFFFFF',
     brand: '#4F46E5',
+    ink: '#222222',          // Airbnb deep ink
+    secondaryInk: '#717171', // Airbnb secondary neutral
+    airbnbDivider: '#F0F0F0',
   },
 
   // Status & Badges
@@ -126,3 +131,70 @@ export const colors = {
 } as const;
 
 export type ColorTheme = typeof colors;
+
+/**
+ * Airbnb Card Standard
+ * Pure white tactile surface with subtle border and cross-platform diffused elevation
+ */
+export const airbnbCardStyle: ViewStyle = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: '#EBEBEB',
+  ...Platform.select<ViewStyle>({
+    ios: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.06,
+      shadowRadius: 16,
+    },
+    android: {
+      elevation: 3,
+    },
+    default: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.06,
+      shadowRadius: 16,
+    },
+  }),
+};
+
+/**
+ * Airbnb Typography Standard
+ * Tight tracking display titles and human-centered text hierarchy
+ */
+export const airbnbTypography = {
+  displayTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    letterSpacing: -0.5,
+    color: '#222222',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    letterSpacing: -0.4,
+    color: '#222222',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    letterSpacing: -0.3,
+    color: '#222222',
+  },
+  body: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    color: '#717171',
+    lineHeight: 20,
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: '#717171',
+  },
+  divider: '#F0F0F0',
+  ink: '#222222',
+  secondaryInk: '#717171',
+};

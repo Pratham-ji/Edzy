@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   BookOpen,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
+import { PressableScale } from '@/components/PressableScale';
 
 export default function SyllabusScreen() {
   const router = useRouter();
@@ -61,11 +62,10 @@ export default function SyllabusScreen() {
             const isComplete = roadmap.progressPercent === 100;
 
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={roadmap.id}
                 style={styles.chapterCard}
                 onPress={() => router.push('/study/roadmap')}
-                activeOpacity={0.85}
               >
                 <View style={styles.chapterTopRow}>
                   <View style={styles.subjectPill}>
@@ -77,44 +77,44 @@ export default function SyllabusScreen() {
                 </View>
 
                 <Text style={styles.chapterTitle}>{roadmap.title}</Text>
+                <Text style={styles.chapterTopicCount}>
+                  {roadmap.totalSubtopics || 4} Core Topics • NCERT Aligned
+                </Text>
 
                 {/* Progress Bar */}
-                <View style={styles.progressContainer}>
+                <View style={styles.progressRow}>
                   <View style={styles.progressBarTrack}>
                     <View
                       style={[
                         styles.progressBarFill,
-                        { width: `${roadmap.progressPercent}%` },
-                        isComplete && { backgroundColor: colors.status.success },
+                        {
+                          width: `${roadmap.progressPercent}%`,
+                          backgroundColor: isComplete
+                            ? colors.status.success
+                            : colors.brand.primary,
+                        },
                       ]}
                     />
                   </View>
-                  <View style={styles.progressLabelRow}>
-                    <Text
-                      style={[
-                        styles.progressPercentText,
-                        isComplete && { color: colors.status.success },
-                      ]}
-                    >
-                      {roadmap.progressPercent}% Mastered
-                    </Text>
-                    <Text style={styles.progressSubText}>
-                      {roadmap.completedSubtopics} of {roadmap.totalSubtopics} topics completed
-                    </Text>
-                  </View>
+                  <Text style={styles.progressPercentText}>
+                    {roadmap.progressPercent}%
+                  </Text>
                 </View>
 
                 {/* Card Footer */}
                 <View style={styles.chapterFooter}>
-                  <View style={styles.boardBadge}>
-                    <Text style={styles.boardBadgeText}>{roadmap.board}</Text>
+                  <View style={styles.modelTag}>
+                    <Boxes size={14} color={colors.brand.primary} />
+                    <Text style={styles.modelTagText}>3D Interactive Model</Text>
                   </View>
-                  <View style={styles.openLink}>
-                    <Text style={styles.openLinkText}>Open Roadmap</Text>
+                  <View style={styles.actionPrompt}>
+                    <Text style={styles.actionPromptText}>
+                      {isComplete ? 'Review' : 'Continue'}
+                    </Text>
                     <ChevronRight size={14} color={colors.brand.primary} />
                   </View>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </View>
@@ -140,12 +140,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: colors.text.primary,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    color: '#222222',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: colors.text.secondary,
+    color: '#717171',
     marginTop: 2,
   },
   badgePill: {
@@ -163,13 +164,15 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 116,
     gap: 16,
   },
   bannerCard: {
     flexDirection: 'row',
     backgroundColor: colors.brand.tint,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     gap: 14,
     alignItems: 'center',
@@ -199,24 +202,37 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.text.primary,
+    letterSpacing: -0.3,
+    color: '#222222',
   },
   chapterList: {
     gap: 12,
   },
   chapterCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: '#EBEBEB',
     padding: 16,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: colors.shadow.elevation,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+      },
+    }),
   },
   chapterTopRow: {
     flexDirection: 'row',
@@ -238,67 +254,67 @@ const styles = StyleSheet.create({
   chapterNumberText: {
     fontSize: 12,
     color: colors.text.muted,
-    fontWeight: '600',
   },
   chapterTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.text.primary,
+    letterSpacing: -0.3,
+    color: '#222222',
+    marginBottom: 4,
+  },
+  chapterTopicCount: {
+    fontSize: 12,
+    color: '#717171',
     marginBottom: 12,
   },
-  progressContainer: {
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 14,
   },
   progressBarTrack: {
+    flex: 1,
     height: 6,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceBorder,
     borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 6,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.brand.primary,
     borderRadius: 3,
-  },
-  progressLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
   progressPercentText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.brand.primary,
-  },
-  progressSubText: {
-    fontSize: 12,
-    color: colors.text.muted,
+    color: '#222222',
+    width: 36,
+    textAlign: 'right',
   },
   chapterFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
     paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
   },
-  boardBadge: {
-    backgroundColor: colors.background,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  modelTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  boardBadgeText: {
-    fontSize: 11,
-    color: colors.text.secondary,
+  modelTagText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: colors.brand.primary,
   },
-  openLink: {
+  actionPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  openLinkText: {
+  actionPromptText: {
     fontSize: 13,
     fontWeight: '700',
     color: colors.brand.primary,
