@@ -11,7 +11,17 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { School, User, Lock, Sparkles, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react-native';
+import {
+  GraduationCap,
+  School,
+  User,
+  Lock,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  ChevronDown,
+} from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { colors } from '@/theme/colors';
 
@@ -44,7 +54,7 @@ export default function LoginScreen() {
       if (ok) {
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Authentication Failed', 'Invalid credentials. You can use 1-Tap Demo Login.');
+        Alert.alert('Authentication Failed', 'Invalid credentials. You can use Demo Login.');
       }
     }, 400);
   };
@@ -63,16 +73,20 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Brand Header */}
         <View style={styles.brandHeader}>
           <View style={styles.logoBadge}>
-            <School size={28} color={colors.student.secondaryLight} />
+            <GraduationCap size={32} color="#FFFFFF" />
           </View>
           <Text style={styles.appName}>EDZY</Text>
-          <Text style={styles.appTagline}>B2B K-12 Spatial Learning & School ERP</Text>
+          <Text style={styles.appTagline}>Smart Learning & School ERP</Text>
           <View style={styles.affiliationPill}>
-            <ShieldCheck size={13} color={colors.parent.primaryLight} />
+            <ShieldCheck size={13} color={colors.status.success} />
             <Text style={styles.affiliationText}>CBSE & ICSE Certified Campus Portal</Text>
           </View>
         </View>
@@ -86,19 +100,20 @@ export default function LoginScreen() {
 
           {/* School Code Selector */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>SELECT AFFILIATED INSTITUTION</Text>
+            <Text style={styles.inputLabel}>AFFILIATED INSTITUTION</Text>
             <TouchableOpacity
               style={styles.schoolSelector}
               onPress={() => setShowSchoolPicker(!showSchoolPicker)}
               activeOpacity={0.8}
             >
-              <School size={18} color={colors.student.primaryLight} />
+              <School size={18} color={colors.brand.primary} />
               <View style={styles.schoolTextContainer}>
                 <Text style={styles.schoolCode}>{selectedSchool}</Text>
                 <Text style={styles.schoolName} numberOfLines={1}>
                   {SCHOOL_OPTIONS.find((s) => s.code === selectedSchool)?.name}
                 </Text>
               </View>
+              <ChevronDown size={16} color={colors.text.muted} />
             </TouchableOpacity>
 
             {showSchoolPicker && (
@@ -124,7 +139,7 @@ export default function LoginScreen() {
                       {item.code} - {item.name}
                     </Text>
                     {selectedSchool === item.code && (
-                      <CheckCircle2 size={16} color={colors.student.secondaryLight} />
+                      <CheckCircle2 size={16} color={colors.brand.primary} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -134,7 +149,7 @@ export default function LoginScreen() {
 
           {/* Student ID / Roll No */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>STUDENT ADMISSION ID / ROLL NUMBER</Text>
+            <Text style={styles.inputLabel}>ADMISSION ID / ROLL NUMBER</Text>
             <View style={styles.inputWrapper}>
               <User size={18} color={colors.text.muted} style={styles.inputIcon} />
               <TextInput
@@ -142,7 +157,7 @@ export default function LoginScreen() {
                 value={studentId}
                 onChangeText={setStudentId}
                 placeholder="e.g. SCH-2026-0104"
-                placeholderTextColor={colors.text.disabled}
+                placeholderTextColor={colors.text.muted}
                 autoCapitalize="characters"
               />
             </View>
@@ -150,7 +165,7 @@ export default function LoginScreen() {
 
           {/* Password or Parent PIN */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>PASSWORD / 4-DIGIT PARENT PIN</Text>
+            <Text style={styles.inputLabel}>PASSWORD / 4-DIGIT PIN</Text>
             <View style={styles.inputWrapper}>
               <Lock size={18} color={colors.text.muted} style={styles.inputIcon} />
               <TextInput
@@ -158,58 +173,58 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="e.g. 1234"
-                placeholderTextColor={colors.text.disabled}
+                placeholderTextColor={colors.text.muted}
                 secureTextEntry
                 keyboardType="numeric"
               />
             </View>
           </View>
 
-          {/* Standard Sign In Button */}
+          {/* Primary Sign In Button */}
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={handleStandardLogin}
             disabled={isLoading}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryButtonText}>Sign In to School Portal</Text>
+            <Text style={styles.primaryButtonText}>
+              {isLoading ? 'Signing In...' : 'Sign In to School Portal'}
+            </Text>
             <ArrowRight size={18} color="#FFFFFF" />
           </TouchableOpacity>
 
-          {/* 1-Tap Demo Login Button */}
+          {/* Divider */}
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>EVALUATION MODE</Text>
+            <Text style={styles.dividerText}>OR</Text>
             <View style={styles.dividerLine} />
           </View>
 
+          {/* 1-Tap Demo Login Button */}
           <TouchableOpacity
             style={styles.demoButton}
             onPress={handleOneTapLogin}
             disabled={isLoading}
             activeOpacity={0.85}
           >
-            <Sparkles size={18} color={colors.student.secondaryLight} />
+            <Sparkles size={16} color={colors.brand.primary} />
             <View style={styles.demoButtonTextContainer}>
-              <Text style={styles.demoButtonTitle}>1-Tap Instant Demo Login</Text>
+              <Text style={styles.demoButtonTitle}>Try Demo Student Account</Text>
               <Text style={styles.demoButtonSub}>
                 Preloaded: {studentProfile.name} ({studentProfile.classGrade})
               </Text>
             </View>
           </TouchableOpacity>
-
-          {/* Helper Credentials Box */}
-          <View style={styles.demoBadgeBox}>
-            <Text style={styles.demoBadgeTitle}>Pre-Configured Demo Credentials:</Text>
-            <Text style={styles.demoBadgeCode}>Roll No: SCH-2026-0104  •  Parent PIN: 1234</Text>
-            <Text style={styles.demoBadgeSub}>Dual Persona: Student Study Space & Parent ERP</Text>
-          </View>
         </View>
 
-        {/* Footer info */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Edzy Indian School OS • 2026-2027 Academic Session</Text>
-          <Text style={styles.footerSubText}>Encrypted with 256-bit AES & Supabase Postgres RLS</Text>
+        {/* Footer Note */}
+        <View style={styles.footerNote}>
+          <Text style={styles.footerText}>
+            Demo Roll No: SCH-2026-0104 • Parent PIN: 1234
+          </Text>
+          <Text style={styles.footerSubText}>
+            Edzy Indian School OS • Encrypted with 256-bit AES
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -223,105 +238,98 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 40,
-    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 36,
   },
   brandHeader: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   logoBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.student.secondary,
-    borderWidth: 1.5,
-    justifyContent: 'center',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.brand.primary,
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
-    shadowColor: colors.student.secondary,
+    shadowColor: colors.brand.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 4,
   },
   appName: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '900',
     color: colors.text.primary,
-    letterSpacing: 3,
+    letterSpacing: 1.5,
   },
   appTagline: {
     fontSize: 13,
     color: colors.text.secondary,
-    marginTop: 4,
+    marginTop: 3,
     fontWeight: '500',
   },
   affiliationPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderWidth: 1,
-    paddingHorizontal: 12,
+    backgroundColor: colors.status.successBg,
+    paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    marginTop: 12,
+    marginTop: 10,
   },
   affiliationText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: colors.parent.primaryLight,
+    fontWeight: '700',
+    color: colors.status.success,
   },
   loginCard: {
-    width: '100%',
-    maxWidth: 440,
-    backgroundColor: colors.bentoCard,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
     borderWidth: 1,
-    borderRadius: 22,
-    padding: 24,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
-    elevation: 8,
+    borderColor: colors.surfaceBorder,
+    padding: 22,
+    shadowColor: colors.shadow.color,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.text.primary,
-    marginBottom: 6,
   },
   cardSubtitle: {
     fontSize: 13,
     color: colors.text.secondary,
     lineHeight: 18,
-    marginBottom: 20,
+    marginTop: 4,
+    marginBottom: 18,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   inputLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.text.muted,
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   schoolSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.background,
-    borderColor: colors.cardBorder,
     borderWidth: 1,
+    borderColor: colors.surfaceBorder,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
   },
   schoolTextContainer: {
     flex: 1,
@@ -329,59 +337,59 @@ const styles = StyleSheet.create({
   schoolCode: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.student.secondaryLight,
+    color: colors.brand.primary,
   },
   schoolName: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.text.secondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   schoolDropdown: {
     marginTop: 6,
     backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
-    borderWidth: 1,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
     overflow: 'hidden',
   },
   schoolDropdownItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
+    borderBottomColor: colors.divider,
   },
   schoolDropdownItemActive: {
-    backgroundColor: 'rgba(6, 182, 212, 0.08)',
+    backgroundColor: colors.brand.tint,
   },
   dropdownItemText: {
     fontSize: 12,
-    color: colors.text.secondary,
+    color: colors.text.primary,
     flex: 1,
   },
   dropdownItemTextActive: {
-    color: colors.student.secondaryLight,
-    fontWeight: '600',
+    color: colors.brand.primary,
+    fontWeight: '700',
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.background,
-    borderColor: colors.cardBorder,
     borderWidth: 1,
+    borderColor: colors.surfaceBorder,
     borderRadius: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   input: {
     flex: 1,
-    height: 48,
-    color: colors.text.primary,
+    paddingVertical: 11,
     fontSize: 14,
+    color: colors.text.primary,
     fontWeight: '500',
   },
   primaryButton: {
@@ -389,98 +397,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: colors.student.primary,
-    height: 50,
-    borderRadius: 14,
-    marginTop: 8,
-    shadowColor: colors.student.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 4,
+    backgroundColor: colors.brand.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 6,
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
     gap: 10,
+    marginVertical: 16,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.cardBorder,
+    backgroundColor: colors.divider,
   },
   dividerText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.text.muted,
-    letterSpacing: 1,
   },
   demoButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
-    borderColor: colors.student.secondary,
-    borderWidth: 1.2,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    backgroundColor: colors.brand.tint,
+    borderWidth: 1,
+    borderColor: colors.brand.tintBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    gap: 12,
+    gap: 10,
   },
   demoButtonTextContainer: {
     flex: 1,
   },
   demoButtonTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    color: colors.student.secondaryLight,
+    color: colors.brand.primary,
   },
   demoButtonSub: {
     fontSize: 11,
     color: colors.text.secondary,
-    marginTop: 2,
+    marginTop: 1,
   },
-  demoBadgeBox: {
-    backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 16,
+  footerNote: {
     alignItems: 'center',
-  },
-  demoBadgeTitle: {
-    fontSize: 11,
-    color: colors.text.muted,
-    fontWeight: '600',
-  },
-  demoBadgeCode: {
-    fontSize: 12,
-    color: colors.text.primary,
-    fontWeight: '700',
-    marginTop: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  demoBadgeSub: {
-    fontSize: 10,
-    color: colors.student.primaryLight,
-    marginTop: 2,
-  },
-  footer: {
-    marginTop: 32,
-    alignItems: 'center',
+    marginTop: 20,
+    gap: 4,
   },
   footerText: {
     fontSize: 11,
+    fontWeight: '600',
     color: colors.text.muted,
-    fontWeight: '500',
   },
   footerSubText: {
     fontSize: 10,
-    color: colors.text.disabled,
-    marginTop: 4,
+    color: colors.text.muted,
   },
 });
