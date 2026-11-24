@@ -56,6 +56,8 @@ export default function MasterBentoDashboard() {
     clearLiveSyncToast,
     initializeMobileSync,
     circulars,
+    unreadCircularsCount,
+    clearUnreadCirculars,
   } = useEdzyStore();
 
   const { theme, isDark } = useAppTheme();
@@ -209,6 +211,7 @@ export default function MasterBentoDashboard() {
               { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
             ]}
             onPress={() => {
+              clearUnreadCirculars();
               if (circulars && circulars.length > 0) {
                 setShowAllCircularsModal(true);
               } else {
@@ -218,8 +221,15 @@ export default function MasterBentoDashboard() {
             activeOpacity={0.7}
           >
             <Bell size={16} color={theme.textSecondary} />
-            {circulars && circulars.length > 0 && (
-              <View style={[styles.bellDot, { backgroundColor: theme.danger }]} />
+            {(unreadCircularsCount > 0 || (circulars && circulars.length > 0)) && (
+              <View
+                style={[
+                  styles.bellDot,
+                  {
+                    backgroundColor: unreadCircularsCount > 0 ? theme.danger : theme.brandPrimary,
+                  },
+                ]}
+              />
             )}
           </TouchableOpacity>
         </View>
@@ -596,7 +606,7 @@ export default function MasterBentoDashboard() {
                 </View>
                 <View style={styles.attendanceColumn}>
                   <Text style={[styles.attendanceValue, { color: theme.success }]}>
-                    {latestExam?.attendancePercentage || 96.8}%
+                    {(studentProfile.attendancePct ?? latestExam?.attendancePercentage ?? 96.8)}%
                   </Text>
                   <Text style={[styles.attendanceLabel, { color: theme.textMuted }]}>Attendance</Text>
                 </View>

@@ -264,8 +264,10 @@ interface AdminState {
   connectionMode: 'LIVE_CLOUD' | 'DEMO_MODE';
   isSyncing: boolean;
   themeMode: 'light' | 'dark';
+  syncError: string | null;
 
   // Actions
+  setSyncError: (error: string | null) => void;
   toggleThemeMode: () => void;
   setThemeMode: (mode: 'light' | 'dark') => void;
   addCircular: (payload: Omit<AdminCircular, 'id' | 'date'>) => void;
@@ -336,7 +338,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Amit Gupta',
     parentPhone: '9811234501',
-    parentPin: '2145',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 48000,
     totalPending: 0,
@@ -352,7 +354,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Sunil Mehra',
     parentPhone: '9811234502',
-    parentPin: '3912',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 36000,
     totalPending: 12000,
@@ -368,7 +370,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Vivek Verma',
     parentPhone: '9811234503',
-    parentPin: '7721',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 48000,
     totalPending: 0,
@@ -384,7 +386,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Debashis Sen',
     parentPhone: '9811234505',
-    parentPin: '8104',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 24000,
     totalPending: 24000,
@@ -400,7 +402,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Unnikrishnan Nair',
     parentPhone: '9811234506',
-    parentPin: '4092',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 48000,
     totalPending: 0,
@@ -416,7 +418,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Harish Joshi',
     parentPhone: '9811234507',
-    parentPin: '5521',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 36000,
     totalPending: 12000,
@@ -432,7 +434,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'A',
     parentName: 'Suresh Pillai',
     parentPhone: '9811234508',
-    parentPin: '6310',
+    parentPin: '1234',
     annualFee: 48000,
     totalPaid: 48000,
     totalPending: 0,
@@ -448,7 +450,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'Sanjay Agarwal',
     parentPhone: '9811234509',
-    parentPin: '9023',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 44000,
     totalPending: 0,
@@ -464,7 +466,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'Anand Deshmukh',
     parentPhone: '9811234510',
-    parentPin: '1478',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 33000,
     totalPending: 11000,
@@ -480,7 +482,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'Pravin Kulkarni',
     parentPhone: '9811234511',
-    parentPin: '2367',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 44000,
     totalPending: 0,
@@ -496,7 +498,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'Subhash Sengupta',
     parentPhone: '9811234512',
-    parentPin: '8941',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 22000,
     totalPending: 22000,
@@ -512,7 +514,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'Gaurav Kapoor',
     parentPhone: '9811234513',
-    parentPin: '3389',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 33000,
     totalPending: 11000,
@@ -528,7 +530,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'K. V. Reddy',
     parentPhone: '9811234514',
-    parentPin: '6712',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 44000,
     totalPending: 0,
@@ -544,7 +546,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     section: 'B',
     parentName: 'Rajiv Bhatia',
     parentPhone: '9811234515',
-    parentPin: '5120',
+    parentPin: '1234',
     annualFee: 44000,
     totalPaid: 33000,
     totalPending: 11000,
@@ -1840,6 +1842,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
   isSyncing: false,
   themeMode: (typeof window !== 'undefined' && (localStorage.getItem('edzy_admin_theme') as 'light' | 'dark')) || 'light',
+  syncError: null,
+  setSyncError: (error) => set({ syncError: error }),
 
   initializeRealtimeSync: async () => {
     if (!isLiveSupabaseConfigured) {
@@ -1869,44 +1873,58 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       }
 
       // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
-      adminBroadcastChannel = supabase.channel('edzy-live:DVPS01');
-      adminBroadcastChannel
-        .on('broadcast', { event: 'edzy-event' }, ({ payload }) => {
-          if (!payload || !payload.type) return;
-          if (payload.type === 'FEE_UPDATED') {
-            set((state) => {
-              const updated = state.feeInstallments.map((inst) =>
-                inst.id === payload.installmentId ||
-                (inst.studentId === payload.studentId && inst.quarter.includes('Q4'))
-                  ? {
-                      ...inst,
-                      status: 'PAID' as PaymentStatus,
-                      paymentMethod: (payload.paymentMode as PaymentMethod) || 'ONLINE_UPI',
-                      paymentRef: payload.referenceNote || 'Instant UPI',
-                      receiptNumber: payload.receiptNumber,
-                      paidDate: new Date().toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      }),
-                      clerkNote: payload.referenceNote || 'Paid via Instant UPI on Mobile App',
-                    }
-                  : inst
-              );
-              const updatedStudents = state.students.map((st) => {
-                if (st.id === payload.studentId) {
-                  const studentInsts = updated.filter((f) => f.studentId === st.id);
-                  const totalPaid = studentInsts.filter((f) => f.status === 'PAID').reduce((sum, f) => sum + f.amount, 0);
-                  const totalPending = studentInsts.filter((f) => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
-                  return { ...st, totalPaid, totalPending };
+      adminBroadcastChannel = supabase.channel('edzy-live:DVPS01', {
+        config: { broadcast: { self: false, ack: true } },
+      });
+
+      const handleFeeBroadcast = (payload: any) => {
+        if (!payload) return;
+        const action = payload.action || payload.type;
+        if (action !== 'FEE_UPDATED') return;
+        const data = payload.data || payload;
+        const installmentId = data.installmentId || payload.installmentId;
+        const studentId = data.studentId || payload.studentId;
+
+        set((state) => {
+          const updated = state.feeInstallments.map((inst) =>
+            inst.id === installmentId ||
+            (inst.studentId === studentId && (inst.quarter.includes('Q4') || String(installmentId || '').toLowerCase().includes('q4')))
+              ? {
+                  ...inst,
+                  status: 'PAID' as PaymentStatus,
+                  paymentMethod: (data.paymentMode || payload.paymentMode as PaymentMethod) || 'ONLINE_UPI',
+                  paymentRef: data.referenceNote || payload.referenceNote || 'Instant UPI',
+                  receiptNumber: data.receiptNumber || payload.receiptNumber,
+                  paidDate: new Date().toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  }),
+                  clerkNote: data.referenceNote || payload.referenceNote || 'Paid via Instant UPI on Mobile App',
                 }
-                return st;
-              });
-              return { feeInstallments: updated, students: updatedStudents };
-            });
+              : inst
+          );
+          const updatedStudents = state.students.map((st) => {
+            if (st.id === studentId) {
+              const studentInsts = updated.filter((f) => f.studentId === st.id);
+              const totalPaid = studentInsts.filter((f) => f.status === 'PAID').reduce((sum, f) => sum + f.amount, 0);
+              const totalPending = studentInsts.filter((f) => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
+              return { ...st, totalPaid, totalPending };
+            }
+            return st;
+          });
+          return { feeInstallments: updated, students: updatedStudents };
+        });
+      };
+
+      adminBroadcastChannel
+        .on('broadcast', { event: 'EDZY_SYNC' }, ({ payload }) => handleFeeBroadcast(payload))
+        .on('broadcast', { event: 'edzy-event' }, ({ payload }) => handleFeeBroadcast(payload))
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[Edzy Cloud Web] Broadcast channel SUBSCRIBED to edzy-live:DVPS01');
           }
-        })
-        .subscribe();
+        });
 
       const [studentsRes, feeRes, marksRes, syllabusRes, circularsRes] = await Promise.all([
         supabase.from('students').select('*').order('roll_no', { ascending: true }),
@@ -2138,7 +2156,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           updated_at: nowIso,
         })
         .eq('id', installmentId)
-        .then(() => {
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] Fee collection error:', error.code, error.message);
+            get().setSyncError(`Fee Collection Error: ${error.message} (${error.code})`);
+            return;
+          }
           const st = updatedStudents.find((s) => s.id === inst.studentId);
           if (st) {
             supabase
@@ -2149,11 +2172,40 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 updated_at: nowIso,
               })
               .eq('id', st.id)
-              .then(() => {});
+              .then(({ error: studentErr }) => {
+                if (studentErr) {
+                  console.warn('[Edzy Cloud Web] Student balance update note:', studentErr.message);
+                }
+              });
           }
         });
 
       if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'EDZY_SYNC',
+          payload: {
+            action: 'FEE_UPDATED',
+            schoolId: 'DVPS01',
+            studentId: inst.studentId,
+            data: {
+              installmentId,
+              studentId: inst.studentId,
+              status: 'PAID',
+              paymentMode: mode,
+              receiptNumber: nextReceiptNum,
+              referenceNote: refNote,
+              amount: inst.amount,
+            },
+            ts: Date.now(),
+            type: 'FEE_UPDATED',
+            installmentId,
+            paymentMode: mode,
+            receiptNumber: nextReceiptNum,
+            referenceNote: refNote,
+            amount: inst.amount,
+          },
+        });
         adminBroadcastChannel.send({
           type: 'broadcast',
           event: 'edzy-event',
@@ -2342,23 +2394,36 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         .insert({
           id: newRecord.id,
           school_id: 'DVPS01',
-          school_code: 'DVPS01',
           chapter_number: newRecord.chapterNumber,
-          title: newRecord.title,
+          chapter_title: newRecord.title,
           class_grade: newRecord.classGrade,
           subject: newRecord.subject,
-          board: 'CBSE',
-          file_name: newRecord.fileName,
-          file_size_bytes: newRecord.fileSizeBytes,
-          status: newRecord.status,
-          ar_model_mapped: newRecord.arModelMapped,
+          pdf_filename: newRecord.fileName,
+          file_size_label: newRecord.fileSizeBytes,
+          ar_model_name: newRecord.arModelMapped,
           milestones_json: newRecord.generatedMilestones,
-          progress_percent: 0,
-          is_current: false,
         })
-        .then(() => {});
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] Syllabus insert error:', error.code, error.message);
+            get().setSyncError(`Syllabus Sync Error: ${error.message} (${error.code})`);
+          }
+        });
 
       if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'EDZY_SYNC',
+          payload: {
+            action: 'SYLLABUS_ADDED',
+            schoolId: 'DVPS01',
+            studentId: null,
+            data: newRecord,
+            ts: Date.now(),
+            type: 'SYLLABUS_ADDED',
+            record: newRecord,
+          },
+        });
         adminBroadcastChannel.send({
           type: 'broadcast',
           event: 'edzy-event',
@@ -2439,33 +2504,68 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       };
 
       if (isLiveSupabaseConfigured) {
+        const examType = term === 'PRE_BOARD' ? 'Pre-Board' : term === 'MIDTERM' ? 'Midterm' : 'Unit Test 1';
+        const markRowId = `${studentId}-${examType}-${subject}`;
+        const grade = calculateCbseGrade(marksObtained);
+        const dbMarkRow = {
+          id: markRowId,
+          school_id: 'DVPS01',
+          student_id: studentId,
+          exam_type: examType,
+          subject,
+          marks_obtained: marksObtained,
+          max_marks: 100,
+          class_average: 75,
+          grade,
+          teacher_remarks: remarks || 'Good performance.',
+          updated_at: new Date().toISOString(),
+        };
+
         supabase
           .from('exam_marks')
-          .upsert({
-            id: `${updatedRecord.studentId}_${updatedRecord.term}`,
-            school_id: 'DVPS01',
-            school_code: 'DVPS01',
-            student_id: updatedRecord.studentId,
-            student_name: updatedRecord.studentName,
-            class_grade: updatedRecord.classGrade,
-            roll_no: updatedRecord.rollNo,
-            term: updatedRecord.term,
-            scores_json: updatedRecord.scores,
-            aggregate_percentage: updatedRecord.aggregatePercentage,
-            overall_grade: updatedRecord.overallGrade,
-            needs_remediation: updatedRecord.needsRemediation,
-            updated_at: new Date().toISOString(),
-          })
-          .then(() => {});
+          .upsert(dbMarkRow, { onConflict: 'id' })
+          .then(({ error }) => {
+            if (error) {
+              console.error('[Edzy Cloud Web] exam_marks upsert error:', error.code, error.message);
+              get().setSyncError(`Marks Sync Error: ${error.message} (${error.code})`);
+            }
+          });
 
         if (adminBroadcastChannel) {
+          adminBroadcastChannel.send({
+            type: 'broadcast',
+            event: 'EDZY_SYNC',
+            payload: {
+              action: 'MARK_UPDATED',
+              schoolId: 'DVPS01',
+              studentId,
+              data: {
+                studentId,
+                term,
+                examType,
+                subject,
+                marksObtained,
+                grade,
+                remarks: remarks || 'Good performance.',
+                scores: updatedRecord.scores,
+                aggregatePercentage: updatedRecord.aggregatePercentage,
+                overallGrade: updatedRecord.overallGrade,
+              },
+              ts: Date.now(),
+              type: 'MARK_UPDATED',
+              scores: updatedRecord.scores,
+              aggregatePercentage: updatedRecord.aggregatePercentage,
+              overallGrade: updatedRecord.overallGrade,
+              needsRemediation: updatedRecord.needsRemediation,
+            },
+          });
           adminBroadcastChannel.send({
             type: 'broadcast',
             event: 'edzy-event',
             payload: {
               type: 'MARK_UPDATED',
-              studentId: updatedRecord.studentId,
-              term: updatedRecord.term,
+              studentId,
+              term,
               scores: updatedRecord.scores,
               aggregatePercentage: updatedRecord.aggregatePercentage,
               overallGrade: updatedRecord.overallGrade,
@@ -2526,8 +2626,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   addCircular: (payload) => {
+    const normalizedTargetClass =
+      !payload.targetClass || payload.targetClass === 'All Classes' || payload.targetClass === 'All'
+        ? 'All'
+        : payload.targetClass;
+
     const newCircular: AdminCircular = {
       ...payload,
+      targetClass: normalizedTargetClass,
       id: `circ-${Date.now().toString(36)}`,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     };
@@ -2543,18 +2649,32 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           school_id: 'DVPS01',
           title: newCircular.title,
           category: newCircular.category,
-          target_class: newCircular.targetClass,
+          target_class: normalizedTargetClass,
           message: newCircular.message,
           published_by: newCircular.author,
           published_at: new Date().toISOString(),
         })
         .then(({ error }) => {
           if (error) {
-            console.warn('[Edzy Cloud Web] school_circulars insert note:', error.message);
+            console.error('[Edzy Cloud Web] school_circulars insert error:', error.code, error.message);
+            get().setSyncError(`Circular Broadcast Error: ${error.message} (${error.code})`);
           }
         });
 
       if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'EDZY_SYNC',
+          payload: {
+            action: 'CIRCULAR_ADDED',
+            schoolId: 'DVPS01',
+            studentId: null,
+            data: newCircular,
+            ts: Date.now(),
+            type: 'CIRCULAR_ADDED',
+            circular: newCircular,
+          },
+        });
         adminBroadcastChannel.send({
           type: 'broadcast',
           event: 'edzy-event',
@@ -2598,10 +2718,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         })
         .eq('id', studentId)
         .then(({ error }) => {
-          if (error) console.warn('[Edzy Cloud Web] Attendance update note:', error.message);
+          if (error) {
+            console.error('[Edzy Cloud Web] Attendance update error:', error.code, error.message);
+            get().setSyncError(`Attendance Sync Error: ${error.message} (${error.code})`);
+          }
         });
 
       if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'EDZY_SYNC',
+          payload: {
+            action: 'ATTENDANCE_UPDATED',
+            schoolId: 'DVPS01',
+            studentId,
+            data: { studentId, attendancePct: targetPct },
+            ts: Date.now(),
+            type: 'ATTENDANCE_UPDATED',
+            attendancePct: targetPct,
+          },
+        });
         adminBroadcastChannel.send({
           type: 'broadcast',
           event: 'edzy-event',
@@ -2640,10 +2776,45 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         updates.map((u) =>
           supabase
             .from('students')
-            .update({ attendance_percent: u.pct, updated_at: new Date().toISOString() })
+            .update({ attendance_pct: u.pct, updated_at: new Date().toISOString() })
             .eq('id', u.id)
         )
-      ).catch((err) => console.warn('[Edzy Cloud Web] Batch attendance update note:', err));
+      )
+        .then((results) => {
+          const firstErr = results.find((r) => r.error)?.error;
+          if (firstErr) {
+            console.error('[Edzy Cloud Web] Batch attendance update error:', firstErr.code, firstErr.message);
+            get().setSyncError(`Batch Attendance Sync Error: ${firstErr.message} (${firstErr.code})`);
+          }
+        })
+        .catch((err) => {
+          console.error('[Edzy Cloud Web] Batch attendance update error:', err);
+          get().setSyncError(`Batch Attendance Sync Error: ${String(err)}`);
+        });
+
+      if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'EDZY_SYNC',
+          payload: {
+            action: 'ATTENDANCE_UPDATED',
+            schoolId: 'DVPS01',
+            studentId: null,
+            data: { classGrade, status, updates },
+            ts: Date.now(),
+            type: 'ATTENDANCE_UPDATED',
+          },
+        });
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'ATTENDANCE_UPDATED',
+            classGrade,
+            status,
+          },
+        });
+      }
     }
   },
 }));

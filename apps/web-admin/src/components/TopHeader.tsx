@@ -13,6 +13,8 @@ import {
   Sun,
   Moon,
   RefreshCw,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { isLiveSupabaseConfigured } from '../lib/supabase';
 import { useAdminStore } from '../store/useAdminStore';
@@ -32,10 +34,35 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenCsvModal,
   onOpenSyllabusModal,
 }) => {
-  const { schoolProfile, connectionMode, themeMode, toggleThemeMode, isSyncing, initializeRealtimeSync } = useAdminStore();
+  const {
+    schoolProfile,
+    connectionMode,
+    themeMode,
+    toggleThemeMode,
+    isSyncing,
+    initializeRealtimeSync,
+    syncError,
+    setSyncError,
+  } = useAdminStore();
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs transition-colors">
+    <header className="relative bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-xs transition-colors">
+      {syncError && (
+        <div className="bg-red-600 dark:bg-red-700 text-white px-6 py-2 flex items-center justify-between text-xs font-semibold shadow-inner">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-white shrink-0 animate-bounce" />
+            <span>Supabase Write Note: {syncError}</span>
+          </div>
+          <button
+            onClick={() => setSyncError(null)}
+            className="p-1 hover:bg-red-800/60 rounded text-white/90 hover:text-white transition"
+            title="Dismiss error notice"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      <div className="h-16 px-6 flex items-center justify-between">
       {/* Title & Context */}
       <div>
         <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">{title}</h1>
@@ -128,6 +155,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Principal</p>
           </div>
         </div>
+      </div>
       </div>
     </header>
   );

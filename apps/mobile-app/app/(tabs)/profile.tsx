@@ -27,6 +27,8 @@ import {
   Moon,
   Cloud,
   RefreshCw,
+  Eye,
+  EyeOff,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { lightTheme, darkTheme } from '@/theme/colors';
@@ -49,6 +51,7 @@ export default function ProfileScreen() {
   } = useEdzyStore();
 
   const [isSyncing, setIsSyncing] = React.useState(false);
+  const [showPin, setShowPin] = React.useState(false);
 
   const isDark = themeMode === 'dark';
   const activeTheme = isDark ? darkTheme : lightTheme;
@@ -122,6 +125,38 @@ export default function ProfileScreen() {
               <Text style={styles.detailBoxLabel}>REGISTERED PARENT</Text>
               <Text style={[styles.detailBoxValue, { color: activeTheme.text.ink }]}>
                 {studentProfile.parentName}
+              </Text>
+            </View>
+            <View style={styles.detailBox}>
+              <Text style={styles.detailBoxLabel}>PARENT FEE PIN (TAP TO VIEW)</Text>
+              <TouchableOpacity
+                onPress={() => setShowPin(!showPin)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.detailBoxValue,
+                    {
+                      color: activeTheme.brand.primary,
+                      letterSpacing: showPin ? 2 : 3,
+                      fontWeight: '700',
+                    },
+                  ]}
+                >
+                  {showPin ? (studentProfile.parentPin || '1234') : '••••'}
+                </Text>
+                {showPin ? (
+                  <EyeOff size={14} color={activeTheme.brand.primary} />
+                ) : (
+                  <Eye size={14} color={activeTheme.text.secondary} />
+                )}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.detailBox}>
+              <Text style={styles.detailBoxLabel}>CAMPUS ATTENDANCE</Text>
+              <Text style={[styles.detailBoxValue, { color: activeTheme.status.success, fontWeight: '700' }]}>
+                {(studentProfile.attendancePct ?? 96.8)}%
               </Text>
             </View>
           </View>
