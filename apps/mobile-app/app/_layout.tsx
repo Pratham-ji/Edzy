@@ -1,15 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { lightTheme, darkTheme } from '@/theme/colors';
+import { useAppTheme } from '@/theme/colors';
+import { EdzySplashScreen } from '@/components/EdzySplashScreen';
 
 export default function RootLayout() {
-  const { isAuthenticated, themeMode } = useEdzyStore();
-  const isDark = themeMode === 'dark';
-  const activeTheme = isDark ? darkTheme : lightTheme;
+  const { isAuthenticated } = useEdzyStore();
+  const { theme, isDark } = useAppTheme();
+  const [showSplash, setShowSplash] = useState(true);
   const segments = useSegments();
   const router = useRouter();
 
@@ -32,22 +33,24 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <View style={[styles.container, { backgroundColor: activeTheme.background }]}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={[styles.container, { backgroundColor: theme.canvas }]}>
+        <StatusBar
+          style={showSplash ? 'light' : isDark ? 'light' : 'dark'}
+        />
         <Stack
           screenOptions={{
             headerStyle: {
-              backgroundColor: activeTheme.surface,
+              backgroundColor: theme.surface,
             },
-            headerTintColor: activeTheme.text.primary,
+            headerTintColor: theme.textPrimary,
             headerTitleStyle: {
               fontWeight: '700',
               fontSize: 17,
-              color: activeTheme.text.primary,
+              color: theme.textPrimary,
             },
             headerShadowVisible: false,
             contentStyle: {
-              backgroundColor: activeTheme.background,
+              backgroundColor: theme.canvas,
             },
           }}
         >
@@ -89,6 +92,9 @@ export default function RootLayout() {
             }}
           />
         </Stack>
+
+        {/* 60fps Native-driver animated launch overlay */}
+        {showSplash && <EdzySplashScreen onFinish={() => setShowSplash(false)} />}
       </View>
     </SafeAreaProvider>
   );

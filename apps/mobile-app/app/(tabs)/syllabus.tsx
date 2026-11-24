@@ -4,68 +4,71 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   BookOpen,
-  CheckCircle2,
   ChevronRight,
-  Clock,
   Sparkles,
   Boxes,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors, lightTheme, darkTheme } from '@/theme/colors';
+import { useAppTheme, getCardShadow } from '@/theme/colors';
 import { PressableScale } from '@/components/PressableScale';
 
 export default function SyllabusScreen() {
   const router = useRouter();
-  const { roadmaps, studentProfile, themeMode } = useEdzyStore();
-  const isDark = themeMode === 'dark';
-  const activeTheme = isDark ? darkTheme : lightTheme;
+  const { roadmaps, studentProfile } = useEdzyStore();
+  const { theme, isDark } = useAppTheme();
+  const cardShadow = getCardShadow(isDark);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: activeTheme.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
       <View
         style={[
           styles.header,
           {
-            backgroundColor: activeTheme.surface,
-            borderBottomColor: activeTheme.surfaceBorder,
+            backgroundColor: theme.surface,
+            borderBottomColor: theme.border,
           },
         ]}
       >
         <View>
-          <Text style={[styles.headerTitle, { color: activeTheme.text.ink }]}>CBSE Syllabus</Text>
-          <Text style={[styles.headerSubtitle, { color: activeTheme.text.secondary }]}>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>CBSE Syllabus</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
             {studentProfile.classGrade} • Academic Session 2026-27
           </Text>
         </View>
-        <View style={styles.badgePill}>
-          <Sparkles size={12} color={activeTheme.brand.primary} />
-          <Text style={styles.badgePillText}>AI Synced</Text>
+        <View style={[styles.badgePill, { backgroundColor: theme.brandTint }]}>
+          <Sparkles size={12} color={theme.brandPrimary} />
+          <Text style={[styles.badgePillText, { color: theme.brandPrimary }]}>AI Synced</Text>
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 132 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.bannerCard}>
-          <View style={styles.bannerIconCircle}>
-            <BookOpen size={24} color={colors.brand.primary} />
+        <View
+          style={[
+            styles.bannerCard,
+            cardShadow,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <View style={[styles.bannerIconCircle, { backgroundColor: theme.brandTint }]}>
+            <BookOpen size={24} color={theme.brandPrimary} />
           </View>
           <View style={styles.bannerTextContainer}>
-            <Text style={styles.bannerTitle}>Grounded NCERT Curriculum</Text>
-            <Text style={styles.bannerDescription}>
+            <Text style={[styles.bannerTitle, { color: theme.textPrimary }]}>Grounded NCERT Curriculum</Text>
+            <Text style={[styles.bannerDescription, { color: theme.textSecondary }]}>
               Step-by-step master roadmaps with interactive 3D spatial models and CBSE past papers.
             </Text>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Prescribed Chapters</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Prescribed Chapters</Text>
 
         <View style={styles.chapterList}>
           {roadmaps.map((roadmap) => {
@@ -74,54 +77,56 @@ export default function SyllabusScreen() {
             return (
               <PressableScale
                 key={roadmap.id}
-                style={styles.chapterCard}
+                style={[
+                  styles.chapterCard,
+                  cardShadow,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
                 onPress={() => router.push('/study/roadmap')}
               >
                 <View style={styles.chapterTopRow}>
-                  <View style={styles.subjectPill}>
-                    <Text style={styles.subjectPillText}>{roadmap.subject}</Text>
+                  <View style={[styles.subjectPill, { backgroundColor: theme.brandTint, borderColor: theme.brandBorder }]}>
+                    <Text style={[styles.subjectPillText, { color: theme.brandPrimary }]}>{roadmap.subject}</Text>
                   </View>
-                  <Text style={styles.chapterNumberText}>
+                  <Text style={[styles.chapterNumberText, { color: theme.textMuted }]}>
                     Chapter {roadmap.chapterNumber}
                   </Text>
                 </View>
 
-                <Text style={styles.chapterTitle}>{roadmap.title}</Text>
-                <Text style={styles.chapterTopicCount}>
+                <Text style={[styles.chapterTitle, { color: theme.textPrimary }]}>{roadmap.title}</Text>
+                <Text style={[styles.chapterTopicCount, { color: theme.textSecondary }]}>
                   {roadmap.totalSubtopics || 4} Core Topics • NCERT Aligned
                 </Text>
 
                 {/* Progress Bar */}
                 <View style={styles.progressRow}>
-                  <View style={styles.progressBarTrack}>
+                  <View style={[styles.progressBarTrack, { backgroundColor: theme.surfaceSubtle }]}>
                     <View
                       style={[
                         styles.progressBarFill,
                         {
                           width: `${roadmap.progressPercent}%`,
-                          backgroundColor: isComplete
-                            ? colors.status.success
-                            : colors.brand.primary,
+                          backgroundColor: isComplete ? theme.success : theme.brandPrimary,
                         },
                       ]}
                     />
                   </View>
-                  <Text style={styles.progressPercentText}>
+                  <Text style={[styles.progressPercentText, { color: isComplete ? theme.success : theme.brandPrimary }]}>
                     {roadmap.progressPercent}%
                   </Text>
                 </View>
 
                 {/* Card Footer */}
-                <View style={styles.chapterFooter}>
+                <View style={[styles.chapterFooter, { borderTopColor: theme.border }]}>
                   <View style={styles.modelTag}>
-                    <Boxes size={14} color={colors.brand.primary} />
-                    <Text style={styles.modelTagText}>3D Interactive Model</Text>
+                    <Boxes size={14} color={theme.brandPrimary} />
+                    <Text style={[styles.modelTagText, { color: theme.brandPrimary }]}>3D Interactive Model</Text>
                   </View>
                   <View style={styles.actionPrompt}>
-                    <Text style={styles.actionPromptText}>
+                    <Text style={[styles.actionPromptText, { color: theme.brandPrimary }]}>
                       {isComplete ? 'Review' : 'Continue'}
                     </Text>
-                    <ChevronRight size={14} color={colors.brand.primary} />
+                    <ChevronRight size={14} color={theme.brandPrimary} />
                   </View>
                 </View>
               </PressableScale>
@@ -136,7 +141,6 @@ export default function SyllabusScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -144,56 +148,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: -0.5,
-    color: '#222222',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#717171',
     marginTop: 2,
   },
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.brand.tint,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
   badgePillText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
+
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 116,
-    gap: 16,
+    padding: 16,
   },
   bannerCard: {
     flexDirection: 'row',
-    backgroundColor: colors.brand.tint,
-    borderRadius: 20,
-    padding: 16,
-    gap: 14,
     alignItems: 'center',
+    gap: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.brand.tintBorder,
+    padding: 16,
+    marginBottom: 20,
   },
   bannerIconCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#FFFFFF',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -203,79 +197,54 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: colors.brand.primaryDark,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   bannerDescription: {
     fontSize: 12,
-    color: colors.text.secondary,
     lineHeight: 16,
   },
+
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    letterSpacing: -0.3,
-    color: '#222222',
+    marginBottom: 12,
   },
   chapterList: {
     gap: 12,
   },
   chapterCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#EBEBEB',
     padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.06,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 3,
-      },
-      default: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.06,
-        shadowRadius: 16,
-      },
-    }),
   },
   chapterTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   subjectPill: {
-    backgroundColor: colors.brand.tint,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
   },
   subjectPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   chapterNumberText: {
     fontSize: 12,
-    color: colors.text.muted,
+    fontWeight: '500',
   },
   chapterTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    letterSpacing: -0.3,
-    color: '#222222',
     marginBottom: 4,
   },
   chapterTopicCount: {
-    fontSize: 12,
-    color: '#717171',
-    marginBottom: 12,
+    fontSize: 13,
+    marginBottom: 14,
   },
   progressRow: {
     flexDirection: 'row',
@@ -286,7 +255,6 @@ const styles = StyleSheet.create({
   progressBarTrack: {
     flex: 1,
     height: 6,
-    backgroundColor: colors.surfaceBorder,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -297,8 +265,7 @@ const styles = StyleSheet.create({
   progressPercentText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#222222',
-    width: 36,
+    width: 38,
     textAlign: 'right',
   },
   chapterFooter: {
@@ -307,7 +274,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   modelTag: {
     flexDirection: 'row',
@@ -317,16 +283,14 @@ const styles = StyleSheet.create({
   modelTagText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.brand.primary,
   },
   actionPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   actionPromptText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
 });

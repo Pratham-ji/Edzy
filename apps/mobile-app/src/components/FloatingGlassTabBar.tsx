@@ -147,18 +147,18 @@ export function FloatingGlassTabBar({
           <BlurView
             intensity={65}
             tint="dark"
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             style={StyleSheet.absoluteFill}
           />
 
-          {/* Deep Obsidian Overlay to ensure 100% readability */}
+          {/* Deep Slate / Obsidian Overlay */}
           <View
             style={[
               StyleSheet.absoluteFill,
               {
                 backgroundColor: isDark
-                  ? 'rgba(28, 33, 43, 0.86)'
-                  : 'rgba(15, 23, 42, 0.78)',
+                  ? 'rgba(28, 37, 56, 0.90)'
+                  : 'rgba(15, 23, 42, 0.86)',
               },
             ]}
           />
@@ -171,6 +171,12 @@ export function FloatingGlassTabBar({
                 {
                   width: indicatorWidth,
                   transform: [{ translateX }],
+                  backgroundColor: isDark
+                    ? 'rgba(99, 102, 241, 0.28)'
+                    : 'rgba(255, 255, 255, 0.16)',
+                  borderColor: isDark
+                    ? 'rgba(99, 102, 241, 0.45)'
+                    : 'rgba(255, 255, 255, 0.22)',
                 },
               ]}
             />

@@ -581,7 +581,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     })),
 
   isAuthenticated: true,
-  activeMode: 'PARENT',
+  activeMode: 'STUDENT',
   studentProfile: {
     id: 'SCH-2026-0104',
     name: 'Aarav Sharma',
