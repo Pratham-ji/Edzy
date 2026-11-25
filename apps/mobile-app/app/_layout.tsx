@@ -59,7 +59,7 @@ export default function RootLayout() {
           <Stack.Screen
             name="study/roadmap"
             options={{
-              title: 'Chapter Study Roadmap',
+              title: 'Study Roadmap',
               headerBackTitle: 'Back',
             }}
           />

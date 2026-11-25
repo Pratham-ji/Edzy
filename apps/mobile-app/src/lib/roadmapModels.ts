@@ -118,6 +118,43 @@ function buildFallbackBranches(
   ];
 }
 
+const TOPIC_TIP_RULES: Array<[string[], string]> = [
+  [['nutrition', 'photosynth', 'stomat'], 'Write balanced chlorophyll-sunlight equation cleanly and label guard cells.'],
+  [['digest', 'enzyme', 'respir'], 'Compare acidic stomach (Pepsin) vs alkaline duodenal (Trypsin) pH conditions.'],
+  [['heart', 'circulat', 'transport', 'transpir'], 'Left Ventricle wall is 3x thicker than Right Ventricle; Pulmonary Vein carries oxygenated blood.'],
+  [['excret', 'nephron', 'kidney'], 'Contrast glomerular ultrafiltration vs selective tubular reabsorption for 3-mark questions.'],
+  [['mirror', 'reflect'], 'Concave mirror focal length f is always negative; trace cases beyond C vs between F and P.'],
+  [['refract', 'lens', 'snell'], 'Convert focal length f into metres before substituting in Lens Power P = 1/f(m).'],
+  [['standard form', 'factor'], 'Verify leading coefficient a != 0 first before factoring or computing roots.'],
+  [['formula', 'discriminant'], 'For equal roots involving parameter k, set Discriminant D = b^2 - 4ac = 0 immediately.'],
+  [['word problem', 'motion', 'speed'], 'Explicitly reject negative speed, time, or length values at the final step.'],
+];
+
+function buildNaturalExamTip(title: string, subject: string, boardCode: string): string {
+  const t = title.toLowerCase();
+  const s = subject.toLowerCase();
+  for (const [keywords, tip] of TOPIC_TIP_RULES) {
+    if (keywords.some((kw) => t.includes(kw))) return tip;
+  }
+  if (s.includes('math')) {
+    return `Show step-by-step substitution and units to secure full ${boardCode} step-marking.`;
+  }
+  if (s.includes('bio') || s.includes('chem') || s.includes('phys') || s.includes('science')) {
+    return `Include neat pencil-labelled diagrams with directional arrows in ${boardCode} answers.`;
+  }
+  const cleanTitle = title.replace(/^\d+(\.\d+)?\s*/, '').trim();
+  return `Underline keywords around ${cleanTitle} and back answers with a clear example.`;
+}
+
+function isTemplatedTip(tip?: string): boolean {
+  if (!tip) return true;
+  const lower = tip.toLowerCase();
+  return (
+    lower.includes('focus on core terminology') ||
+    lower.includes('focus on structured explanations')
+  );
+}
+
 export function normalizeMobileMilestonesJson(
   rawJson: any,
   meta: {
@@ -187,6 +224,10 @@ export function normalizeMobileMilestonesJson(
           }))
         : buildFallbackBranches(title, nodeId, mArId, mTarget);
 
+    const resolvedTip = !isTemplatedTip(m.examTip)
+      ? m.examTip
+      : buildNaturalExamTip(title, meta.subject, boardCode);
+
     return {
       nodeId,
       id: nodeId,
@@ -196,9 +237,7 @@ export function normalizeMobileMilestonesJson(
       ncertPageRange: m.ncertPageRange || m.pageRange || `Module ${idx + 1}`,
       ragStatus: 'GROUNDED',
       durationMinutes: Number(m.durationMinutes || 30),
-      examTip:
-        m.examTip ||
-        `Focus on core terminology and labelled visuals for "${title}" in ${boardCode} exams.`,
+      examTip: resolvedTip,
       arModelId: mArId,
       targetNode: mTarget,
       branches,
