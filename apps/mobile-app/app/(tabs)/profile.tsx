@@ -191,7 +191,9 @@ export default function ProfileScreen() {
               <View style={[styles.statIconBadgeGreen, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.16)' : '#ECFDF5' }]}>
                 <Award size={14} color={activeTheme.status.success} />
               </View>
-              <Text style={[styles.statNumber, { color: activeTheme.text.ink }]}>CBSE</Text>
+              <Text style={[styles.statNumber, { color: activeTheme.text.ink }]}>
+                {(studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase()}
+              </Text>
               <Text style={[styles.statLabel, { color: activeTheme.text.secondary }]}>Board Curr.</Text>
             </View>
           </View>

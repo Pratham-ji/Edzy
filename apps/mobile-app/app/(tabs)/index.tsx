@@ -45,6 +45,7 @@ export default function MasterBentoDashboard() {
     setActiveMode,
     studentProfile,
     roadmaps,
+    studentRoadmapProgress,
     feeInstallments,
     examMarks,
     sessionRemainingSeconds,
@@ -96,6 +97,7 @@ export default function MasterBentoDashboard() {
   }, [liveSyncToast, clearLiveSyncToast]);
 
   const isStudent = activeMode === 'STUDENT';
+  const schoolBoard = (studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase();
 
   // Format time remaining
   const formatTimeRemaining = (seconds: number) => {
@@ -128,6 +130,33 @@ export default function MasterBentoDashboard() {
     return r.subject.toLowerCase().includes(selectedSubject.toLowerCase());
   });
   const activeRoadmap = filteredRoadmaps.find((r) => r.isCurrent) || filteredRoadmaps[0] || roadmaps[0];
+  const progressEntries = Object.values(studentRoadmapProgress || {});
+  const primaryProgress =
+    (activeRoadmap && studentRoadmapProgress?.[activeRoadmap.id]) || progressEntries[0];
+
+  const heroPct = primaryProgress?.completionPct ?? activeRoadmap?.progressPercent ?? 50;
+  const heroTotalSubtopics = activeRoadmap?.totalSubtopics || 8;
+  const heroCompletedSubtopics = primaryProgress
+    ? Math.round((heroPct / 100) * heroTotalSubtopics)
+    : activeRoadmap?.completedSubtopics || 4;
+
+  const masteredTodayCount = progressEntries.reduce(
+    (sum, p) => sum + (p.completedTodayCount || 0),
+    0
+  );
+  const recentMasteredTopic =
+    progressEntries.find((p) => p.lastMasteredTopicTitle)?.lastMasteredTopicTitle ||
+    'Human Heart Chambers & Valves';
+
+  const sprintGoalLabel = primaryProgress
+    ? primaryProgress.paceStatus === 'COMPLETED'
+      ? `${primaryProgress.totalDays}-Day Goal: Completed`
+      : primaryProgress.paceStatus === 'AUTO_ADJUSTED'
+      ? `Auto-Adjusted — ${primaryProgress.skippedDaysCount || 1} Day${(primaryProgress.skippedDaysCount || 1) > 1 ? 's' : ''} Missed`
+      : primaryProgress.paceStatus === 'HIGH_PACE'
+      ? `High Pace • ${primaryProgress.totalDays}-Day Goal`
+      : `${primaryProgress.totalDays}-Day Goal: On Track`
+    : '7-Day Goal: On Track';
 
   const handleParentUnlock = () => {
     if (unlockOrExtendSession(parentOverridePin, 30)) {
@@ -293,7 +322,9 @@ export default function MasterBentoDashboard() {
                     {activeRoadmap?.subject || 'Science'} • Ch {activeRoadmap?.chapterNumber || 6}
                   </Text>
                 </View>
-                <Text style={[styles.cardMetaText, { color: theme.textMuted }]}>NCERT Class 10</Text>
+                <Text style={[styles.cardMetaText, { color: theme.textMuted }]}>
+                  {schoolBoard} • {studentProfile.classGrade.split('-')[0] || 'Class 10'}
+                </Text>
               </View>
 
               <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
@@ -307,32 +338,37 @@ export default function MasterBentoDashboard() {
                     style={[
                       styles.progressBarFill,
                       {
-                        width: `${activeRoadmap?.progressPercent || 65}%`,
-                        backgroundColor: theme.brandPrimary,
+                        width: `${heroPct}%`,
+                        backgroundColor: heroPct === 100 ? theme.success : theme.brandPrimary,
                       },
                     ]}
                   />
                 </View>
                 <View style={styles.progressLabelRow}>
-                  <Text style={[styles.progressPercentText, { color: theme.brandPrimary }]}>
-                    {activeRoadmap?.progressPercent || 65}% Mastered
+                  <Text style={[styles.progressPercentText, { color: heroPct === 100 ? theme.success : theme.brandPrimary }]}>
+                    {heroPct}% Mastered
                   </Text>
                   <Text style={[styles.progressSubText, { color: theme.textMuted }]}>
-                    {activeRoadmap?.completedSubtopics || 3} of {activeRoadmap?.totalSubtopics || 5} topics done
+                    {heroCompletedSubtopics} of {heroTotalSubtopics} topics done
                   </Text>
                 </View>
               </View>
 
               <View style={styles.nextTopicRow}>
                 <Sparkles size={12} color={theme.brandPrimary} />
-                <Text style={[styles.nextTopicText, { color: theme.textSecondary }]}>
-                  Next: Cardiac Cycle & Double Circulation
+                <Text style={[styles.nextTopicText, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {sprintGoalLabel} • {activeRoadmap?.milestones?.[1]?.title || 'Interactive Flowchart'}
                 </Text>
               </View>
 
               <TouchableOpacity
                 style={[styles.primaryButton, { backgroundColor: theme.brandPrimary }]}
-                onPress={() => router.push('/study/roadmap')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/study/roadmap',
+                    params: { roadmapId: activeRoadmap?.id },
+                  })
+                }
                 activeOpacity={0.85}
               >
                 <Text style={styles.primaryButtonText}>Continue Chapter</Text>
@@ -458,7 +494,7 @@ export default function MasterBentoDashboard() {
                 </View>
                 <Text style={[styles.gridTileTitle, { color: theme.textPrimary }]}>AI Doubt Tutor</Text>
                 <Text style={[styles.gridTileSub, { color: theme.textSecondary }]}>
-                  Ask from your NCERT notes
+                  Ask from your {schoolBoard} notes
                 </Text>
                 <View style={styles.gridTileAction}>
                   <Text style={[styles.gridActionTextIndigo, { color: theme.brandPrimary }]}>
@@ -663,11 +699,42 @@ export default function MasterBentoDashboard() {
                   <ShieldCheck size={18} color={theme.brandPrimary} />
                 </View>
                 <View style={styles.proofHeaderText}>
-                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                    Verified At-Home Study
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                      Verified At-Home Study
+                    </Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 8,
+                        backgroundColor:
+                          primaryProgress?.paceStatus === 'AUTO_ADJUSTED' ||
+                          primaryProgress?.paceStatus === 'HIGH_PACE'
+                            ? theme.warningTint
+                            : theme.successTint,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: '700',
+                          color:
+                            primaryProgress?.paceStatus === 'AUTO_ADJUSTED' ||
+                            primaryProgress?.paceStatus === 'HIGH_PACE'
+                              ? theme.warning
+                              : theme.success,
+                        }}
+                      >
+                        {masteredTodayCount} topic{masteredTodayCount === 1 ? '' : 's'} mastered today
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.cardDescription, { color: theme.textPrimary, fontWeight: '600', marginBottom: 4 }]}>
+                    Mastered: {recentMasteredTopic} • {sprintGoalLabel}
                   </Text>
                   <Text style={[styles.cardDescription, { color: theme.textSecondary, marginBottom: 0 }]}>
-                    {studentProfile?.name || 'Aarav'} studied {studentProfile?.weeklyStudyHours || 6.5} hrs at home this week — 3 school chapters covered.
+                    {studentProfile?.name || 'Aarav'} studied {studentProfile?.weeklyStudyHours || 6.5} hrs at home this week across {roadmaps.length} school chapters ({heroPct}% chapter completion).
                   </Text>
                 </View>
               </View>

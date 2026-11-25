@@ -22,6 +22,8 @@ import { isLiveSupabaseConfigured, supabase } from '../lib/supabase';
 export default function SettingsPage() {
   const {
     schoolProfile,
+    availableSchools,
+    switchActiveSchool,
     updateSchoolProfile,
     feeInstallments,
     students,
@@ -150,12 +152,12 @@ export default function SettingsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Campus ERP Configuration & Profile</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-              CBSE Affiliated
+            <h1 className="text-2xl font-bold text-[#0F172A] dark:text-[#F8FAFC]">Campus ERP Configuration & Profile</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+              {(schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase()} Affiliated
             </span>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-[#94A3B8] mt-0.5">
             Manage official school identity for printed receipts, Tally exports, and appearance themes.
           </p>
         </div>
@@ -176,19 +178,59 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Multi-Board School Campus Switcher Card */}
+      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0] dark:border-[#232E44]">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-[#4F46E5] dark:text-[#6366F1]" />
+            <h3 className="text-base font-bold text-[#0F172A] dark:text-[#F8FAFC]">Active School & Board Context</h3>
+          </div>
+          <span className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">Multi-Board Ready</span>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          {availableSchools.map((sch) => {
+            const isActive = schoolProfile.code === sch.schoolCode;
+            return (
+              <button
+                key={sch.id}
+                type="button"
+                onClick={() => {
+                  switchActiveSchool(sch.id);
+                  setFormData((prev) => ({
+                    ...prev,
+                    name: sch.name,
+                    code: sch.schoolCode,
+                    board: sch.board,
+                    principalName: sch.principalName,
+                    session: sch.academicSession,
+                  }));
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border-[#C7D2FE] dark:border-[#3730A3]'
+                    : 'bg-[#F6F8FC] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8] border-[#E2E8F0] dark:border-[#232E44] hover:opacity-85'
+                }`}
+              >
+                {sch.name} ({sch.schoolCode}) • {sch.board}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Appearance & Theme Selector Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#232E44]">
           <div className="flex items-center gap-2">
             <Sun className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Appearance & Theme</h3>
+            <h3 className="text-base font-bold text-slate-900 dark:text-[#F8FAFC]">Appearance & Theme</h3>
           </div>
           <span className="text-xs text-slate-400 font-medium">Global Preference</span>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">ERP Color Theme</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Switch between Crisp Light (Default) and Linear Dark mode.</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-[#F8FAFC]">ERP Color Theme</p>
+            <p className="text-xs text-slate-500 dark:text-[#94A3B8]">Switch between Crisp Light (Default) and Linear Dark mode.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -197,7 +239,7 @@ export default function SettingsPage() {
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 themeMode === 'light'
                   ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               <Sun className="w-3.5 h-3.5" />
@@ -209,7 +251,7 @@ export default function SettingsPage() {
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 themeMode === 'dark'
                   ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               <Moon className="w-3.5 h-3.5" />
@@ -221,9 +263,9 @@ export default function SettingsPage() {
 
       {/* Main Settings Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6 space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold text-base">
+        <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6 space-y-6">
+          <div className="border-b border-slate-100 dark:border-[#232E44] pb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-900 dark:text-[#F8FAFC] font-bold text-base">
               <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               <span>Institutional Identity & Affiliation</span>
             </div>
@@ -242,21 +284,21 @@ export default function SettingsPage() {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                 required
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                CBSE Affiliation / Registration Number
+                Board Affiliation / Registration Number
               </label>
               <input
                 type="text"
                 name="affiliationNumber"
                 value={formData.affiliationNumber}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                 required
               />
             </div>
@@ -270,7 +312,7 @@ export default function SettingsPage() {
                 name="board"
                 value={formData.board}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
             </div>
@@ -284,7 +326,7 @@ export default function SettingsPage() {
                 name="session"
                 value={formData.session}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                 required
               />
             </div>
@@ -300,7 +342,7 @@ export default function SettingsPage() {
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
             </div>
@@ -312,7 +354,7 @@ export default function SettingsPage() {
                 name="city"
                 value={formData.city}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
             </div>
@@ -324,14 +366,14 @@ export default function SettingsPage() {
                 name="state"
                 value={formData.state}
                 onChange={handleChange}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
             </div>
           </div>
 
           {/* Key Authorized Officers */}
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
+          <div className="border-t border-slate-100 dark:border-[#232E44] pt-5">
             <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-4">
               Authorized Signatories & Office Contacts
             </h4>
@@ -345,7 +387,7 @@ export default function SettingsPage() {
                   name="principalName"
                   value={formData.principalName}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
               </div>
@@ -359,7 +401,7 @@ export default function SettingsPage() {
                   name="accountantName"
                   value={formData.accountantName}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
               </div>
@@ -373,7 +415,7 @@ export default function SettingsPage() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                   required
                 />
               </div>
@@ -387,7 +429,7 @@ export default function SettingsPage() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
               </div>
@@ -407,9 +449,9 @@ export default function SettingsPage() {
       </form>
 
       {/* Provision New Pilot School Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6">
+      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold text-base">
+          <div className="flex items-center gap-2 text-slate-900 dark:text-[#F8FAFC] font-bold text-base">
             <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             <span>Provision New Pilot School Entity</span>
           </div>
@@ -417,7 +459,7 @@ export default function SettingsPage() {
             Multi-Tenant Core
           </span>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+        <p className="text-xs text-slate-500 dark:text-[#94A3B8] mb-5">
           Deploy a clean tenant schema for a new K-12 partner school on Edzy Postgres. Once provisioned, admission rosters and fee schedules can be imported via CSV.
         </p>
 
@@ -445,7 +487,7 @@ export default function SettingsPage() {
                 placeholder="e.g. St. Joseph's Senior Secondary School"
                 value={newSchoolName}
                 onChange={(e) => setNewSchoolName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
             </div>
@@ -459,7 +501,7 @@ export default function SettingsPage() {
                 placeholder="e.g. SJSS01"
                 value={newSchoolCode}
                 onChange={(e) => setNewSchoolCode(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 font-mono focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] font-mono focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
                 required
               />
             </div>
@@ -471,7 +513,7 @@ export default function SettingsPage() {
               <select
                 value={newBoard}
                 onChange={(e) => setNewBoard(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="CBSE">CBSE (Central Board of Secondary Education)</option>
                 <option value="ICSE">CISCE / ICSE (Indian Certificate of Secondary Education)</option>
@@ -489,7 +531,7 @@ export default function SettingsPage() {
                 placeholder="e.g. Dr. Rajeshwari Nair"
                 value={newPrincipal}
                 onChange={(e) => setNewPrincipal(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -508,16 +550,16 @@ export default function SettingsPage() {
       </div>
 
       {/* Cloud & Supabase Diagnostics Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6">
-        <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold text-base mb-2">
+      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6">
+        <div className="flex items-center gap-2 text-slate-900 dark:text-[#F8FAFC] font-bold text-base mb-2">
           <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <span>Cloud Infrastructure & Pitch Mode</span>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+        <p className="text-xs text-slate-500 dark:text-[#94A3B8] mb-4">
           Status of Postgres connection and real-time synchronization with Supabase and Edge RAG workers.
         </p>
 
-        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="p-4 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div
               className={`w-3.5 h-3.5 rounded-full ${
@@ -525,12 +567,12 @@ export default function SettingsPage() {
               }`}
             />
             <div>
-              <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              <div className="text-sm font-bold text-slate-800 dark:text-[#F8FAFC]">
                 {isLiveSupabaseConfigured
                   ? 'Connected to Live Supabase Postgres'
                   : 'Offline-Resilient Demo Mode Active'}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-slate-500 dark:text-[#94A3B8]">
                 {isLiveSupabaseConfigured
                   ? 'Cloud RLS policies and foreign keys enforced.'
                   : 'Zero external latency. Perfect for school principal boardroom pitches without relying on school Wi-Fi.'}
@@ -538,7 +580,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="text-xs font-mono bg-white dark:bg-slate-900 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+          <div className="text-xs font-mono bg-white dark:bg-[#121826] px-3 py-1.5 rounded border border-[#E2E8F0] dark:border-[#232E44] text-slate-600 dark:text-slate-300">
             Postgres Schema: v20261117000000
           </div>
         </div>

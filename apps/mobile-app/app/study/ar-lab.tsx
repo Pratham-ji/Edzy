@@ -227,8 +227,8 @@ export default function ArLabScreen() {
             </View>
             <View style={styles.statBoxDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>CBSE EXAM RELEVANCE</Text>
-              <Text style={[styles.statBoxValue, { color: colors.brand.primary }]}>
+              <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>BOARD EXAM RELEVANCE</Text>
+              <Text style={[styles.statBoxValue, { color: theme.brandPrimary }]}>
                 Very High (5 Marks)
               </Text>
             </View>

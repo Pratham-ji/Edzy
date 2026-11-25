@@ -161,9 +161,9 @@ export const lightTheme: ThemeTokens = {
   canvas: '#F6F8FC',
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
-  surfaceSubtle: '#F1F5F9',
-  border: '#E5E9F2',
-  borderSubtle: '#F1F5F9',
+  surfaceSubtle: '#EEF2F7',
+  border: '#E2E8F0',
+  borderSubtle: '#EEF2F7',
 
   textPrimary: '#0F172A',
   textSecondary: '#475569',
@@ -205,9 +205,9 @@ export const lightTheme: ThemeTokens = {
 
   // Compatibility aliases
   background: '#F6F8FC',
-  surfaceBorder: '#E5E9F2',
-  surfaceHover: '#F1F5F9',
-  divider: '#E5E9F2',
+  surfaceBorder: '#E2E8F0',
+  surfaceHover: '#EEF2F7',
+  divider: '#E2E8F0',
 
   text: {
     primary: '#0F172A',
@@ -324,15 +324,15 @@ export const darkTheme: ThemeTokens = {
 
   brand: {
     primary: '#6366F1',
-    primaryDark: '#4F46E5',
+    primaryDark: '#3730A3',
     primaryLight: '#818CF8',
-    tint: 'rgba(99, 102, 241, 0.16)',
-    tintBorder: 'rgba(99, 102, 241, 0.32)',
+    tint: '#1B2440',
+    tintBorder: '#3730A3',
   },
   brandPrimary: '#6366F1',
-  brandDark: '#4F46E5',
-  brandTint: 'rgba(99, 102, 241, 0.16)',
-  brandBorder: 'rgba(99, 102, 241, 0.32)',
+  brandDark: '#3730A3',
+  brandTint: '#1B2440',
+  brandBorder: '#3730A3',
 
   success: '#34D399',
   successTint: 'rgba(16, 185, 129, 0.14)',

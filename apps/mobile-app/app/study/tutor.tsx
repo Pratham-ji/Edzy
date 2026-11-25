@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,32 +10,68 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   Send,
-  Sparkles,
   Boxes,
   BookOpen,
-  ArrowRight,
   ShieldCheck,
   Bot,
   User,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors, useAppTheme } from '@/theme/colors';
-
-const QUICK_PROMPTS = [
-  'Why is the left ventricle wall 3x thicker?',
-  'What is the function of the bicuspid valve?',
-  'Explain the pulmonary vein exception in humans',
-  'How does the Aorta withstand 120 mmHg systolic pressure?',
-];
+import { useAppTheme, getCardShadow } from '@/theme/colors';
 
 export default function SocraticTutorScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ roadmapId?: string }>();
   const insets = useSafeAreaInsets();
-  const { theme } = useAppTheme();
-  const { chatMessages, sendSocraticPrompt, updateArDirective } = useEdzyStore();
+  const { theme, isDark } = useAppTheme();
+  const cardShadow = getCardShadow(isDark);
+
+  const {
+    chatMessages,
+    sendSocraticPrompt,
+    updateArDirective,
+    roadmaps,
+    studentProfile,
+  } = useEdzyStore();
+
+  const activeRoadmap = useMemo(() => {
+    if (params.roadmapId) {
+      return roadmaps.find((r) => r.id === params.roadmapId) || roadmaps[0];
+    }
+    return roadmaps.find((r) => r.isCurrent) || roadmaps[0];
+  }, [params.roadmapId, roadmaps]);
+
+  const schoolBoard = (activeRoadmap?.board || studentProfile.schoolBoard || 'CBSE')
+    .split(' ')[0]
+    .toUpperCase();
+
+  const quickPrompts = useMemo(() => {
+    const subj = (activeRoadmap?.subject || '').toLowerCase();
+    if (subj.includes('optic') || subj.includes('phy')) {
+      return [
+        'Why is focal length of a concave mirror negative?',
+        'How does Snell Law govern air-to-glass bending?',
+        'Difference between real inverted and virtual erect lens image?',
+      ];
+    }
+    if (subj.includes('math')) {
+      return [
+        'When does discriminant D = b^2 - 4ac produce equal roots?',
+        'Explain Shreedharacharya formula step by step',
+        'How to reject invalid negative solutions in boat word problems?',
+      ];
+    }
+    return [
+      'Why is the left ventricle wall 3x thicker?',
+      'What is the function of the bicuspid valve?',
+      'Explain the pulmonary vein exception in humans',
+      'How does the Aorta withstand 120 mmHg systolic pressure?',
+    ];
+  }, [activeRoadmap?.subject]);
+
   const [inputText, setInputText] = useState('');
   const scrollViewRef = useRef<any>(null);
 
@@ -46,14 +82,18 @@ export default function SocraticTutorScreen() {
   const handleSend = (textToSend?: string) => {
     const q = textToSend || inputText;
     if (!q.trim()) return;
-    sendSocraticPrompt(q.trim());
+    sendSocraticPrompt(q.trim(), {
+      chapterTitle: activeRoadmap?.title,
+      subject: activeRoadmap?.subject,
+      board: schoolBoard,
+    });
     setInputText('');
   };
 
   const handleInspectArNode = (targetNode: string, modelName?: string) => {
     updateArDirective({
       targetNode,
-      modelName: modelName || 'Human Heart (3D Spatial Lab)',
+      modelName: modelName || 'Human Heart 3D',
       highlight: true,
       note: `Inspecting ${targetNode} referenced from Socratic AI conversation.`,
     });
@@ -68,20 +108,22 @@ export default function SocraticTutorScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
         {/* Tutor Header Info */}
-        <View style={styles.tutorHeader}>
+        <View style={[styles.tutorHeader, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <View style={styles.tutorHeaderRow}>
-            <View style={styles.botAvatar}>
-              <Bot size={20} color={colors.brand.primary} />
+            <View style={[styles.botAvatar, { backgroundColor: theme.brandTint }]}>
+              <Bot size={20} color={theme.brandPrimary} />
             </View>
             <View style={styles.botMeta}>
-              <Text style={styles.botTitle}>Edzy Socratic AI Tutor</Text>
-              <Text style={styles.botSub}>
-                NCERT Class 10 Syllabus Grounded • Bilingual Hinglish AI
+              <Text style={[styles.botTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                Edzy Socratic AI • Ch {activeRoadmap?.chapterNumber || 6}
+              </Text>
+              <Text style={[styles.botSub, { color: theme.textSecondary }]} numberOfLines={1}>
+                {activeRoadmap?.title || 'School Syllabus Grounded'} • Hinglish Ready
               </Text>
             </View>
-            <View style={styles.curriculumTag}>
-              <ShieldCheck size={12} color={colors.status.success} />
-              <Text style={styles.curriculumTagText}>CBSE Verified</Text>
+            <View style={[styles.curriculumTag, { backgroundColor: theme.successTint }]}>
+              <ShieldCheck size={12} color={theme.success} />
+              <Text style={[styles.curriculumTagText, { color: theme.success }]}>{schoolBoard} Verified</Text>
             </View>
           </View>
         </View>
@@ -107,21 +149,29 @@ export default function SocraticTutorScreen() {
                 ]}
               >
                 {!isStudent && (
-                  <View style={styles.aiAvatarSmall}>
-                    <Bot size={14} color={colors.brand.primary} />
+                  <View style={[styles.aiAvatarSmall, { backgroundColor: theme.brandTint }]}>
+                    <Bot size={14} color={theme.brandPrimary} />
                   </View>
                 )}
 
                 <View
                   style={[
                     styles.bubble,
-                    isStudent ? styles.bubbleStudent : styles.bubbleAI,
+                    cardShadow,
+                    isStudent
+                      ? [styles.bubbleStudent, { backgroundColor: theme.brandPrimary }]
+                      : [
+                          styles.bubbleAI,
+                          { backgroundColor: theme.surface, borderColor: theme.border },
+                        ],
                   ]}
                 >
                   <Text
                     style={[
                       styles.messageText,
-                      isStudent ? styles.messageTextStudent : styles.messageTextAI,
+                      isStudent
+                        ? styles.messageTextStudent
+                        : [styles.messageTextAI, { color: theme.textPrimary }],
                     ]}
                   >
                     {msg.text}
@@ -129,22 +179,27 @@ export default function SocraticTutorScreen() {
 
                   {/* Grounded Citation & 3D Node Callout */}
                   {!isStudent && (msg.sourceDoc || msg.arTriggerNode) && (
-                    <View style={styles.aiFooterBox}>
+                    <View style={[styles.aiFooterBox, { borderTopColor: theme.border }]}>
                       {msg.sourceDoc && (
                         <View style={styles.citationRow}>
-                          <BookOpen size={11} color={colors.brand.primary} />
-                          <Text style={styles.citationText}>Source: {msg.sourceDoc}</Text>
+                          <BookOpen size={11} color={theme.brandPrimary} />
+                          <Text style={[styles.citationText, { color: theme.brandPrimary }]}>
+                            Source: {msg.sourceDoc}
+                          </Text>
                         </View>
                       )}
 
                       {msg.arTriggerNode && (
                         <TouchableOpacity
-                          style={styles.inspectArButton}
+                          style={[
+                            styles.inspectArButton,
+                            { backgroundColor: theme.brandTint, borderColor: theme.brandBorder },
+                          ]}
                           onPress={() => handleInspectArNode(msg.arTriggerNode!, msg.arModelName)}
                           activeOpacity={0.8}
                         >
-                          <Boxes size={13} color={colors.brand.primary} />
-                          <Text style={styles.inspectArButtonText}>
+                          <Boxes size={13} color={theme.brandPrimary} />
+                          <Text style={[styles.inspectArButtonText, { color: theme.brandPrimary }]}>
                             Inspect {msg.arTriggerNode} in 3D Lab →
                           </Text>
                         </TouchableOpacity>
@@ -155,7 +210,7 @@ export default function SocraticTutorScreen() {
                   <Text
                     style={[
                       styles.timestampText,
-                      isStudent && { color: 'rgba(255, 255, 255, 0.7)' },
+                      { color: isStudent ? 'rgba(255, 255, 255, 0.72)' : theme.textMuted },
                     ]}
                   >
                     {msg.timestamp}
@@ -163,7 +218,7 @@ export default function SocraticTutorScreen() {
                 </View>
 
                 {isStudent && (
-                  <View style={styles.studentAvatarSmall}>
+                  <View style={[styles.studentAvatarSmall, { backgroundColor: theme.brandPrimary }]}>
                     <User size={14} color="#FFFFFF" />
                   </View>
                 )}
@@ -172,33 +227,47 @@ export default function SocraticTutorScreen() {
           })}
         </ScrollView>
 
-        {/* NCERT Recommended Prompts */}
-        <View style={styles.suggestionsContainer}>
-          <Text style={styles.suggestionsTitle}>CBSE BOARD FREQUENTLY ASKED DOUBTS</Text>
+        {/* Recommended Prompts */}
+        <View style={[styles.suggestionsContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+          <Text style={[styles.suggestionsTitle, { color: theme.textMuted }]}>
+            {schoolBoard} FREQUENTLY ASKED DOUBTS
+          </Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.suggestionChipsScroll}
           >
-            {QUICK_PROMPTS.map((prompt, idx) => (
+            {quickPrompts.map((prompt, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={styles.suggestionChip}
+                style={[
+                  styles.suggestionChip,
+                  { backgroundColor: theme.canvas, borderColor: theme.border },
+                ]}
                 onPress={() => handleSend(prompt)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.suggestionChipText}>{prompt}</Text>
+                <Text style={[styles.suggestionChipText, { color: theme.textSecondary }]}>
+                  {prompt}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
 
         {/* Input Bar */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <TextInput
-            style={styles.chatInput}
-            placeholder="Ask doubt about Science, Maths, or English..."
-            placeholderTextColor={colors.text.muted}
+            style={[
+              styles.chatInput,
+              {
+                backgroundColor: theme.canvas,
+                borderColor: theme.border,
+                color: theme.textPrimary,
+              },
+            ]}
+            placeholder={`Ask about ${activeRoadmap?.subject || 'your chapter'}...`}
+            placeholderTextColor={theme.textMuted}
             value={inputText}
             onChangeText={setInputText}
             onSubmitEditing={() => handleSend()}
@@ -207,7 +276,10 @@ export default function SocraticTutorScreen() {
           <TouchableOpacity
             style={[
               styles.sendButton,
-              inputText.trim() ? styles.sendButtonActive : styles.sendButtonDisabled,
+              {
+                backgroundColor: inputText.trim() ? theme.brandPrimary : theme.border,
+                opacity: inputText.trim() ? 1 : 0.7,
+              },
             ]}
             onPress={() => handleSend()}
             disabled={!inputText.trim()}
@@ -224,17 +296,14 @@ export default function SocraticTutorScreen() {
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
   },
   tutorHeader: {
-    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
   },
   tutorHeaderRow: {
     flexDirection: 'row',
@@ -245,7 +314,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.brand.tint,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -255,18 +323,15 @@ const styles = StyleSheet.create({
   botTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.text.primary,
   },
   botSub: {
     fontSize: 11,
-    color: colors.text.secondary,
     marginTop: 1,
   },
   curriculumTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.status.successBg,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -274,7 +339,6 @@ const styles = StyleSheet.create({
   curriculumTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.status.success,
   },
   messagesScroll: {
     padding: 16,
@@ -295,7 +359,6 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: colors.brand.tint,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
@@ -304,7 +367,6 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: colors.brand.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
@@ -313,20 +375,12 @@ const styles = StyleSheet.create({
     maxWidth: '82%',
     borderRadius: 16,
     padding: 14,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: 1,
   },
   bubbleStudent: {
-    backgroundColor: colors.brand.primary,
     borderBottomRightRadius: 4,
   },
   bubbleAI: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -337,12 +391,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '500',
   },
-  messageTextAI: {
-    color: colors.text.primary,
-  },
+  messageTextAI: {},
   aiFooterBox: {
     marginTop: 10,
-    borderTopColor: colors.divider,
     borderTopWidth: 1,
     paddingTop: 8,
     gap: 8,
@@ -354,15 +405,13 @@ const styles = StyleSheet.create({
   },
   citationText: {
     fontSize: 11,
-    color: colors.brand.primary,
     fontWeight: '600',
+    flex: 1,
   },
   inspectArButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.brand.tint,
     borderWidth: 1,
-    borderColor: colors.brand.tintBorder,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 7,
@@ -371,26 +420,21 @@ const styles = StyleSheet.create({
   inspectArButtonText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.brand.primary,
     flex: 1,
   },
   timestampText: {
     fontSize: 9,
-    color: colors.text.muted,
     marginTop: 6,
     textAlign: 'right',
   },
   suggestionsContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderTopColor: colors.surfaceBorder,
     borderTopWidth: 1,
   },
   suggestionsTitle: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.text.muted,
     marginBottom: 6,
     letterSpacing: 0.5,
   },
@@ -398,8 +442,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   suggestionChip: {
-    backgroundColor: colors.background,
-    borderColor: colors.surfaceBorder,
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 12,
@@ -407,7 +449,6 @@ const styles = StyleSheet.create({
   },
   suggestionChipText: {
     fontSize: 11,
-    color: colors.text.secondary,
     fontWeight: '500',
   },
   inputContainer: {
@@ -415,20 +456,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
     gap: 10,
   },
   chatInput: {
     flex: 1,
     height: 44,
-    backgroundColor: colors.background,
-    borderColor: colors.surfaceBorder,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
-    color: colors.text.primary,
     fontSize: 13,
   },
   sendButton: {
@@ -437,13 +473,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.brand.primary,
-  },
-  sendButtonActive: {
-    backgroundColor: colors.brand.primary,
-  },
-  sendButtonDisabled: {
-    backgroundColor: colors.surfaceBorder,
-    opacity: 0.7,
   },
 });

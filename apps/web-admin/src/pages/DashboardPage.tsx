@@ -59,7 +59,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenCsvModal,
   onOpenSyllabusModal,
 }) => {
-  const { students, feeInstallments, syllabusVault } = useAdminStore();
+  const { students, feeInstallments, syllabusVault, schoolProfile, studentProgressList } = useAdminStore();
+  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
+
+  const liveEngagementData = syllabusVault.slice(0, 5).map((ch, idx) => {
+    const progRows = studentProgressList.filter((p) => p.roadmapId === ch.id);
+    const avgMastery =
+      progRows.length > 0
+        ? Math.round(progRows.reduce((s, r) => s + r.completionPct, 0) / progRows.length)
+        : [75, 50, 33, 85, 68][idx % 5];
+
+    return {
+      subject: `${ch.subject.split(' ')[0]} (Ch ${ch.chapterNumber})`,
+      class10Mastery: avgMastery,
+      atHomeArHours: Math.max(12, Math.round(avgMastery * 0.55)),
+    };
+  });
 
   const totalExpectedFees = students.reduce((sum, s) => sum + s.annualFee, 0);
   const totalCollectedFees = students.reduce((sum, s) => sum + s.totalPaid, 0);
@@ -90,13 +105,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <span className="text-[10px] bg-indigo-500/30 text-indigo-300 font-extrabold px-2.5 py-0.5 rounded-full border border-indigo-400/30 tracking-wider">
                 EXECUTIVE COCKPIT
               </span>
-              <span className="text-xs text-slate-300 font-medium">CBSE Academic Session 2026-2027</span>
+              <span className="text-xs text-slate-300 font-medium">{schoolBoard} Academic Session {schoolProfile.session}</span>
             </div>
             <h2 className="text-xl lg:text-2xl font-black tracking-tight text-white">
-              Doon Valley Public School Command Center
+              {schoolProfile.name} Command Center
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Replacing fragmented paper fee registers with instant UPI / Offline reconciliation and transforming at-home self-study with CBSE-grounded 3D AR spatial simulations.
+              Replacing fragmented paper fee registers with instant UPI / Offline reconciliation and transforming at-home self-study with school-verified {schoolBoard} 3D AR spatial simulations.
             </p>
           </div>
 
@@ -130,26 +145,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* 4 CORE EXECUTIVE KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Total Expected Revenue */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-[#94A3B8] uppercase tracking-wider">
               Total Expected Fees
             </span>
-            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
+            <div className="w-8 h-8 rounded-lg bg-[#EEF2F7] dark:bg-[#1A2336] flex items-center justify-center text-slate-600 dark:text-slate-300">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">
+          <p className="text-2xl font-black text-slate-900 dark:text-[#F8FAFC] mt-2">
             ₹{totalExpectedFees.toLocaleString('en-IN')}
           </p>
-          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{students.length} Enrolled Students</span>
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-[#94A3B8] mt-2">
+            <span className="font-semibold text-slate-800 dark:text-[#F8FAFC]">{students.length} Enrolled Students</span>
             <span>across Class 9 & 10</span>
           </div>
         </div>
 
         {/* KPI 2: Fees Collected (Split Online vs Offline) */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
               Fees Collected to Date
@@ -161,14 +176,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2">
             ₹{totalCollectedFees.toLocaleString('en-IN')}
           </p>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 font-medium">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-[#94A3B8] mt-2 pt-2 border-t border-slate-100 dark:border-[#232E44] font-medium">
             <span>Online UPI: <strong className="text-indigo-600 dark:text-indigo-400">₹{upiCollected.toLocaleString('en-IN')}</strong></span>
             <span>Offline: <strong className="text-slate-700 dark:text-slate-300">₹{offlineCollected.toLocaleString('en-IN')}</strong></span>
           </div>
         </div>
 
         {/* KPI 3: Pending Dues */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
               Pending Dues
@@ -194,7 +209,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* KPI 4: Active At-Home Study Hours */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
               At-Home Study Hours
@@ -216,13 +231,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* RECHARTS DATA VISUALIZATIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart 1: Monthly Fee Collection (Online UPI vs Offline Cash/Cheque) */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">
                 Quarterly Fee Collection Stream (FY 2026-27)
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">
                 Comparing Edzy Mobile UPI vs Physical Cash/Cheque Receptions
               </p>
             </div>
@@ -259,13 +274,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Chart 2: Class-Wise Syllabus Mastery & AR Engagement */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">
                 Syllabus Mastery & At-Home AR Engagement
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">
                 Average milestone completion % and student spatial lab hours
               </p>
             </div>
@@ -276,7 +291,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={SYLLABUS_ENGAGEMENT_DATA} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart data={liveEngagementData.length > 0 ? liveEngagementData : SYLLABUS_ENGAGEMENT_DATA} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorMastery" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.4} />
@@ -323,11 +338,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* Recent Fee & Activity Feed */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+      <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">
               Recent Fee & Activity Feed
             </h3>
           </div>
@@ -342,7 +357,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase">
+              <tr className="bg-[#F6F8FC] dark:bg-[#1A2336]/80 border-b border-slate-100 dark:border-[#232E44] text-slate-500 dark:text-[#94A3B8] font-semibold uppercase">
                 <th className="py-2.5 px-3">Receipt #</th>
                 <th className="py-2.5 px-3">Student Name</th>
                 <th className="py-2.5 px-3">Class & Roll</th>
@@ -353,18 +368,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <th className="py-2.5 px-3">Study Telemetry</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-[#232E44]">
               {recentPayments.map((inst) => {
                 const st = students.find((s) => s.id === inst.studentId);
                 const isOnline = inst.paymentMethod === 'ONLINE_UPI';
 
                 return (
-                  <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                  <tr key={inst.id} className="hover:bg-[#F6F8FC]/50 dark:hover:bg-slate-800/40 transition">
                     <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
                       {inst.receiptNumber?.startsWith('#') ? inst.receiptNumber : `#${inst.receiptNumber || 'REC'}`}
                     </td>
                     <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100">{inst.studentName}</div>
+                      <div className="font-semibold text-slate-900 dark:text-[#F8FAFC]">{inst.studentName}</div>
                       <div className="text-[11px] font-mono text-slate-400">{inst.studentId}</div>
                     </td>
                     <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
@@ -388,17 +403,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                         {isOnline ? 'Online UPI' : inst.paymentMethod === 'OFFLINE_CHEQUE' ? 'Cheque' : 'Cash'}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
+                    <td className="py-3 px-3 text-slate-500 dark:text-[#94A3B8]">
                       {inst.paidDate || 'Paid'}
                     </td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                        <span>{st?.atHomeHoursThisWeek || 0} hrs/wk</span>
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                          ({st?.streakDays || 0}d streak)
-                        </span>
-                      </div>
+                      {(() => {
+                        const liveProg = studentProgressList.find((p) => p.studentId === inst.studentId);
+                        return (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
+                              <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                              <span>{st?.atHomeHoursThisWeek || 0} hrs/wk</span>
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                ({st?.streakDays || 0}d streak)
+                              </span>
+                            </div>
+                            {liveProg && (
+                              <div className="text-[10px] font-bold text-[#4F46E5] dark:text-[#6366F1]">
+                                Roadmap Mastery: {liveProg.completionPct}% •{' '}
+                                {liveProg.paceStatus === 'AUTO_ADJUSTED' ? 'Auto-Adjusted' : 'On Track'}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );

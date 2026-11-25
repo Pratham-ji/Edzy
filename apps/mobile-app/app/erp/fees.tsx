@@ -371,7 +371,7 @@ export default function FeePassbookScreen() {
               <View style={styles.receiptSchoolInfo}>
                 <Text style={styles.receiptSchoolName}>{studentProfile.schoolName}</Text>
                 <Text style={styles.receiptSchoolCode}>
-                  Affiliation No. 2130842 • CBSE New Delhi
+                  Affiliated Institution • {(studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase()} Pattern
                 </Text>
               </View>
               <TouchableOpacity

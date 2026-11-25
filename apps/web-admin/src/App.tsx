@@ -21,7 +21,8 @@ export default function App() {
     typeof window !== 'undefined' ? window.location.pathname : '/'
   );
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
-  const { initializeRealtimeSync } = useAdminStore();
+  const { initializeRealtimeSync, schoolProfile } = useAdminStore();
+  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
 
   useEffect(() => {
     const handlePopState = () => {
@@ -80,7 +81,7 @@ export default function App() {
       case 'dashboard':
         return {
           title: 'Executive School Command Center',
-          subtitle: 'Doon Valley Public School (DVPS01) • CBSE Affiliated Boarding & Day Campus',
+          subtitle: `${schoolProfile.name} (${schoolProfile.code}) • ${schoolBoard} Affiliated Boarding & Day Campus`,
         };
       case 'fees':
         return {
@@ -90,7 +91,7 @@ export default function App() {
       case 'students':
         return {
           title: 'Student Directory & Access Passes',
-          subtitle: 'CBSE Enrollment Roster, Mobile Pass Slips, and At-Home Study Telemetry',
+          subtitle: `${schoolBoard} Enrollment Roster, Mobile Pass Slips, and At-Home Study Telemetry`,
         };
       case 'circulars':
         return {
@@ -100,12 +101,12 @@ export default function App() {
       case 'syllabus':
         return {
           title: 'Curriculum Vault & 3D Labs',
-          subtitle: 'CBSE Chapter Ingestion with Guided Study Roadmaps and 3D Visual Labs',
+          subtitle: `${schoolBoard} Syllabus Scanner with Visual Flowchart Roadmaps, Notes & 3D Visual Labs`,
         };
       case 'marks':
         return {
-          title: 'Academic Marks & Term Assessments',
-          subtitle: 'CBSE 9-Point Grading Spreadsheet with Real-Time Parent App Sync',
+          title: 'Exam Marks & Term Assessments',
+          subtitle: `${schoolBoard} Grading Spreadsheet with Real-Time Parent App Sync`,
         };
       case 'settings':
         return {
@@ -123,7 +124,7 @@ export default function App() {
   const headerInfo = getHeaderInfo();
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased overflow-hidden font-sans transition-colors">
+    <div className="flex h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] antialiased overflow-hidden font-sans transition-colors">
       {/* Deep Navy Sidebar */}
       <Sidebar
         activeTab={activeTab}

@@ -77,10 +77,10 @@ export const FeesPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC] tracking-tight">
             Hybrid Fee Counter & Passbook Ledger
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">
             Cash, Cheque, and Instant UPI reconciliation with instant receipt generation
           </p>
         </div>
@@ -99,7 +99,7 @@ export const FeesPage: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row items-center gap-3">
           {/* Search Box */}
           <div className="relative flex-1 w-full">
@@ -109,17 +109,17 @@ export const FeesPage: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by Student Name, Roll No (24), ID (SCH-2026-0104), or Receipt #..."
-              className="w-full h-10 pl-9 pr-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full h-10 pl-9 pr-3 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-xs font-medium text-slate-800 dark:text-[#F8FAFC] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           {/* Class Filter */}
           <div className="flex items-center gap-1.5 w-full md:w-auto">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">Class:</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-[#94A3B8] shrink-0">Class:</span>
             <select
               value={classFilter}
               onChange={(e) => setClassFilter(e.target.value)}
-              className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="h-10 px-3 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-xs font-bold text-slate-800 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="ALL">All Classes</option>
               <option value="10-A">Class 10-A</option>
@@ -129,11 +129,11 @@ export const FeesPage: React.FC = () => {
 
           {/* Status Filter */}
           <div className="flex items-center gap-1.5 w-full md:w-auto">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">Status:</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-[#94A3B8] shrink-0">Status:</span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="h-10 px-3 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-xs font-bold text-slate-800 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="ALL">All Status</option>
               <option value="PENDING">Pending Dues Only</option>
@@ -145,10 +145,10 @@ export const FeesPage: React.FC = () => {
       </div>
 
       {/* Installments Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider">
+            <thead className="bg-[#F6F8FC] dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="px-4 py-3.5">Student Particulars</th>
                 <th className="px-4 py-3.5">Term Quarter</th>
@@ -159,7 +159,7 @@ export const FeesPage: React.FC = () => {
                 <th className="px-4 py-3.5 text-right">Counter Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+            <tbody className="divide-y divide-slate-100 dark:divide-[#232E44] text-slate-700 dark:text-[#F8FAFC]">
               {filteredInstallments.map((inst) => {
                 const isPaid = inst.status === 'PAID';
                 const isOverdue = inst.status === 'OVERDUE';
@@ -169,14 +169,14 @@ export const FeesPage: React.FC = () => {
                   : '—';
 
                 return (
-                  <tr key={inst.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr key={inst.id} className="hover:bg-[#F6F8FC] dark:hover:bg-slate-800/40 transition-colors">
                     {/* Student particulars */}
                     <td className="px-4 py-3">
                       <div>
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                        <div className="font-bold text-slate-900 dark:text-[#F8FAFC] text-xs">
                           {inst.studentName}
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">
                           {inst.classGrade} • Roll #{student?.rollNo || '--'} •{' '}
                           <span className="font-mono text-slate-400">{inst.studentId}</span>
                         </p>
@@ -184,13 +184,13 @@ export const FeesPage: React.FC = () => {
                     </td>
 
                     {/* Quarter */}
-                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
+                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-[#F8FAFC]">
                       {inst.quarter}
                       <p className="text-[10px] text-slate-400">Due: {inst.dueDate}</p>
                     </td>
 
                     {/* Amount */}
-                    <td className="px-4 py-3 font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+                    <td className="px-4 py-3 font-extrabold text-slate-900 dark:text-[#F8FAFC] text-sm">
                       ₹{inst.amount.toLocaleString('en-IN')}
                     </td>
 
@@ -225,7 +225,7 @@ export const FeesPage: React.FC = () => {
                     </td>
 
                     {/* Receipt Number */}
-                    <td className="px-4 py-3 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
+                    <td className="px-4 py-3 font-mono font-bold text-slate-800 dark:text-[#F8FAFC] text-xs">
                       {displayReceipt}
                     </td>
 
@@ -252,7 +252,7 @@ export const FeesPage: React.FC = () => {
                         {isPaid ? (
                           <button
                             onClick={() => setActiveReceiptModal(inst)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-[11px] font-bold transition"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#EEF2F7] dark:bg-[#1A2336] hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-[#F8FAFC] rounded-lg text-[11px] font-bold transition"
                           >
                             <FileCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                             <span>View Receipt</span>

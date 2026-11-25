@@ -88,23 +88,23 @@ export const CircularsAttendancePage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Segment Controller */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E2E8F0] dark:border-[#232E44] pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC]">
             School Circulars & Daily Attendance
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-[#94A3B8] mt-0.5">
             Broadcast official notices directly to parent mobile apps and track class registers in real time.
           </p>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start sm:self-auto border border-slate-200/80 dark:border-slate-700/60">
+        <div className="flex items-center gap-1 bg-[#EEF2F7] dark:bg-[#1A2336]/80 p-1 rounded-xl self-start sm:self-auto border border-[#E2E8F0]/80 dark:border-[#232E44]/60">
           <button
             onClick={() => setActiveSubTab('circulars')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeSubTab === 'circulars'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-[#121826] text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Bell className="w-4 h-4" />
@@ -117,8 +117,8 @@ export const CircularsAttendancePage: React.FC = () => {
             onClick={() => setActiveSubTab('attendance')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeSubTab === 'attendance'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-[#121826] text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <CalendarCheck className="w-4 h-4" />
@@ -137,15 +137,15 @@ export const CircularsAttendancePage: React.FC = () => {
       {activeSubTab === 'circulars' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Broadcaster Form (5 cols) */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="lg:col-span-5 bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] p-6 shadow-sm space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#232E44]">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                   <Send className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base">New School Circular</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Instant push to Parent Mobile App</p>
+                  <h3 className="font-semibold text-slate-900 dark:text-[#F8FAFC] text-base">New School Circular</h3>
+                  <p className="text-xs text-slate-500 dark:text-[#94A3B8]">Instant push to Parent Mobile App</p>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
@@ -168,10 +168,10 @@ export const CircularsAttendancePage: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. CBSE Practical Exam Schedule 2026-27"
+                  placeholder="e.g. Practical Exam Schedule 2026-27"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
@@ -183,7 +183,7 @@ export const CircularsAttendancePage: React.FC = () => {
                   <select
                     value={targetClass}
                     onChange={(e) => setTargetClass(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   >
                     <option value="All Classes">All Classes</option>
                     <option value="Class 10-A">Class 10-A</option>
@@ -197,7 +197,7 @@ export const CircularsAttendancePage: React.FC = () => {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   >
                     <option value="ACADEMIC">Academic</option>
                     <option value="EXAM">Examination</option>
@@ -218,7 +218,7 @@ export const CircularsAttendancePage: React.FC = () => {
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
                     placeholder="Principal Office"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
@@ -230,7 +230,7 @@ export const CircularsAttendancePage: React.FC = () => {
                     value={attachmentName}
                     onChange={(e) => setAttachmentName(e.target.value)}
                     placeholder="e.g. Schedule_2026.pdf"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
@@ -245,7 +245,7 @@ export const CircularsAttendancePage: React.FC = () => {
                   placeholder="Type official notification body here. Parents receive instant notification in the Edzy mobile app..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
                 />
               </div>
 
@@ -262,20 +262,20 @@ export const CircularsAttendancePage: React.FC = () => {
           {/* Published Circulars Feed (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
             <div className="flex items-center justify-between pb-1">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-[#F8FAFC] flex items-center gap-2">
                 <span>Active School Notices</span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold">
+                <span className="px-2 py-0.5 rounded-full bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] text-xs font-semibold">
                   {circulars.length} notices
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Synchronized with Parent App</p>
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8]">Synchronized with Parent App</p>
             </div>
 
             <div className="space-y-3">
               {circulars.map((circ) => (
                 <div
                   key={circ.id}
-                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900 transition-all space-y-3"
+                  className="p-5 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900 transition-all space-y-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
@@ -287,12 +287,12 @@ export const CircularsAttendancePage: React.FC = () => {
                         >
                           {circ.category}
                         </span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-700 dark:text-slate-300">
                           {circ.targetClass}
                         </span>
                         <span className="text-xs text-slate-400 dark:text-slate-500">• {circ.date}</span>
                       </div>
-                      <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100 pt-1">
+                      <h4 className="text-base font-semibold text-slate-900 dark:text-[#F8FAFC] pt-1">
                         {circ.title}
                       </h4>
                     </div>
@@ -302,7 +302,7 @@ export const CircularsAttendancePage: React.FC = () => {
                     {circ.message}
                   </p>
 
-                  <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-[#232E44]/80 text-xs text-slate-500 dark:text-[#94A3B8]">
                     <span className="font-medium">Issued by: {circ.author}</span>
                     {circ.attachmentName && (
                       <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-medium bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
@@ -321,52 +321,52 @@ export const CircularsAttendancePage: React.FC = () => {
         <div className="space-y-6">
           {/* Top Controls & Metrics Bar */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-[#94A3B8] tracking-wider">
                   Class Strength
                 </p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{totalInClass}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{selectedClass}</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-[#F8FAFC] mt-1">{totalInClass}</p>
+                <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-0.5">{selectedClass}</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                 <Users className="w-6 h-6" />
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
                   Present Today
                 </p>
                 <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{presentInClass}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Physical / Verified</p>
+                <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-0.5">Physical / Verified</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase text-rose-600 dark:text-rose-400 tracking-wider">
                   Absent Today
                 </p>
                 <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{absentInClass}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">SMS Notification Sent</p>
+                <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-0.5">SMS Notification Sent</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/70 flex items-center justify-center text-rose-600 dark:text-rose-400">
                 <XCircle className="w-6 h-6" />
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">
                   Attendance Rate
                 </p>
                 <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">{classRate}%</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Daily Goal: &gt;90%</p>
+                <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-0.5">Daily Goal: &gt;90%</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                 <CalendarCheck className="w-6 h-6" />
@@ -375,15 +375,15 @@ export const CircularsAttendancePage: React.FC = () => {
           </div>
 
           {/* Filter Bar & Quick Actions */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#121826] p-4 rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <div className="flex items-center gap-1 bg-[#EEF2F7] dark:bg-[#1A2336] p-1 rounded-xl">
                 <button
                   onClick={() => setSelectedClass('Class 10-A')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     selectedClass === 'Class 10-A'
-                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      ? 'bg-white dark:bg-[#121826] text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   Class 10-A (8 Students)
@@ -392,8 +392,8 @@ export const CircularsAttendancePage: React.FC = () => {
                   onClick={() => setSelectedClass('Class 9-B')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     selectedClass === 'Class 9-B'
-                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      ? 'bg-white dark:bg-[#121826] text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   Class 9-B (7 Students)
@@ -406,7 +406,7 @@ export const CircularsAttendancePage: React.FC = () => {
                   placeholder="Search student or roll #..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-44 sm:w-56"
+                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-indigo-500 w-44 sm:w-56"
                 />
                 <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               </div>
@@ -431,11 +431,11 @@ export const CircularsAttendancePage: React.FC = () => {
           </div>
 
           {/* Register Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-slate-500 dark:text-[#94A3B8] uppercase tracking-wider">
                     <th className="py-3 px-4">Roll #</th>
                     <th className="py-3 px-4">Student Name</th>
                     <th className="py-3 px-4">Parent Contact</th>
@@ -444,32 +444,32 @@ export const CircularsAttendancePage: React.FC = () => {
                     <th className="py-3 px-4 text-right">Quick Toggle</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-[#232E44]">
                   {filteredStudents.map((st) => {
                     const isPresent = attendanceRegister[st.id] !== 'ABSENT';
 
                     return (
                       <tr
                         key={st.id}
-                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
+                        className="hover:bg-[#F6F8FC] dark:hover:bg-slate-800/40 transition-colors"
                       >
-                        <td className="py-3.5 px-4 font-mono font-semibold text-slate-900 dark:text-slate-100">
+                        <td className="py-3.5 px-4 font-mono font-semibold text-slate-900 dark:text-[#F8FAFC]">
                           #{st.rollNo}
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="font-semibold text-slate-900 dark:text-slate-100">{st.name}</div>
+                          <div className="font-semibold text-slate-900 dark:text-[#F8FAFC]">{st.name}</div>
                           <div className="text-xs text-slate-400 font-mono">{st.id}</div>
                         </td>
                         <td className="py-3.5 px-4 text-xs text-slate-600 dark:text-slate-300">
-                          <div className="font-medium text-slate-800 dark:text-slate-200">{st.parentName}</div>
+                          <div className="font-medium text-slate-800 dark:text-[#F8FAFC]">{st.parentName}</div>
                           <div className="text-slate-400 font-mono">+91 {st.parentPhone}</div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                            <span className="font-bold text-slate-800 dark:text-[#F8FAFC] text-xs">
                               {st.attendancePercent}%
                             </span>
-                            <div className="w-16 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div className="w-16 h-1.5 rounded-full bg-[#EEF2F7] dark:bg-[#1A2336] overflow-hidden">
                               <div
                                 className={`h-full rounded-full ${
                                   st.attendancePercent >= 90
@@ -495,14 +495,14 @@ export const CircularsAttendancePage: React.FC = () => {
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800">
+                          <div className="inline-flex rounded-lg border border-[#E2E8F0] dark:border-[#232E44] p-0.5 bg-[#F6F8FC] dark:bg-[#1A2336]">
                             <button
                               type="button"
                               onClick={() => toggleStudentAttendance(st.id, 'PRESENT')}
                               className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
                                 isPresent
                                   ? 'bg-emerald-600 text-white shadow-xs'
-                                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                                  : 'text-slate-500 hover:text-slate-900 dark:text-[#94A3B8] dark:hover:text-slate-100'
                               }`}
                             >
                               P
@@ -513,7 +513,7 @@ export const CircularsAttendancePage: React.FC = () => {
                               className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
                                 !isPresent
                                   ? 'bg-rose-600 text-white shadow-xs'
-                                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                                  : 'text-slate-500 hover:text-slate-900 dark:text-[#94A3B8] dark:hover:text-slate-100'
                               }`}
                             >
                               A

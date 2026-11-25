@@ -22,6 +22,7 @@ export default function SyllabusScreen() {
   const { roadmaps, studentProfile } = useEdzyStore();
   const { theme, isDark } = useAppTheme();
   const cardShadow = getCardShadow(isDark);
+  const schoolBoard = (studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase();
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
@@ -35,7 +36,7 @@ export default function SyllabusScreen() {
         ]}
       >
         <View>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>CBSE Syllabus</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{schoolBoard} Syllabus</Text>
           <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
             {studentProfile.classGrade} • Academic Session 2026-27
           </Text>
@@ -61,9 +62,11 @@ export default function SyllabusScreen() {
             <BookOpen size={24} color={theme.brandPrimary} />
           </View>
           <View style={styles.bannerTextContainer}>
-            <Text style={[styles.bannerTitle, { color: theme.textPrimary }]}>Grounded NCERT Curriculum</Text>
+            <Text style={[styles.bannerTitle, { color: theme.textPrimary }]}>
+              School-Verified {schoolBoard} Curriculum
+            </Text>
             <Text style={[styles.bannerDescription, { color: theme.textSecondary }]}>
-              Step-by-step master roadmaps with interactive 3D spatial models and CBSE past papers.
+              Visual study flowcharts, AI revision notes, 3D visual labs & {schoolBoard} pattern practice sheets.
             </Text>
           </View>
         </View>
@@ -82,7 +85,7 @@ export default function SyllabusScreen() {
                   cardShadow,
                   { backgroundColor: theme.surface, borderColor: theme.border },
                 ]}
-                onPress={() => router.push('/study/roadmap')}
+                onPress={() => router.push({ pathname: '/study/roadmap', params: { roadmapId: roadmap.id } })}
               >
                 <View style={styles.chapterTopRow}>
                   <View style={[styles.subjectPill, { backgroundColor: theme.brandTint, borderColor: theme.brandBorder }]}>
@@ -95,7 +98,7 @@ export default function SyllabusScreen() {
 
                 <Text style={[styles.chapterTitle, { color: theme.textPrimary }]}>{roadmap.title}</Text>
                 <Text style={[styles.chapterTopicCount, { color: theme.textSecondary }]}>
-                  {roadmap.totalSubtopics || 4} Core Topics • NCERT Aligned
+                  {roadmap.totalSubtopics || 4} Core Topics • {roadmap.board || schoolBoard} Aligned
                 </Text>
 
                 {/* Progress Bar */}

@@ -39,7 +39,8 @@ export const StudentLoginSlipModal: React.FC<StudentLoginSlipModalProps> = ({
     window.print();
   };
 
-  const whatsappMessage = `Dear ${student.parentName},\n\nGreetings from ${schoolProfile.name}!\n\nYour child ${student.name}'s Edzy Campus & At-Home AI Study Space account is now active.\n\n📱 Mobile App Download: https://edzy.app/download\n🏫 School Code: ${schoolProfile.code}\n🆔 Student Admission ID: ${student.id}\n🔑 Parent Fee Passbook PIN: ${student.parentPin}\n\nPlease install the app to view daily CBSE attendance, 3D AR experiments, and quarterly fee receipts.\n\nRegards,\nPrincipal Office, ${schoolProfile.name}`;
+  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
+  const whatsappMessage = `Dear ${student.parentName},\n\nGreetings from ${schoolProfile.name}!\n\nYour child ${student.name}'s Edzy Campus & At-Home AI Study Space account is now active.\n\n📱 Mobile App Download: https://edzy.app/download\n🏫 School Code: ${schoolProfile.code}\n🆔 Student Admission ID: ${student.id}\n🔑 Parent Fee Passbook PIN: ${student.parentPin}\n\nPlease install the app to view daily ${schoolBoard} attendance, 3D AR experiments, and quarterly fee receipts.\n\nRegards,\nPrincipal Office, ${schoolProfile.name}`;
 
   const whatsappUrl = `https://wa.me/91${student.parentPhone}?text=${encodeURIComponent(
     whatsappMessage

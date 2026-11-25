@@ -287,7 +287,9 @@ export default function ErpHubScreen() {
              EXAM MARKS TAB CONTENT
              ========================================================================= */
           <View style={styles.contentSection}>
-            <Text style={[styles.sectionHeader, { color: theme.textPrimary }]}>CBSE Term Examinations</Text>
+            <Text style={[styles.sectionHeader, { color: theme.textPrimary }]}>
+              {(studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase()} Term Examinations
+            </Text>
 
             <View style={styles.examList}>
               {sortedExamMarks.map((exam, idx) => (

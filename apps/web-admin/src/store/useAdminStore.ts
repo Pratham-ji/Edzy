@@ -1,10 +1,62 @@
 import { create } from 'zustand';
 import { supabase, isLiveSupabaseConfigured } from '../lib/supabase';
+import {
+  FlowchartSpineMilestone,
+  RevisionNoteItem,
+  PracticeSheetData,
+  RelatedChapterRef,
+  normalizeMilestonesJson,
+  serializeStudyPackToMilestonesJson,
+  cleanBoardCode,
+} from '../lib/syllabusGenerator';
+import { getModelSpecByIdOrName } from '../lib/default3dModels';
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
 export type ExamTerm = 'UNIT_TEST_1' | 'MIDTERM' | 'PRE_BOARD';
-export type ARModelType = 'Human Heart 3D' | 'Optics Bench 3D' | 'Quadratic Graph 3D' | 'Animal Cell 3D' | 'None';
+export type ARModelType =
+  | 'Human Heart 3D'
+  | 'Optics Ray Bench 3D'
+  | 'Optics Bench 3D'
+  | 'Quadratic Graph 3D'
+  | 'Plant & Animal Cell 3D'
+  | 'Animal Cell 3D'
+  | 'Electric Circuit 3D'
+  | 'None';
+
+export type { FlowchartSpineMilestone, RevisionNoteItem, PracticeSheetData, RelatedChapterRef };
+
+export interface StudentRoadmapProgressSummary {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  roadmapId: string;
+  targetDeadline: string | null;
+  totalDays: number;
+  skippedDaysCount: number;
+  paceStatus: 'ON_TRACK' | 'AUTO_ADJUSTED' | 'HIGH_PACE' | 'COMPLETED';
+  completionPct: number;
+  lastMasteredTopicTitle?: string;
+  completedTodayCount?: number;
+  nodeStates: Record<
+    string,
+    {
+      status: 'not_started' | 'learning' | 'done';
+      scheduledDate?: string;
+      completedAt?: string;
+    }
+  >;
+  updatedAt: string;
+}
+
+export interface SchoolTenantRecord {
+  id: string;
+  schoolCode: string;
+  name: string;
+  board: string;
+  principalName: string;
+  academicSession: string;
+}
 
 export interface StudentRecord {
   id: string; // e.g. SCH-2026-0104
@@ -46,16 +98,17 @@ export interface SyllabusChapterRecord {
   title: string;
   classGrade: string;
   subject: string;
+  board?: string;
+  default3dModelId?: string;
+  rawSyllabusText?: string;
   fileSizeBytes: string;
   uploadedAt: string;
   status: 'READY' | 'PROCESSING';
   arModelMapped: ARModelType;
-  generatedMilestones: {
-    nodeId: string;
-    title: string;
-    ncertPageRange: string;
-    ragStatus: 'GROUNDED' | 'INDEXING';
-  }[];
+  generatedMilestones: FlowchartSpineMilestone[];
+  revisionNotes?: RevisionNoteItem[];
+  practiceSheet?: PracticeSheetData;
+  relatedChapters?: RelatedChapterRef[];
 }
 
 export interface StudentSubjectScore {
@@ -212,13 +265,30 @@ export function mapMarkRow(row: any, students?: StudentRecord[]): StudentExamRec
 }
 
 export function mapSyllabusRow(row: any): SyllabusChapterRecord {
+  const id = row.id || `syl-${Date.now()}`;
+  const title = row.title || row.chapter_title || '';
+  const subject = row.subject || 'Science';
+  const chapterNumber = Number(row.chapter_number || 1);
+  const rawArName = row.ar_model_mapped || row.ar_model_name || 'None';
+  const normalized = normalizeMilestonesJson(row.milestones_json, {
+    id,
+    title,
+    subject,
+    chapterNumber,
+    board: row.board || 'CBSE',
+    arModelName: rawArName,
+  });
+  const modelSpec = getModelSpecByIdOrName(normalized.default3dModelId || rawArName);
+
   return {
-    id: row.id,
-    fileName: row.file_name || row.pdf_filename || 'Chapter.pdf',
-    chapterNumber: Number(row.chapter_number || 1),
-    title: row.title || row.chapter_title || '',
-    classGrade: row.class_grade || 'Class 10-A',
-    subject: row.subject || 'Science',
+    id,
+    fileName: row.file_name || row.pdf_filename || 'Chapter_Syllabus.txt',
+    chapterNumber,
+    title,
+    classGrade: row.class_grade || 'Class 10',
+    subject,
+    board: normalized.board,
+    default3dModelId: normalized.default3dModelId,
     fileSizeBytes: row.file_size_bytes || row.file_size_label || '4.5 MB',
     uploadedAt: row.created_at
       ? new Date(row.created_at).toLocaleDateString('en-IN', {
@@ -228,8 +298,37 @@ export function mapSyllabusRow(row: any): SyllabusChapterRecord {
         })
       : 'Today',
     status: (row.status as any) || 'READY',
-    arModelMapped: (row.ar_model_mapped || row.ar_model_name || 'None') as ARModelType,
-    generatedMilestones: Array.isArray(row.milestones_json) ? row.milestones_json : [],
+    arModelMapped: (modelSpec.name as ARModelType) || (rawArName as ARModelType),
+    generatedMilestones: normalized.generatedMilestones,
+    revisionNotes: normalized.revisionNotes,
+    practiceSheet: normalized.practiceSheet,
+    relatedChapters: normalized.relatedChapters,
+  };
+}
+
+export function mapStudentRoadmapProgressRow(row: any): StudentRoadmapProgressSummary {
+  const nodeStates = (row.node_states_json && typeof row.node_states_json === 'object'
+    ? row.node_states_json
+    : {}) as Record<string, { status: 'not_started' | 'learning' | 'done'; scheduledDate?: string; completedAt?: string }>;
+  const entries = Object.values(nodeStates);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const completedTodayCount = entries.filter(
+    (e) => e.status === 'done' && (e.completedAt?.startsWith(todayStr) || e.scheduledDate === todayStr)
+  ).length;
+
+  return {
+    id: row.id || `${row.student_id}-${row.roadmap_id}`,
+    schoolId: row.school_id || 'DVPS01',
+    studentId: row.student_id,
+    roadmapId: row.roadmap_id,
+    targetDeadline: row.target_deadline || null,
+    totalDays: Number(row.total_days || 7),
+    skippedDaysCount: Number(row.skipped_days_count || 0),
+    paceStatus: (row.pace_status || 'ON_TRACK') as any,
+    completionPct: Number(row.completion_pct || 0),
+    completedTodayCount,
+    nodeStates,
+    updatedAt: row.updated_at || new Date().toISOString(),
   };
 }
 
@@ -254,9 +353,11 @@ export function mapCircularRow(row: any): AdminCircular {
 
 interface AdminState {
   schoolProfile: SchoolProfile;
+  availableSchools: SchoolTenantRecord[];
   students: StudentRecord[];
   feeInstallments: FeeInstallmentRecord[];
   syllabusVault: SyllabusChapterRecord[];
+  studentProgressList: StudentRoadmapProgressSummary[];
   examMarks: StudentExamRecord[];
   circulars: AdminCircular[];
   attendanceRegister: Record<string, 'PRESENT' | 'ABSENT'>;
@@ -270,6 +371,7 @@ interface AdminState {
   setSyncError: (error: string | null) => void;
   toggleThemeMode: () => void;
   setThemeMode: (mode: 'light' | 'dark') => void;
+  switchActiveSchool: (schoolId: string) => void;
   addCircular: (payload: Omit<AdminCircular, 'id' | 'date'>) => void;
   toggleStudentAttendance: (studentId: string, status: 'PRESENT' | 'ABSENT') => void;
   markAllAttendance: (classGrade: string, status: 'PRESENT' | 'ABSENT') => void;
@@ -299,7 +401,19 @@ interface AdminState {
     classGrade: string;
     subject: string;
     arModelMapped: ARModelType;
+    board?: string;
+    default3dModelId?: string;
+    rawSyllabusText?: string;
+    generatedMilestones?: FlowchartSpineMilestone[];
+    revisionNotes?: RevisionNoteItem[];
+    practiceSheet?: PracticeSheetData;
+    relatedChapters?: RelatedChapterRef[];
   }) => SyllabusChapterRecord;
+
+  updateSyllabusChapter: (
+    chapterId: string,
+    updates: Partial<SyllabusChapterRecord>
+  ) => SyllabusChapterRecord | null;
 
   updateStudentMark: (
     studentId: string,
@@ -1395,13 +1509,13 @@ const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
 const INITIAL_CIRCULARS: AdminCircular[] = [
   {
     id: 'circ-001',
-    title: 'CBSE Class 10 Pre-Board Examination Schedule & Guidelines',
+    title: 'Class 10 Pre-Board Examination Schedule & Guidelines',
     targetClass: 'Class 10-A',
     category: 'EXAM',
     date: '20 Nov 2026',
     author: 'Examination Controller',
     message: 'Pre-Board practical submissions and theory examination commences from 15th December 2026. Hall tickets and admit cards are available for verification.',
-    attachmentName: 'CBSE_PreBoard_Schedule_2026-27.pdf',
+    attachmentName: 'PreBoard_Schedule_2026-27.pdf',
   },
   {
     id: 'circ-002',
@@ -1443,7 +1557,18 @@ const INITIAL_ATTENDANCE: Record<string, 'PRESENT' | 'ABSENT'> = {
   'SCH-2026-0207': 'ABSENT',
 };
 
-const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
+const RAW_INITIAL_SYLLABUS: Array<{
+  id: string;
+  fileName: string;
+  chapterNumber: number;
+  title: string;
+  classGrade: string;
+  subject: string;
+  fileSizeBytes: string;
+  uploadedAt: string;
+  arModelMapped: ARModelType;
+  milestones: Array<{ nodeId: string; title: string; ncertPageRange: string; ragStatus: 'GROUNDED' }>;
+}> = [
   {
     id: 'syl-01',
     fileName: 'Class10_Bio_Ch6_SchoolNotes.pdf',
@@ -1453,39 +1578,12 @@ const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
     subject: 'Biology (Science)',
     fileSizeBytes: '4.2 MB',
     uploadedAt: '15 Oct 2026',
-    status: 'READY',
     arModelMapped: 'Human Heart 3D',
-    generatedMilestones: [
-      {
-        nodeId: 'm-1',
-        title: '6.1 Autotrophic Nutrition & Stomata Gas Exchange',
-        ncertPageRange: 'Pages 93-98',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'm-2',
-        title: '6.2 Human Digestive System: Enzymes & Villi',
-        ncertPageRange: 'Pages 99-105',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'm-3',
-        title: '6.3 Human Heart: Chambers, Double Circulation & Aorta',
-        ncertPageRange: 'Pages 106-110',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'm-4',
-        title: '6.4 Excretion: Nephron Filtration Mechanism',
-        ncertPageRange: 'Pages 111-115',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'm-5',
-        title: '6.5 CBSE Past 5-Year Questions & Board Practicals',
-        ncertPageRange: 'Pages 116-120',
-        ragStatus: 'GROUNDED',
-      },
+    milestones: [
+      { nodeId: 'm-1', title: '6.1 Autotrophic Nutrition & Stomata Gas Exchange', ncertPageRange: 'Pages 93-98', ragStatus: 'GROUNDED' },
+      { nodeId: 'm-2', title: '6.2 Human Digestive System: Enzymes & Villi', ncertPageRange: 'Pages 99-105', ragStatus: 'GROUNDED' },
+      { nodeId: 'm-3', title: '6.3 Human Heart: Chambers, Double Circulation & Aorta', ncertPageRange: 'Pages 106-110', ragStatus: 'GROUNDED' },
+      { nodeId: 'm-4', title: '6.4 Excretion: Nephron Filtration Mechanism', ncertPageRange: 'Pages 111-115', ragStatus: 'GROUNDED' },
     ],
   },
   {
@@ -1497,39 +1595,12 @@ const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
     subject: 'Physics (Science)',
     fileSizeBytes: '5.8 MB',
     uploadedAt: '22 Oct 2026',
-    status: 'READY',
-    arModelMapped: 'Optics Bench 3D',
-    generatedMilestones: [
-      {
-        nodeId: 'p-1',
-        title: '10.1 Spherical Mirrors: Concave & Convex Ray Tracing',
-        ncertPageRange: 'Pages 160-168',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'p-2',
-        title: '10.2 Mirror Formula & Magnification Ratio',
-        ncertPageRange: 'Pages 169-173',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'p-3',
-        title: "10.3 Snell's Law & Refractive Index (Air-Glass)",
-        ncertPageRange: 'Pages 174-180',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'p-4',
-        title: '10.4 Convex & Concave Lens Ray Diagrams',
-        ncertPageRange: 'Pages 181-186',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'p-5',
-        title: '10.5 Dioptre Power & Numerical Problems',
-        ncertPageRange: 'Pages 187-191',
-        ragStatus: 'GROUNDED',
-      },
+    arModelMapped: 'Optics Ray Bench 3D',
+    milestones: [
+      { nodeId: 'p-1', title: '10.1 Spherical Mirrors: Concave & Convex Ray Tracing', ncertPageRange: 'Pages 160-168', ragStatus: 'GROUNDED' },
+      { nodeId: 'p-2', title: '10.2 Mirror Formula & Magnification Ratio', ncertPageRange: 'Pages 169-173', ragStatus: 'GROUNDED' },
+      { nodeId: 'p-3', title: "10.3 Snell's Law & Refractive Index (Air-Glass)", ncertPageRange: 'Pages 174-180', ragStatus: 'GROUNDED' },
+      { nodeId: 'p-4', title: '10.4 Lenses & Dioptre Power Numericals', ncertPageRange: 'Pages 181-191', ragStatus: 'GROUNDED' },
     ],
   },
   {
@@ -1541,39 +1612,12 @@ const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
     subject: 'Mathematics',
     fileSizeBytes: '3.6 MB',
     uploadedAt: '01 Nov 2026',
-    status: 'READY',
     arModelMapped: 'Quadratic Graph 3D',
-    generatedMilestones: [
-      {
-        nodeId: 'q-1',
-        title: '4.1 Standard Form ax² + bx + c = 0 & Factorisation',
-        ncertPageRange: 'Pages 70-76',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'q-2',
-        title: '4.2 Quadratic Formula (Shreedharacharya Rule)',
-        ncertPageRange: 'Pages 77-83',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'q-3',
-        title: '4.3 Discriminant D = b² - 4ac & Nature of Roots',
-        ncertPageRange: 'Pages 84-88',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'q-4',
-        title: '4.4 Real-World Kinematics & Area Word Problems',
-        ncertPageRange: 'Pages 89-93',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'q-5',
-        title: '4.5 Board Exam Revision Drill',
-        ncertPageRange: 'Pages 94-96',
-        ragStatus: 'GROUNDED',
-      },
+    milestones: [
+      { nodeId: 'q-1', title: '4.1 Standard Form ax² + bx + c = 0 & Factorisation', ncertPageRange: 'Pages 70-76', ragStatus: 'GROUNDED' },
+      { nodeId: 'q-2', title: '4.2 Quadratic Formula (Shreedharacharya Rule)', ncertPageRange: 'Pages 77-83', ragStatus: 'GROUNDED' },
+      { nodeId: 'q-3', title: '4.3 Discriminant D = b² - 4ac & Nature of Roots', ncertPageRange: 'Pages 84-91', ragStatus: 'GROUNDED' },
+      { nodeId: 'q-4', title: '4.4 Applied Speed-Time & Area Word Problems', ncertPageRange: 'Pages 92-97', ragStatus: 'GROUNDED' },
     ],
   },
   {
@@ -1585,40 +1629,92 @@ const INITIAL_SYLLABUS: SyllabusChapterRecord[] = [
     subject: 'Science',
     fileSizeBytes: '4.9 MB',
     uploadedAt: '12 Nov 2026',
-    status: 'READY',
-    arModelMapped: 'Animal Cell 3D',
-    generatedMilestones: [
-      {
-        nodeId: 'c-1',
-        title: '5.1 Discovery of Cell & Plasma Membrane Diffusion',
-        ncertPageRange: 'Pages 57-62',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'c-2',
-        title: '5.2 Nucleus, Chromosomes & DNA Structure',
-        ncertPageRange: 'Pages 63-66',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'c-3',
-        title: '5.3 Cytoplasm & Endoplasmic Reticulum (RER/SER)',
-        ncertPageRange: 'Pages 67-70',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'c-4',
-        title: '5.4 Mitochondria, Golgi Apparatus & Lysosomes',
-        ncertPageRange: 'Pages 71-74',
-        ragStatus: 'GROUNDED',
-      },
-      {
-        nodeId: 'c-5',
-        title: '5.5 Plant vs Animal Cell 3D Comparison',
-        ncertPageRange: 'Pages 75-78',
-        ragStatus: 'GROUNDED',
-      },
+    arModelMapped: 'Plant & Animal Cell 3D',
+    milestones: [
+      { nodeId: 'c-1', title: '5.1 Discovery of Cell & Plasma Membrane Diffusion', ncertPageRange: 'Pages 57-62', ragStatus: 'GROUNDED' },
+      { nodeId: 'c-2', title: '5.2 Nucleus, Chromosomes & DNA Structure', ncertPageRange: 'Pages 63-66', ragStatus: 'GROUNDED' },
+      { nodeId: 'c-3', title: '5.3 Cytoplasm, ER, Mitochondria & Golgi Apparatus', ncertPageRange: 'Pages 67-74', ragStatus: 'GROUNDED' },
+      { nodeId: 'c-4', title: '5.4 Plant vs Animal Cell 3D Comparison', ncertPageRange: 'Pages 75-78', ragStatus: 'GROUNDED' },
     ],
+  },
+];
+
+const INITIAL_SYLLABUS: SyllabusChapterRecord[] = RAW_INITIAL_SYLLABUS.map((item) => {
+  const norm = normalizeMilestonesJson(item.milestones, {
+    id: item.id,
+    title: item.title,
+    subject: item.subject,
+    chapterNumber: item.chapterNumber,
+    board: 'CBSE',
+    arModelName: item.arModelMapped,
+  });
+  return {
+    id: item.id,
+    fileName: item.fileName,
+    chapterNumber: item.chapterNumber,
+    title: item.title,
+    classGrade: item.classGrade,
+    subject: item.subject,
+    board: norm.board,
+    default3dModelId: norm.default3dModelId,
+    fileSizeBytes: item.fileSizeBytes,
+    uploadedAt: item.uploadedAt,
+    status: 'READY',
+    arModelMapped: item.arModelMapped,
+    generatedMilestones: norm.generatedMilestones,
+    revisionNotes: norm.revisionNotes,
+    practiceSheet: norm.practiceSheet,
+    relatedChapters: RAW_INITIAL_SYLLABUS.filter((other) => other.id !== item.id)
+      .slice(0, 2)
+      .map((other) => ({
+        id: other.id,
+        chapterNumber: other.chapterNumber,
+        title: other.title,
+        subject: other.subject,
+      })),
+  };
+});
+
+const INITIAL_SCHOOLS: SchoolTenantRecord[] = [
+  {
+    id: 'DVPS01',
+    schoolCode: 'DVPS01',
+    name: 'Doon Valley Public School',
+    board: 'CBSE',
+    principalName: 'Dr. R. K. Mahapatra',
+    academicSession: '2026-2027',
+  },
+  {
+    id: 'STJ01',
+    schoolCode: 'STJ01',
+    name: "St. Joseph's Academy, Dehradun",
+    board: 'ICSE',
+    principalName: 'Bro. Joseph Mathew',
+    academicSession: '2026-2027',
+  },
+];
+
+const INITIAL_PROGRESS_LIST: StudentRoadmapProgressSummary[] = [
+  {
+    id: 'SCH-2026-0104-syl-01',
+    schoolId: 'DVPS01',
+    studentId: 'SCH-2026-0104',
+    roadmapId: 'syl-01',
+    targetDeadline: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+    totalDays: 7,
+    skippedDaysCount: 0,
+    paceStatus: 'ON_TRACK',
+    completionPct: 50,
+    lastMasteredTopicTitle: 'Human Digestive Enzyme Pathway',
+    completedTodayCount: 2,
+    nodeStates: {
+      'm-1-b1': { status: 'done' },
+      'm-1-b2': { status: 'done' },
+      'm-2-b1': { status: 'done' },
+      'm-2-b2': { status: 'done' },
+      'm-3-b1': { status: 'learning' },
+    },
+    updatedAt: new Date().toISOString(),
   },
 ];
 
@@ -1821,20 +1917,22 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   schoolProfile: {
     name: 'Doon Valley Public School',
     code: 'DVPS01',
-    affiliationNumber: 'CBSE-2130842',
-    board: 'CBSE New Delhi',
+    affiliationNumber: '2130842',
+    board: 'CBSE',
     session: '2026-2027',
     address: 'Sector 4, R.K. Puram, Outer Ring Road',
-    city: 'New Delhi',
-    state: 'Delhi (NCR)',
-    principalName: 'Dr. Meenakshi Sundaram (M.Sc., Ph.D.)',
+    city: 'Dehradun',
+    state: 'Uttarakhand',
+    principalName: 'Dr. R. K. Mahapatra',
     accountantName: 'Sunil Aggarwal (Chief Bursar)',
     phone: '+91 11 2618 4021',
     email: 'admin@doonvalley.edu.in',
   },
+  availableSchools: INITIAL_SCHOOLS,
   students: INITIAL_STUDENTS,
   feeInstallments: INITIAL_INSTALLMENTS,
   syllabusVault: INITIAL_SYLLABUS,
+  studentProgressList: INITIAL_PROGRESS_LIST,
   examMarks: INITIAL_EXAM_MARKS,
   circulars: INITIAL_CIRCULARS,
   attendanceRegister: INITIAL_ATTENDANCE,
@@ -1844,6 +1942,21 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   themeMode: (typeof window !== 'undefined' && (localStorage.getItem('edzy_admin_theme') as 'light' | 'dark')) || 'light',
   syncError: null,
   setSyncError: (error) => set({ syncError: error }),
+
+  switchActiveSchool: (schoolId) => {
+    const found = get().availableSchools.find((s) => s.id === schoolId || s.schoolCode === schoolId);
+    if (!found) return;
+    set((state) => ({
+      schoolProfile: {
+        ...state.schoolProfile,
+        name: found.name,
+        code: found.schoolCode,
+        board: cleanBoardCode(found.board),
+        principalName: found.principalName,
+        session: found.academicSession,
+      },
+    }));
+  },
 
   initializeRealtimeSync: async () => {
     if (!isLiveSupabaseConfigured) {
@@ -1872,70 +1985,122 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         adminBroadcastChannel = null;
       }
 
+      const activeSchoolCode = get().schoolProfile.code || 'DVPS01';
+
       // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
-      adminBroadcastChannel = supabase.channel('edzy-live:DVPS01', {
+      adminBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolCode}`, {
         config: { broadcast: { self: false, ack: true } },
       });
 
-      const handleFeeBroadcast = (payload: any) => {
+      const handleAdminBroadcast = (payload: any) => {
         if (!payload) return;
         const action = payload.action || payload.type;
-        if (action !== 'FEE_UPDATED') return;
         const data = payload.data || payload;
-        const installmentId = data.installmentId || payload.installmentId;
-        const studentId = data.studentId || payload.studentId;
 
-        set((state) => {
-          const updated = state.feeInstallments.map((inst) =>
-            inst.id === installmentId ||
-            (inst.studentId === studentId && (inst.quarter.includes('Q4') || String(installmentId || '').toLowerCase().includes('q4')))
-              ? {
-                  ...inst,
-                  status: 'PAID' as PaymentStatus,
-                  paymentMethod: (data.paymentMode || payload.paymentMode as PaymentMethod) || 'ONLINE_UPI',
-                  paymentRef: data.referenceNote || payload.referenceNote || 'Instant UPI',
-                  receiptNumber: data.receiptNumber || payload.receiptNumber,
-                  paidDate: new Date().toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  }),
-                  clerkNote: data.referenceNote || payload.referenceNote || 'Paid via Instant UPI on Mobile App',
-                }
-              : inst
-          );
-          const updatedStudents = state.students.map((st) => {
-            if (st.id === studentId) {
-              const studentInsts = updated.filter((f) => f.studentId === st.id);
-              const totalPaid = studentInsts.filter((f) => f.status === 'PAID').reduce((sum, f) => sum + f.amount, 0);
-              const totalPending = studentInsts.filter((f) => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
-              return { ...st, totalPaid, totalPending };
-            }
-            return st;
+        if (action === 'FEE_UPDATED') {
+          const installmentId = data.installmentId || payload.installmentId;
+          const studentId = data.studentId || payload.studentId;
+
+          set((state) => {
+            const updated = state.feeInstallments.map((inst) =>
+              inst.id === installmentId ||
+              (inst.studentId === studentId && (inst.quarter.includes('Q4') || String(installmentId || '').toLowerCase().includes('q4')))
+                ? {
+                    ...inst,
+                    status: 'PAID' as PaymentStatus,
+                    paymentMethod: (data.paymentMode || payload.paymentMode as PaymentMethod) || 'ONLINE_UPI',
+                    paymentRef: data.referenceNote || payload.referenceNote || 'Instant UPI',
+                    receiptNumber: data.receiptNumber || payload.receiptNumber,
+                    paidDate: new Date().toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    }),
+                    clerkNote: data.referenceNote || payload.referenceNote || 'Paid via Instant UPI on Mobile App',
+                  }
+                : inst
+            );
+            const updatedStudents = state.students.map((st) => {
+              if (st.id === studentId) {
+                const studentInsts = updated.filter((f) => f.studentId === st.id);
+                const totalPaid = studentInsts.filter((f) => f.status === 'PAID').reduce((sum, f) => sum + f.amount, 0);
+                const totalPending = studentInsts.filter((f) => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
+                return { ...st, totalPaid, totalPending };
+              }
+              return st;
+            });
+            return { feeInstallments: updated, students: updatedStudents };
           });
-          return { feeInstallments: updated, students: updatedStudents };
-        });
+        } else if (action === 'ROADMAP_PROGRESS_UPDATED') {
+          const progressRecord: StudentRoadmapProgressSummary = {
+            id: data.id || `${data.studentId}-${data.roadmapId}`,
+            schoolId: data.schoolId || activeSchoolCode,
+            studentId: data.studentId,
+            roadmapId: data.roadmapId,
+            targetDeadline: data.targetDeadline || null,
+            totalDays: Number(data.totalDays || 7),
+            skippedDaysCount: Number(data.skippedDaysCount || 0),
+            paceStatus: data.paceStatus || 'ON_TRACK',
+            completionPct: Number(data.completionPct || 0),
+            lastMasteredTopicTitle: data.lastMasteredTopicTitle,
+            completedTodayCount: Number(data.completedTodayCount || 0),
+            nodeStates: data.nodeStates || {},
+            updatedAt: new Date().toISOString(),
+          };
+          set((state) => {
+            const exists = state.studentProgressList.some((p) => p.id === progressRecord.id);
+            return {
+              studentProgressList: exists
+                ? state.studentProgressList.map((p) => (p.id === progressRecord.id ? progressRecord : p))
+                : [progressRecord, ...state.studentProgressList],
+            };
+          });
+        }
       };
 
       adminBroadcastChannel
-        .on('broadcast', { event: 'EDZY_SYNC' }, ({ payload }) => handleFeeBroadcast(payload))
-        .on('broadcast', { event: 'edzy-event' }, ({ payload }) => handleFeeBroadcast(payload))
+        .on('broadcast', { event: 'EDZY_SYNC' }, ({ payload }) => handleAdminBroadcast(payload))
+        .on('broadcast', { event: 'edzy-event' }, ({ payload }) => handleAdminBroadcast(payload))
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[Edzy Cloud Web] Broadcast channel SUBSCRIBED to edzy-live:DVPS01');
+            console.log(`[Edzy Cloud Web] Broadcast channel SUBSCRIBED to edzy-live:${activeSchoolCode}`);
           }
         });
 
-      const [studentsRes, feeRes, marksRes, syllabusRes, circularsRes] = await Promise.all([
-        supabase.from('students').select('*').order('roll_no', { ascending: true }),
+      const [studentsRes, feeRes, marksRes, syllabusRes, circularsRes, schoolsRes, progressRes] = await Promise.all([
+        supabase.from('students').select('*').order('roll_number', { ascending: true }),
         supabase.from('fee_ledger').select('*').order('due_date', { ascending: true }),
         supabase.from('exam_marks').select('*'),
         supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
         supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
+        supabase.from('schools').select('*').then((r) => r, () => ({ data: null })),
+        supabase.from('student_roadmap_progress').select('*').then((r) => r, () => ({ data: null })),
       ]);
 
       const updates: Partial<AdminState> = {};
       let loadedStudents: StudentRecord[] = get().students;
+
+      if (schoolsRes.data && schoolsRes.data.length > 0) {
+        const mappedSchools: SchoolTenantRecord[] = schoolsRes.data.map((s: any) => ({
+          id: s.id,
+          schoolCode: s.school_code || s.id,
+          name: s.name,
+          board: cleanBoardCode(s.board),
+          principalName: s.principal_name || 'Principal',
+          academicSession: s.academic_session || '2026-2027',
+        }));
+        updates.availableSchools = mappedSchools;
+        const matchedActive = mappedSchools.find((s) => s.schoolCode === activeSchoolCode);
+        if (matchedActive) {
+          updates.schoolProfile = {
+            ...get().schoolProfile,
+            name: matchedActive.name,
+            board: matchedActive.board,
+            principalName: matchedActive.principalName,
+            session: matchedActive.academicSession,
+          };
+        }
+      }
 
       if (studentsRes.data && studentsRes.data.length > 0) {
         loadedStudents = studentsRes.data.map((row: any) => mapStudentRow(row));
@@ -1956,6 +2121,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
       if (circularsRes.data && circularsRes.data.length > 0) {
         updates.circulars = circularsRes.data.map((row: any) => mapCircularRow(row));
+      }
+
+      if (progressRes.data && progressRes.data.length > 0) {
+        updates.studentProgressList = progressRes.data.map((row: any) =>
+          mapStudentRoadmapProgressRow(row)
+        );
       }
 
       set({
@@ -2065,9 +2236,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             });
           }
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'student_roadmap_progress' },
+          (payload) => {
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped = mapStudentRoadmapProgressRow(row);
+              const exists = state.studentProgressList.some((p) => p.id === mapped.id);
+              return {
+                studentProgressList: exists
+                  ? state.studentProgressList.map((p) => (p.id === mapped.id ? mapped : p))
+                  : [mapped, ...state.studentProgressList],
+              };
+            });
+          }
+        )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[Edzy Cloud Web] Realtime SUBSCRIBED to all 5 school tables');
+            console.log('[Edzy Cloud Web] Realtime SUBSCRIBED to all school tables including roadmap progress');
           }
         });
 
@@ -2333,67 +2521,105 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   uploadSyllabusChapter: (payload) => {
+    const state = get();
     const todayStr = new Date().toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
 
+    const boardCode = cleanBoardCode(payload.board || state.schoolProfile.board);
+    const id = `syl-${Date.now()}`;
+    const defaultModel = getModelSpecByIdOrName(payload.default3dModelId || payload.arModelMapped);
+
+    const fallbackMilestones = [
+      {
+        nodeId: `n-${Date.now()}-1`,
+        title: `${payload.chapterNumber}.1 Core Principles & Definitions`,
+        ncertPageRange: `Module 1 • ${boardCode}`,
+        ragStatus: 'GROUNDED' as const,
+      },
+      {
+        nodeId: `n-${Date.now()}-2`,
+        title: `${payload.chapterNumber}.2 Mechanisms & Everyday Applications`,
+        ncertPageRange: `Module 2 • ${boardCode}`,
+        ragStatus: 'GROUNDED' as const,
+      },
+      {
+        nodeId: `n-${Date.now()}-3`,
+        title: `${payload.chapterNumber}.3 Problem Solving & ${boardCode} Drills`,
+        ncertPageRange: `Module 3 • ${boardCode}`,
+        ragStatus: 'GROUNDED' as const,
+      },
+    ];
+
+    const normalized = normalizeMilestonesJson(
+      payload.generatedMilestones && payload.generatedMilestones.length > 0
+        ? {
+            format: 'edzy-flowchart-v2',
+            board: boardCode,
+            default3dModelId: defaultModel.id,
+            milestones: payload.generatedMilestones,
+            revisionNotes: payload.revisionNotes,
+            practiceSheet: payload.practiceSheet,
+            relatedChapters: payload.relatedChapters,
+          }
+        : fallbackMilestones,
+      {
+        id,
+        title: payload.title,
+        subject: payload.subject,
+        chapterNumber: payload.chapterNumber,
+        board: boardCode,
+        arModelName: defaultModel.name,
+      }
+    );
+
+    const relatedRefs: RelatedChapterRef[] =
+      payload.relatedChapters && payload.relatedChapters.length > 0
+        ? payload.relatedChapters
+        : state.syllabusVault.slice(0, 2).map((ch) => ({
+            id: ch.id,
+            chapterNumber: ch.chapterNumber,
+            title: ch.title,
+            subject: ch.subject,
+          }));
+
     const newRecord: SyllabusChapterRecord = {
-      id: `syl-${Date.now()}`,
+      id,
       fileName: payload.fileName,
       chapterNumber: payload.chapterNumber,
       title: payload.title,
       classGrade: payload.classGrade,
       subject: payload.subject,
-      fileSizeBytes: '5.2 MB',
+      board: normalized.board,
+      default3dModelId: normalized.default3dModelId,
+      rawSyllabusText: payload.rawSyllabusText,
+      fileSizeBytes: payload.rawSyllabusText
+        ? `${Math.max(12, Math.round(payload.rawSyllabusText.length / 64))} KB`
+        : '5.2 MB',
       uploadedAt: todayStr,
       status: 'READY',
-      arModelMapped: payload.arModelMapped,
-      generatedMilestones: [
-        {
-          nodeId: `n-${Date.now()}-1`,
-          title: `${payload.chapterNumber}.1 Core Theoretical Concepts & Principles`,
-          ncertPageRange: 'Pages 01-08',
-          ragStatus: 'GROUNDED',
-        },
-        {
-          nodeId: `n-${Date.now()}-2`,
-          title: `${payload.chapterNumber}.2 Real-World Indian Everyday Applications`,
-          ncertPageRange: 'Pages 09-15',
-          ragStatus: 'GROUNDED',
-        },
-        {
-          nodeId: `n-${Date.now()}-3`,
-          title: `${payload.chapterNumber}.3 Step-by-Step Problem Solving & Derivations`,
-          ncertPageRange: 'Pages 16-22',
-          ragStatus: 'GROUNDED',
-        },
-        {
-          nodeId: `n-${Date.now()}-4`,
-          title: `${payload.chapterNumber}.4 3D Spatial Anatomy / Lab Simulation Drill`,
-          ncertPageRange: 'Pages 23-28',
-          ragStatus: 'GROUNDED',
-        },
-        {
-          nodeId: `n-${Date.now()}-5`,
-          title: `${payload.chapterNumber}.5 CBSE 5-Year Past Examination Board Questions`,
-          ncertPageRange: 'Pages 29-34',
-          ragStatus: 'GROUNDED',
-        },
-      ],
+      arModelMapped: (defaultModel.name as ARModelType) || payload.arModelMapped,
+      generatedMilestones: normalized.generatedMilestones,
+      revisionNotes: normalized.revisionNotes,
+      practiceSheet: normalized.practiceSheet,
+      relatedChapters: relatedRefs,
     };
 
-    set((state) => ({
-      syllabusVault: [newRecord, ...state.syllabusVault],
+    const milestonesJsonPayload = serializeStudyPackToMilestonesJson(newRecord);
+
+    set((curr) => ({
+      syllabusVault: [newRecord, ...curr.syllabusVault],
     }));
 
     if (isLiveSupabaseConfigured) {
+      const schoolId = state.schoolProfile.code || 'DVPS01';
       supabase
         .from('syllabus_roadmaps')
         .insert({
           id: newRecord.id,
-          school_id: 'DVPS01',
+          school_id: schoolId,
           chapter_number: newRecord.chapterNumber,
           chapter_title: newRecord.title,
           class_grade: newRecord.classGrade,
@@ -2401,7 +2627,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           pdf_filename: newRecord.fileName,
           file_size_label: newRecord.fileSizeBytes,
           ar_model_name: newRecord.arModelMapped,
-          milestones_json: newRecord.generatedMilestones,
+          milestones_json: milestonesJsonPayload,
         })
         .then(({ error }) => {
           if (error) {
@@ -2410,18 +2636,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           }
         });
 
+      const broadcastRecord = {
+        ...newRecord,
+        milestones_json: milestonesJsonPayload,
+      };
+
       if (adminBroadcastChannel) {
         adminBroadcastChannel.send({
           type: 'broadcast',
           event: 'EDZY_SYNC',
           payload: {
             action: 'SYLLABUS_ADDED',
-            schoolId: 'DVPS01',
+            schoolId,
             studentId: null,
-            data: newRecord,
+            data: broadcastRecord,
             ts: Date.now(),
             type: 'SYLLABUS_ADDED',
-            record: newRecord,
+            record: broadcastRecord,
           },
         });
         adminBroadcastChannel.send({
@@ -2429,13 +2660,88 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           event: 'edzy-event',
           payload: {
             type: 'SYLLABUS_ADDED',
-            record: newRecord,
+            record: broadcastRecord,
           },
         });
       }
     }
 
     return newRecord;
+  },
+
+  updateSyllabusChapter: (chapterId, updates) => {
+    const state = get();
+    const existing = state.syllabusVault.find((c) => c.id === chapterId);
+    if (!existing) return null;
+
+    const merged: SyllabusChapterRecord = {
+      ...existing,
+      ...updates,
+    };
+
+    const milestonesJsonPayload = serializeStudyPackToMilestonesJson(merged);
+
+    set((curr) => ({
+      syllabusVault: curr.syllabusVault.map((c) => (c.id === chapterId ? merged : c)),
+    }));
+
+    if (isLiveSupabaseConfigured) {
+      const schoolId = state.schoolProfile.code || 'DVPS01';
+      supabase
+        .from('syllabus_roadmaps')
+        .upsert(
+          {
+            id: merged.id,
+            school_id: schoolId,
+            chapter_number: merged.chapterNumber,
+            chapter_title: merged.title,
+            class_grade: merged.classGrade,
+            subject: merged.subject,
+            pdf_filename: merged.fileName,
+            file_size_label: merged.fileSizeBytes,
+            ar_model_name: merged.arModelMapped,
+            milestones_json: milestonesJsonPayload,
+          },
+          { onConflict: 'id' }
+        )
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] Syllabus upsert error:', error.code, error.message);
+            get().setSyncError(`Syllabus Studio Save Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      const broadcastRecord = {
+        ...merged,
+        milestones_json: milestonesJsonPayload,
+      };
+
+      if (adminBroadcastChannel) {
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'EDZY_SYNC',
+          payload: {
+            action: 'SYLLABUS_UPDATED',
+            schoolId,
+            studentId: null,
+            data: broadcastRecord,
+            ts: Date.now(),
+            type: 'SYLLABUS_UPDATED',
+            record: broadcastRecord,
+          },
+        });
+        adminBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'edzy-event',
+          payload: {
+            type: 'SYLLABUS_UPDATED',
+            record: broadcastRecord,
+          },
+        });
+      }
+    }
+
+    return merged;
   },
 
   updateStudentMark: (studentId, term, subject, marksObtained, remarks) => {

@@ -2,32 +2,61 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+:root {
+  --edzy-canvas: #F6F8FC;
+  --edzy-surface: #FFFFFF;
+  --edzy-subtle: #EEF2F7;
+  --edzy-border: #E2E8F0;
+  --edzy-ink: #0F172A;
+  --edzy-ink-secondary: #475569;
+  --edzy-brand: #4F46E5;
+  --edzy-brand-deep: #3730A3;
+  --edzy-brand-soft: #EEF2FF;
+  --edzy-brand-border: #C7D2FE;
+}
+
+.dark {
+  --edzy-canvas: #090D16;
+  --edzy-surface: #121826;
+  --edzy-subtle: #1A2336;
+  --edzy-border: #232E44;
+  --edzy-ink: #F8FAFC;
+  --edzy-ink-secondary: #94A3B8;
+  --edzy-brand: #6366F1;
+  --edzy-brand-deep: #3730A3;
+  --edzy-brand-soft: #1B2440;
+  --edzy-brand-border: #3730A3;
+}
+
 @layer base {
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: #F6F8FC;
+    color: #0F172A;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   }
   .dark body {
-    background-color: #030712;
-    color: #f9fafb;
+    background-color: #090D16;
+    color: #F8FAFC;
   }
 }
 
-/* Custom scrollbars for data tables */
+/* Custom scrollbars aligned with Edzy canvas */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--edzy-subtle);
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #CBD5E1;
   border-radius: 9999px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: #232E44;
+}
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #94A3B8;
 }
 
 @media print {

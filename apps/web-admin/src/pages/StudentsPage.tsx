@@ -20,7 +20,8 @@ import OfflineFeeModal from '../components/OfflineFeeModal';
 import CsvImportModal from '../components/CsvImportModal';
 
 export default function StudentsPage() {
-  const { students, feeInstallments } = useAdminStore();
+  const { students, feeInstallments, schoolProfile, studentProgressList } = useAdminStore();
+  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
 
@@ -58,12 +59,12 @@ export default function StudentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Student Directory & Credentials</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-              CBSE Roll Ledger
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-[#F8FAFC]">Student Directory & Credentials</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+              {schoolBoard} Roll Ledger
             </span>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-[#94A3B8] mt-0.5">
             Manage student records, access passes, at-home study telemetry, and parent credentials.
           </p>
         </div>
@@ -71,7 +72,7 @@ export default function StudentsPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setIsCsvModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#121826] hover:bg-[#F6F8FC] dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC] text-sm font-semibold rounded-lg border border-slate-300 dark:border-[#232E44] shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Import CSV</span>
@@ -79,7 +80,7 @@ export default function StudentsPage() {
 
           <button
             onClick={handlePrintAll}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#121826] hover:bg-[#F6F8FC] dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC] text-sm font-semibold rounded-lg border border-slate-300 dark:border-[#232E44] shadow-xs transition-colors"
           >
             <Printer className="w-4 h-4 text-slate-500" />
             <span>Batch Print Slips</span>
@@ -89,49 +90,49 @@ export default function StudentsPage() {
 
       {/* Metric Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3">
+        <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
             <GraduationCap className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">{students.length}</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Registered Students</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC]">{students.length}</div>
+            <div className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">Total Registered Students</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3">
+        <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-100 dark:border-cyan-800 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
             <span className="font-bold text-xs">10-A</span>
           </div>
           <div>
-            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">{class10Count} Active</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Class 10 Board Section</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC]">{class10Count} Active</div>
+            <div className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">Class 10 Board Section</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3">
+        <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-100 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400">
             <span className="font-bold text-xs">9-B</span>
           </div>
           <div>
-            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">{class9Count} Active</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Class 9 Foundation</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC]">{class9Count} Active</div>
+            <div className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">Class 9 Foundation</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3">
+        <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">{avgHours}h/wk</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Avg At-Home Study</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC]">{avgHours}h/wk</div>
+            <div className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium">Avg At-Home Study</div>
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -139,7 +140,7 @@ export default function StudentsPage() {
             placeholder="Search student, roll #, parent phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            className="w-full pl-9 pr-4 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-800 dark:text-[#F8FAFC] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
           />
         </div>
 
@@ -154,7 +155,7 @@ export default function StudentsPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 selectedClass === cls
                   ? 'bg-slate-900 dark:bg-indigo-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               {cls === 'ALL' ? 'All Classes' : cls}
@@ -164,11 +165,11 @@ export default function StudentsPage() {
       </div>
 
       {/* Student Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold uppercase tracking-wider">
+              <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-slate-600 dark:text-slate-300 text-xs font-semibold uppercase tracking-wider">
                 <th className="py-3 px-4">Roll #</th>
                 <th className="py-3 px-4">Student & ID</th>
                 <th className="py-3 px-4">Class</th>
@@ -178,7 +179,7 @@ export default function StudentsPage() {
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+            <tbody className="divide-y divide-slate-100 dark:divide-[#232E44] text-sm">
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
@@ -192,7 +193,7 @@ export default function StudentsPage() {
                   return (
                     <tr
                       key={s.id}
-                      className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
+                      className="hover:bg-[#F6F8FC] dark:hover:bg-slate-800/40 transition-colors"
                     >
                       {/* Roll Number */}
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">
@@ -203,7 +204,7 @@ export default function StudentsPage() {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
                           <div>
-                            <div className="font-semibold text-slate-900 dark:text-slate-100">
+                            <div className="font-semibold text-slate-900 dark:text-[#F8FAFC]">
                               {s.name}
                             </div>
                             <div className="font-mono text-xs text-slate-400">{s.id}</div>
@@ -213,15 +214,15 @@ export default function StudentsPage() {
 
                       {/* Class */}
                       <td className="py-3.5 px-4">
-                        <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-200 dark:border-slate-700">
+                        <span className="px-2 py-1 rounded bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-700 dark:text-slate-300 font-semibold text-xs border border-[#E2E8F0] dark:border-[#232E44]">
                           {s.classGrade}
                         </span>
                       </td>
 
                       {/* Parent Details */}
                       <td className="py-3.5 px-4">
-                        <div className="text-slate-800 dark:text-slate-200 font-medium text-xs">{s.parentName}</div>
-                        <div className="text-slate-500 dark:text-slate-400 font-mono text-[11px] flex items-center gap-1 mt-0.5">
+                        <div className="text-slate-800 dark:text-[#F8FAFC] font-medium text-xs">{s.parentName}</div>
+                        <div className="text-slate-500 dark:text-[#94A3B8] font-mono text-[11px] flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-slate-400" />
                           {s.parentPhone}
                         </div>
@@ -248,18 +249,50 @@ export default function StudentsPage() {
                         )}
                       </td>
 
-                      {/* Study & Streak */}
+                      {/* Study, Live Roadmap Mastery & Streak */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 text-xs font-medium">
-                            <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                            <span>{s.atHomeHoursThisWeek}h</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium">
-                            <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                            <span>{s.streakDays}d streak</span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const progs = studentProgressList.filter((p) => p.studentId === s.id);
+                          const primary = progs[0];
+                          const masteryPct = primary
+                            ? primary.completionPct
+                            : Math.min(95, Math.max(25, Math.round((s.atHomeHoursThisWeek / 8) * 100)));
+                          const paceLabel =
+                            primary?.paceStatus === 'AUTO_ADJUSTED'
+                              ? 'Auto-Adjusted'
+                              : primary?.paceStatus === 'HIGH_PACE'
+                              ? 'High Pace'
+                              : primary?.paceStatus === 'COMPLETED'
+                              ? 'Completed'
+                              : 'On Track';
+                          const paceStyle =
+                            primary?.paceStatus === 'AUTO_ADJUSTED' || primary?.paceStatus === 'HIGH_PACE'
+                              ? 'bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)] text-[#D97706] dark:text-[#FBBF24] border-amber-200 dark:border-amber-500/30'
+                              : 'bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] border-emerald-200 dark:border-emerald-800/40';
+
+                          return (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1 text-[#0F172A] dark:text-[#F8FAFC] text-xs font-medium">
+                                  <Clock className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#6366F1]" />
+                                  <span>{s.atHomeHoursThisWeek}h</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-[#D97706] dark:text-[#FBBF24] text-xs font-medium">
+                                  <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                                  <span>{s.streakDays}d</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                                  {masteryPct}% Mastery
+                                </span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${paceStyle}`}>
+                                  {paceLabel}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Actions */}

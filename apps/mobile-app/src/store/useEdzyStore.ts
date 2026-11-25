@@ -1,5 +1,34 @@
 import { create } from 'zustand';
 import { supabase, isLiveSupabaseConfigured } from '../lib/supabase';
+import {
+  FlowchartBranchNode,
+  FlowchartSpineMilestone,
+  PracticeSheetData,
+  RelatedChapterRef,
+  RevisionNoteItem,
+  cleanBoardCode,
+  normalizeMobileMilestonesJson,
+} from '../lib/roadmapModels';
+import {
+  NodeProgressEntry,
+  NodeStudyStatus,
+  StudentRoadmapProgress,
+  buildSchedulePlan,
+  calculateCompletionStats,
+  extractTrackableNodes,
+  getLocalDateString,
+  reconcileAndRecoverProgress,
+} from '../lib/adaptiveScheduler';
+
+export type {
+  FlowchartBranchNode,
+  FlowchartSpineMilestone,
+  PracticeSheetData,
+  RelatedChapterRef,
+  RevisionNoteItem,
+  NodeStudyStatus,
+  StudentRoadmapProgress,
+};
 
 export type UserMode = 'STUDENT' | 'PARENT';
 
@@ -7,12 +36,16 @@ export type MilestoneStatus = 'LOCKED' | 'IN_PROGRESS' | 'COMPLETED';
 
 export interface RoadmapMilestone {
   id: string;
+  nodeId?: string;
   title: string;
   description: string;
+  pageRange?: string;
+  examTip?: string;
   status: MilestoneStatus;
   arModelId?: string;
   targetNode?: string;
   durationMinutes: number;
+  branches?: FlowchartBranchNode[];
 }
 
 export interface SyllabusRoadmap {
@@ -21,11 +54,15 @@ export interface SyllabusRoadmap {
   subject: string;
   title: string;
   board: string;
+  default3dModelId?: string;
   totalSubtopics: number;
   completedSubtopics: number;
   progressPercent: number;
   isCurrent: boolean;
   milestones: RoadmapMilestone[];
+  revisionNotes: RevisionNoteItem[];
+  practiceSheet: PracticeSheetData;
+  relatedChapters: RelatedChapterRef[];
 }
 
 export interface ARDirective {
@@ -94,6 +131,7 @@ export interface StudentProfile {
   rollNo: string;
   schoolName: string;
   schoolCode: string;
+  schoolBoard?: string;
   parentName: string;
   parentPin: string;
   weeklyStudyHours: number;
@@ -132,6 +170,7 @@ interface EdzyState {
 
   // Study & Syllabi
   roadmaps: SyllabusRoadmap[];
+  studentRoadmapProgress: Record<string, StudentRoadmapProgress>;
   activeArDirective: ARDirective;
   chatMessages: ChatMessage[];
 
@@ -159,7 +198,19 @@ interface EdzyState {
   setActiveMode: (mode: UserMode) => void;
   updateArDirective: (partial: Partial<ARDirective>) => void;
   markMilestoneStatus: (roadmapId: string, milestoneId: string, status: MilestoneStatus) => void;
-  sendSocraticPrompt: (question: string) => void;
+  updateFlowchartNodeStatus: (roadmapId: string, nodeId: string, status: NodeStudyStatus, nodeTitle?: string) => void;
+  updateRoadmapGoalSchedule: (
+    roadmapId: string,
+    targetDays: number,
+    dailyPaceMinutes: 30 | 45 | 60,
+    options?: { focusMustKnowOnly?: boolean }
+  ) => void;
+  reconcileRoadmapSchedule: (roadmapId: string, simulateSkippedDay?: boolean) => boolean;
+  applyRoadmapGuardrail: (roadmapId: string, action: 'FOCUS_MUST_KNOW' | 'EXTEND_2_DAYS') => void;
+  sendSocraticPrompt: (
+    question: string,
+    context?: { chapterTitle?: string; subject?: string; board?: string }
+  ) => void;
   payFeeInstallment: (installmentId: string, pin: string) => { success: boolean; message: string; receiptNo?: string };
   incrementStudyHour: (hours: number) => void;
   setTimeLimitMinutes: (minutes: number) => void;
@@ -171,7 +222,7 @@ interface EdzyState {
 const INITIAL_CIRCULARS: SchoolCircular[] = [
   {
     id: 'circ-1',
-    title: 'CBSE Class 10 Pre-Board Examination Schedule',
+    title: 'Class 10 Pre-Board Examination Schedule',
     date: '24 Nov 2026',
     category: 'EXAM',
     targetClass: 'Class 10-A',
@@ -200,130 +251,231 @@ const INITIAL_CIRCULARS: SchoolCircular[] = [
   },
 ];
 
+function buildSeedRoadmap(params: {
+  id: string;
+  chapterNumber: number;
+  subject: string;
+  title: string;
+  arModelName: string;
+  isCurrent: boolean;
+  milestones: any[];
+  related: RelatedChapterRef[];
+}): SyllabusRoadmap {
+  const norm = normalizeMobileMilestonesJson(
+    { format: 'edzy-flowchart-v2', board: 'CBSE', milestones: params.milestones, relatedChapters: params.related },
+    {
+      id: params.id,
+      title: params.title,
+      subject: params.subject,
+      chapterNumber: params.chapterNumber,
+      board: 'CBSE',
+      arModelName: params.arModelName,
+    }
+  );
+  const trackable = extractTrackableNodes(norm.milestones);
+  return {
+    id: params.id,
+    chapterNumber: params.chapterNumber,
+    subject: params.subject,
+    title: params.title,
+    board: norm.board,
+    default3dModelId: norm.default3dModelId,
+    totalSubtopics: trackable.length || norm.milestones.length,
+    completedSubtopics: Math.floor((trackable.length || norm.milestones.length) / 2),
+    progressPercent: 50,
+    isCurrent: params.isCurrent,
+    milestones: norm.milestones.map((m, idx) => ({
+      ...m,
+      id: m.nodeId,
+      description: m.pageRange || m.description || `Module ${idx + 1}`,
+      status: (idx === 0 ? 'COMPLETED' : idx === 1 ? 'IN_PROGRESS' : 'LOCKED') as MilestoneStatus,
+    })),
+    revisionNotes: norm.revisionNotes,
+    practiceSheet: norm.practiceSheet,
+    relatedChapters: norm.relatedChapters,
+  };
+}
+
 const INITIAL_ROADMAPS: SyllabusRoadmap[] = [
-  {
-    id: 'bio-ch6',
+  buildSeedRoadmap({
+    id: 'syl-01',
     chapterNumber: 6,
     subject: 'Biology (Science)',
     title: 'Life Processes & Human Circulatory System',
-    board: 'CBSE Class 10 NCERT',
-    totalSubtopics: 4,
-    completedSubtopics: 3,
-    progressPercent: 75,
+    arModelName: 'Human Heart 3D',
     isCurrent: true,
+    related: [
+      { id: 'syl-02', chapterNumber: 10, title: 'Light: Reflection & Refraction', subject: 'Physics (Science)' },
+      { id: 'syl-03', chapterNumber: 4, title: 'Quadratic Equations', subject: 'Mathematics' },
+    ],
     milestones: [
       {
-        id: 'bio-node-1',
-        title: '6.1 Autotrophic Nutrition & Stomata Gas Exchange',
-        description: 'Chlorophyll activation, light-dependent reactions, and guard cell turgidity.',
-        status: 'COMPLETED',
-        durationMinutes: 25,
+        nodeId: 'm-1',
+        title: '6.1 Nutrition & Stomata Exchange',
+        pageRange: 'Pages 93-98',
+        examTip: 'Draw balanced photosynthesis equation and guard cells clearly.',
+        branches: [
+          { id: 'm-1-b1', title: 'Chlorophyll & Photolysis', side: 'left', groupBox: 'Autotrophic Mechanics', priority: 'MUST_KNOW', durationMinutes: 15, arModelId: 'plant-animal-cell-3d', targetNode: 'Chloroplast' },
+          { id: 'm-1-b2', title: 'Stomatal Pore Gas Exchange', side: 'right', groupBox: 'Leaf Transport', priority: 'PRACTICE', durationMinutes: 10 },
+        ],
       },
       {
-        id: 'bio-node-2',
-        title: '6.2 Human Digestive System: Enzymes & Villi',
-        description: 'Pepsin, trypsin, bile salts, and microvillar absorption mechanism.',
-        status: 'COMPLETED',
-        durationMinutes: 30,
+        nodeId: 'm-2',
+        title: '6.2 Human Digestive Tract & Enzymes',
+        pageRange: 'Pages 99-105',
+        examTip: 'Compare Pepsin (acidic pH in stomach) vs Trypsin (alkaline pH).',
+        branches: [
+          { id: 'm-2-b1', title: 'Bile Emulsification & Lipase', side: 'left', groupBox: 'Enzyme Pathway', priority: 'MUST_KNOW', durationMinutes: 15 },
+          { id: 'm-2-b2', title: 'Intestinal Villi Absorption', side: 'right', groupBox: 'Absorption', priority: 'PRACTICE', durationMinutes: 15 },
+        ],
       },
       {
-        id: 'bio-node-3',
-        title: '6.3 Human Heart: Chambers, Double Circulation & Aorta',
-        description: 'Systemic vs pulmonary circulation, bicuspid valves, and deoxygenated venous return.',
-        status: 'IN_PROGRESS',
+        nodeId: 'm-3',
+        title: '6.3 Human Heart & Double Circulation',
+        pageRange: 'Pages 106-110',
+        examTip: 'Left Ventricle wall is 3x thicker than Right Ventricle to sustain 120 mmHg.',
         arModelId: 'human-heart-3d',
         targetNode: 'Aorta',
-        durationMinutes: 45,
+        branches: [
+          { id: 'm-3-b1', title: 'Four Chambers & Bicuspid Valves', side: 'left', groupBox: 'Cardiac Chambers', priority: 'MUST_KNOW', durationMinutes: 25, arModelId: 'human-heart-3d', targetNode: 'Bicuspid Valve' },
+          { id: 'm-3-b2', title: 'Aorta & Pulmonary Vein Exception', side: 'right', groupBox: 'Circulation Loops', priority: 'MUST_KNOW', durationMinutes: 20, arModelId: 'human-heart-3d', targetNode: 'Aorta' },
+        ],
       },
       {
-        id: 'bio-node-4',
-        title: '6.4 Excretion: Nephron Filtration & Bowman Capsule',
-        description: 'Ultrafiltration, selective reabsorption of glucose, and urine concentration.',
-        status: 'LOCKED',
-        arModelId: 'nephron-3d',
-        targetNode: 'Bowman Capsule',
-        durationMinutes: 35,
+        nodeId: 'm-4',
+        title: '6.4 Excretion & Nephron Filtration',
+        pageRange: 'Pages 111-115',
+        examTip: 'Contrast ultrafiltration in Bowman capsule vs selective reabsorption.',
+        branches: [
+          { id: 'm-4-b1', title: 'Glomerulus & Bowman Capsule', side: 'left', groupBox: 'Nephron Unit', priority: 'MUST_KNOW', durationMinutes: 15 },
+          { id: 'm-4-b2', title: 'Glucose & Osmoregulation', side: 'right', groupBox: 'Tubular Control', priority: 'OPTIONAL', durationMinutes: 15 },
+        ],
       },
     ],
-  },
-  {
-    id: 'phy-ch10',
+  }),
+  buildSeedRoadmap({
+    id: 'syl-02',
     chapterNumber: 10,
     subject: 'Physics (Science)',
     title: 'Light: Reflection & Refraction',
-    board: 'CBSE Class 10 NCERT',
-    totalSubtopics: 4,
-    completedSubtopics: 2,
-    progressPercent: 50,
+    arModelName: 'Optics Ray Bench 3D',
     isCurrent: false,
+    related: [
+      { id: 'syl-01', chapterNumber: 6, title: 'Life Processes & Cardiac Anatomy', subject: 'Biology (Science)' },
+      { id: 'syl-03', chapterNumber: 4, title: 'Quadratic Equations', subject: 'Mathematics' },
+    ],
     milestones: [
       {
-        id: 'phy-node-1',
-        title: '10.1 Spherical Mirrors: Concave & Convex Focal Lengths',
-        description: 'Ray tracing conventions, pole, radius of curvature, and principal axis.',
-        status: 'COMPLETED',
-        durationMinutes: 30,
+        nodeId: 'p-1',
+        title: '10.1 Spherical Mirrors & Sign Rules',
+        pageRange: 'Pages 160-168',
+        examTip: 'Concave mirror focal length f is always negative.',
+        branches: [
+          { id: 'p-1-b1', title: 'Concave Mirror 6 Ray Cases', side: 'left', groupBox: 'Mirror Ray Rules', priority: 'MUST_KNOW', durationMinutes: 20, arModelId: 'optics-ray-bench-3d', targetNode: 'Concave Mirror Focus' },
+          { id: 'p-1-b2', title: 'Cartesian Sign Convention', side: 'right', groupBox: 'Sign Rules', priority: 'MUST_KNOW', durationMinutes: 15 },
+        ],
       },
       {
-        id: 'phy-node-2',
-        title: '10.2 Mirror Formula & Magnification Ratio',
-        description: 'Sign conventions (Cartesian), 1/f = 1/v + 1/u, and linear magnification.',
-        status: 'COMPLETED',
-        durationMinutes: 40,
+        nodeId: 'p-2',
+        title: '10.2 Mirror Formula & Snell Law',
+        pageRange: 'Pages 169-180',
+        examTip: 'Magnification m negative implies real and inverted image.',
+        branches: [
+          { id: 'p-2-b1', title: '1/f = 1/v + 1/u Numericals', side: 'left', groupBox: 'Mirror Formula', priority: 'MUST_KNOW', durationMinutes: 20 },
+          { id: 'p-2-b2', title: 'Snell Law & Refractive Index', side: 'right', groupBox: 'Refraction Laws', priority: 'PRACTICE', durationMinutes: 15 },
+        ],
       },
       {
-        id: 'phy-node-3',
-        title: "10.3 Snell's Law & Refractive Index (Air-Glass Boundary)",
-        description: 'Light speed variance in optical media, lateral displacement, and critical angle.',
-        status: 'IN_PROGRESS',
-        arModelId: 'optics-bench-3d',
-        targetNode: 'Glass Slab Ray',
-        durationMinutes: 35,
-      },
-      {
-        id: 'phy-node-4',
-        title: '10.4 Convex Lens Ray Tracing & Power of Lens',
-        description: 'Real vs virtual inverted images and Dioptre focal calculation.',
-        status: 'LOCKED',
-        durationMinutes: 30,
+        nodeId: 'p-3',
+        title: '10.3 Thin Lenses & Power (Dioptre)',
+        pageRange: 'Pages 181-191',
+        examTip: 'Convert focal length into meters before P = 1/f.',
+        branches: [
+          { id: 'p-3-b1', title: 'Convex vs Concave Lens Diagrams', side: 'left', groupBox: 'Thin Lenses', priority: 'MUST_KNOW', durationMinutes: 20, arModelId: 'optics-ray-bench-3d', targetNode: 'Optical Axis' },
+          { id: 'p-3-b2', title: 'Lens Power Combinations', side: 'right', groupBox: 'Optics Drills', priority: 'PRACTICE', durationMinutes: 15 },
+        ],
       },
     ],
-  },
-  {
-    id: 'math-ch4',
+  }),
+  buildSeedRoadmap({
+    id: 'syl-03',
     chapterNumber: 4,
     subject: 'Mathematics',
     title: 'Quadratic Equations & Discriminant Analysis',
-    board: 'CBSE Class 10 NCERT',
-    totalSubtopics: 3,
-    completedSubtopics: 1,
-    progressPercent: 33,
+    arModelName: 'Quadratic Graph 3D',
     isCurrent: false,
+    related: [
+      { id: 'syl-01', chapterNumber: 6, title: 'Life Processes & Cardiac Anatomy', subject: 'Biology (Science)' },
+      { id: 'syl-02', chapterNumber: 10, title: 'Light: Reflection & Refraction', subject: 'Physics (Science)' },
+    ],
     milestones: [
       {
-        id: 'math-node-1',
-        title: '4.1 Standard Form: ax² + bx + c = 0 & Factorisation',
-        description: 'Splitting the middle term method and geometry of parabolas.',
-        status: 'COMPLETED',
-        durationMinutes: 40,
+        nodeId: 'q-1',
+        title: '4.1 Standard Form & Factorisation',
+        pageRange: 'Pages 70-76',
+        examTip: 'Always verify leading coefficient a != 0 first.',
+        branches: [
+          { id: 'q-1-b1', title: 'ax^2 + bx + c = 0 Standard Form', side: 'left', groupBox: 'Identification', priority: 'MUST_KNOW', durationMinutes: 15 },
+          { id: 'q-1-b2', title: 'Middle-Term Splitting Drills', side: 'right', groupBox: 'Factorisation', priority: 'MUST_KNOW', durationMinutes: 15 },
+        ],
       },
       {
-        id: 'math-node-2',
-        title: '4.2 Quadratic Formula (Shreedharacharya Rule)',
-        description: 'Derivation by completing the square and algebraic proofs.',
-        status: 'IN_PROGRESS',
-        durationMinutes: 45,
+        nodeId: 'q-2',
+        title: '4.2 Quadratic Formula & Discriminant',
+        pageRange: 'Pages 77-91',
+        examTip: 'For equal roots problems, set D = b^2 - 4ac = 0.',
+        branches: [
+          { id: 'q-2-b1', title: 'Shreedharacharya Formula Derivation', side: 'left', groupBox: 'Formula Method', priority: 'MUST_KNOW', durationMinutes: 20, arModelId: 'quadratic-graph-3d', targetNode: 'Roots Intercept' },
+          { id: 'q-2-b2', title: 'D > 0, D = 0, D < 0 Cases', side: 'right', groupBox: 'Nature of Roots', priority: 'MUST_KNOW', durationMinutes: 15 },
+        ],
       },
       {
-        id: 'math-node-3',
-        title: '4.3 Nature of Roots (Discriminant D = b² - 4ac)',
-        description: 'Real, equal, distinct, or imaginary roots with word problems.',
-        status: 'LOCKED',
-        durationMinutes: 35,
+        nodeId: 'q-3',
+        title: '4.3 Speed-Time & Area Word Problems',
+        pageRange: 'Pages 92-97',
+        examTip: 'Reject negative speeds and negative lengths explicitly.',
+        branches: [
+          { id: 'q-3-b1', title: 'Boat Upstream & Downstream', side: 'left', groupBox: 'Motion Word Problems', priority: 'MUST_KNOW', durationMinutes: 20 },
+          { id: 'q-3-b2', title: 'Rectangular Plot Areas', side: 'right', groupBox: 'Geometry Models', priority: 'PRACTICE', durationMinutes: 15 },
+        ],
       },
     ],
-  },
+  }),
 ];
+
+const INITIAL_PROGRESS_MAP: Record<string, StudentRoadmapProgress> = (() => {
+  const firstRoadmap = INITIAL_ROADMAPS[0];
+  const initialPlan = buildSchedulePlan({
+    roadmapId: firstRoadmap.id,
+    studentId: 'SCH-2026-0104',
+    schoolId: 'DVPS01',
+    milestones: firstRoadmap.milestones.map((m) => ({
+      ...m,
+      nodeId: m.nodeId || m.id,
+      branches: m.branches || [],
+    })),
+    targetDays: 7,
+    dailyPaceMinutes: 45,
+    focusLimitMinutes: 45,
+  });
+
+  // Mark initial 4 topics done & 1 learning for Day 2 of 7 realistic state
+  const todayStr = getLocalDateString(0);
+  const yesterdayStr = getLocalDateString(-1);
+  initialPlan.nodeStates['m-1-b1'] = { status: 'done', scheduledDate: yesterdayStr, completedAt: `${todayStr}T09:00:00Z` };
+  initialPlan.nodeStates['m-1-b2'] = { status: 'done', scheduledDate: yesterdayStr, completedAt: `${todayStr}T09:20:00Z` };
+  initialPlan.nodeStates['m-2-b1'] = { status: 'done', scheduledDate: todayStr, completedAt: `${todayStr}T10:15:00Z` };
+  initialPlan.nodeStates['m-2-b2'] = { status: 'done', scheduledDate: todayStr, completedAt: `${todayStr}T10:40:00Z` };
+  initialPlan.nodeStates['m-3-b1'] = { status: 'learning', scheduledDate: todayStr };
+  initialPlan.nodeStates['m-3-b2'] = { status: 'not_started', scheduledDate: todayStr };
+  initialPlan.lastMasteredTopicTitle = 'Intestinal Villi Absorption';
+  initialPlan.completionPct = 50;
+  initialPlan.completedTodayCount = 2;
+
+  return {
+    [firstRoadmap.id]: initialPlan,
+  };
+})();
 
 const INITIAL_DIRECTIVE: ARDirective = {
   modelName: 'Human Heart (3D Spatial Lab)',
@@ -708,31 +860,150 @@ export function mapMobileExamRow(row: any): ExamTermRecord {
   return consolidateMobileExamRows([row])[0];
 }
 
-export function mapMobileRoadmapRow(row: any): SyllabusRoadmap {
-  const milestones = Array.isArray(row.milestones_json)
-    ? row.milestones_json.map((ms: any, idx: number) => ({
-        id: ms.nodeId || ms.id || `m-${idx}`,
-        title: ms.title || 'Topic',
-        description: ms.ncertPageRange || ms.description || 'NCERT Textbook',
-        status: (idx === 0 ? 'COMPLETED' : idx === 1 ? 'IN_PROGRESS' : 'LOCKED') as MilestoneStatus,
-        arModelId: row.ar_model_mapped && row.ar_model_mapped !== 'None' ? 'human-heart-3d' : undefined,
-        targetNode: row.ar_model_mapped && row.ar_model_mapped !== 'None' ? 'Aorta' : undefined,
-        durationMinutes: 45,
-      }))
-    : [];
+export function mapMobileRoadmapRow(
+  row: any,
+  progressMap?: Record<string, StudentRoadmapProgress>
+): SyllabusRoadmap {
+  const id = row.id || `syl-${Date.now()}`;
+  const title = row.title || row.chapter_title || '';
+  const subject = row.subject || 'Science';
+  const chapterNumber = Number(row.chapter_number || 1);
+  const rawArName = row.ar_model_mapped || row.ar_model_name || 'None';
+
+  const norm = normalizeMobileMilestonesJson(row.milestones_json || row.generatedMilestones, {
+    id,
+    title,
+    subject,
+    chapterNumber,
+    board: row.board || 'CBSE',
+    arModelName: rawArName,
+  });
+
+  const trackable = extractTrackableNodes(norm.milestones);
+  const prog = progressMap?.[id];
+  let completedCount = Number(row.progress_percent || 0) > 50 ? Math.ceil(trackable.length / 2) : 0;
+  let progressPercent = Number(row.progress_percent || 0);
+
+  if (prog) {
+    const stats = calculateCompletionStats(trackable, prog.nodeStates);
+    completedCount = stats.completedCount;
+    progressPercent = stats.completionPct;
+  }
 
   return {
-    id: row.id,
-    chapterNumber: Number(row.chapter_number || 1),
-    subject: row.subject || 'Science',
-    title: row.title || row.chapter_title || '',
-    board: 'CBSE Class 10 NCERT',
-    totalSubtopics: milestones.length > 0 ? milestones.length : 5,
-    completedSubtopics: Number(row.progress_percent || 0) > 50 ? 3 : 1,
-    progressPercent: Number(row.progress_percent || 0),
-    isCurrent: Boolean(row.is_current),
-    milestones,
+    id,
+    chapterNumber,
+    subject,
+    title,
+    board: norm.board,
+    default3dModelId: norm.default3dModelId,
+    totalSubtopics: trackable.length || norm.milestones.length || 4,
+    completedSubtopics: completedCount,
+    progressPercent,
+    isCurrent: Boolean(row.is_current || id === 'syl-01' || id === 'bio-ch6'),
+    milestones: norm.milestones.map((m, idx) => ({
+      ...m,
+      id: m.nodeId,
+      description: m.pageRange || m.description || `${norm.board} Module ${idx + 1}`,
+      status: (idx === 0 ? 'COMPLETED' : idx === 1 ? 'IN_PROGRESS' : 'LOCKED') as MilestoneStatus,
+    })),
+    revisionNotes: norm.revisionNotes,
+    practiceSheet: norm.practiceSheet,
+    relatedChapters: norm.relatedChapters,
   };
+}
+
+export function mapMobileProgressRow(row: any): StudentRoadmapProgress {
+  const nodeStates = (row.node_states_json && typeof row.node_states_json === 'object'
+    ? row.node_states_json
+    : {}) as Record<string, NodeProgressEntry>;
+  const entries = Object.values(nodeStates);
+  const todayStr = getLocalDateString(0);
+  const completedTodayCount = entries.filter(
+    (e) => e.status === 'done' && (e.completedAt?.startsWith(todayStr) || e.scheduledDate === todayStr)
+  ).length;
+
+  return {
+    id: row.id || `${row.student_id}-${row.roadmap_id}`,
+    schoolId: row.school_id || 'DVPS01',
+    studentId: row.student_id,
+    roadmapId: row.roadmap_id,
+    targetDeadline: row.target_deadline || getLocalDateString(6),
+    totalDays: Number(row.total_days || 7),
+    dailyPaceMinutes: 45,
+    skippedDaysCount: Number(row.skipped_days_count || 0),
+    paceStatus: (row.pace_status || 'ON_TRACK') as any,
+    completionPct: Number(row.completion_pct || 0),
+    completedTodayCount,
+    nodeStates,
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+function persistAndBroadcastRoadmapProgress(progress: StudentRoadmapProgress) {
+  if (!isLiveSupabaseConfigured) return;
+
+  supabase
+    .from('student_roadmap_progress')
+    .upsert(
+      {
+        id: progress.id,
+        school_id: progress.schoolId || 'DVPS01',
+        student_id: progress.studentId,
+        roadmap_id: progress.roadmapId,
+        target_deadline: progress.targetDeadline,
+        total_days: progress.totalDays,
+        skipped_days_count: progress.skippedDaysCount,
+        node_states_json: progress.nodeStates,
+        pace_status: progress.paceStatus,
+        completion_pct: progress.completionPct,
+        updated_at: progress.updatedAt,
+      },
+      { onConflict: 'id' }
+    )
+    .then(({ error }) => {
+      if (error) {
+        console.warn('[Edzy Cloud Mobile] roadmap progress sync note:', error.code, error.message);
+      }
+    });
+
+  if (mobileBroadcastChannel) {
+    const syncData = {
+      id: progress.id,
+      schoolId: progress.schoolId || 'DVPS01',
+      studentId: progress.studentId,
+      roadmapId: progress.roadmapId,
+      targetDeadline: progress.targetDeadline,
+      totalDays: progress.totalDays,
+      skippedDaysCount: progress.skippedDaysCount,
+      paceStatus: progress.paceStatus,
+      completionPct: progress.completionPct,
+      lastMasteredTopicTitle: progress.lastMasteredTopicTitle,
+      completedTodayCount: progress.completedTodayCount,
+      nodeStates: progress.nodeStates,
+    };
+
+    mobileBroadcastChannel.send({
+      type: 'broadcast',
+      event: 'EDZY_SYNC',
+      payload: {
+        action: 'ROADMAP_PROGRESS_UPDATED',
+        schoolId: progress.schoolId || 'DVPS01',
+        studentId: progress.studentId,
+        data: syncData,
+        ts: Date.now(),
+        type: 'ROADMAP_PROGRESS_UPDATED',
+      },
+    });
+    mobileBroadcastChannel.send({
+      type: 'broadcast',
+      event: 'edzy-event',
+      payload: {
+        type: 'ROADMAP_PROGRESS_UPDATED',
+        ...syncData,
+      },
+    });
+  }
 }
 
 export function mapMobileCircularRow(row: any): SchoolCircular {
@@ -787,6 +1058,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     rollNo: '24',
     schoolName: 'Doon Valley Public School',
     schoolCode: 'DVPS01',
+    schoolBoard: 'CBSE',
     parentName: 'Rajesh Sharma',
     parentPin: '1234',
     weeklyStudyHours: 6.5,
@@ -794,6 +1066,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     attendancePct: 96.8,
   },
   roadmaps: INITIAL_ROADMAPS,
+  studentRoadmapProgress: INITIAL_PROGRESS_MAP,
   activeArDirective: INITIAL_DIRECTIVE,
   chatMessages: INITIAL_MESSAGES,
   feeInstallments: INITIAL_FEES,
@@ -827,31 +1100,57 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         mobileRealtimeChannel = null;
       }
 
-      const [studentRes, feeRes, marksRes, syllabusRes, circRes] = await Promise.all([
+      const [studentRes, feeRes, marksRes, syllabusRes, circRes, progressRes] = await Promise.all([
         supabase.from('students').select('*').eq('id', targetId).maybeSingle(),
         supabase.from('fee_ledger').select('*').eq('student_id', targetId).order('due_date', { ascending: true }),
         supabase.from('exam_marks').select('*').eq('student_id', targetId),
         supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
         supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
+        supabase.from('student_roadmap_progress').select('*').eq('student_id', targetId).then((r) => r, () => ({ data: null })),
       ]);
 
       const updates: Partial<EdzyState> = {};
 
+      let activeSchoolCode = get().studentProfile.schoolCode || 'DVPS01';
       if (studentRes.data) {
         const s = studentRes.data;
+        activeSchoolCode = s.school_code || s.school_id || activeSchoolCode;
+        const { data: schoolData } = await supabase
+          .from('schools')
+          .select('*')
+          .eq('school_code', activeSchoolCode)
+          .maybeSingle()
+          .then((r) => r, () => ({ data: null }));
+
         updates.studentProfile = {
           ...get().studentProfile,
           id: s.id,
           name: s.name || s.full_name || get().studentProfile.name,
           rollNo: String(s.roll_no || s.roll_number || get().studentProfile.rollNo).padStart(2, '0'),
           classGrade: s.class_grade || get().studentProfile.classGrade,
-          schoolName: 'Doon Valley Public School',
-          schoolCode: s.school_code || 'DVPS01',
+          schoolName: schoolData?.name || get().studentProfile.schoolName || 'Doon Valley Public School',
+          schoolCode: activeSchoolCode,
+          schoolBoard: cleanBoardCode(schoolData?.board || get().studentProfile.schoolBoard),
           parentName: s.parent_name || get().studentProfile.parentName,
           parentPin: s.parent_pin || get().studentProfile.parentPin,
           weeklyStudyHours: Number(s.at_home_hours || s.weekly_study_hours || get().studentProfile.weeklyStudyHours),
           streakDays: Number(s.streak_days || get().studentProfile.streakDays),
+          attendancePct: Number(s.attendance_pct || s.attendance_percent || get().studentProfile.attendancePct || 96.8),
         };
+      }
+
+      const nextProgressMap: Record<string, StudentRoadmapProgress> = {
+        ...get().studentRoadmapProgress,
+      };
+      if (progressRes.data && progressRes.data.length > 0) {
+        for (const pRow of progressRes.data) {
+          const mappedP = mapMobileProgressRow(pRow);
+          nextProgressMap[mappedP.roadmapId] = {
+            ...nextProgressMap[mappedP.roadmapId],
+            ...mappedP,
+          };
+        }
+        updates.studentRoadmapProgress = nextProgressMap;
       }
 
       if (feeRes.data && feeRes.data.length > 0) {
@@ -863,7 +1162,9 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       }
 
       if (syllabusRes.data && syllabusRes.data.length > 0) {
-        updates.roadmaps = syllabusRes.data.map((row: any) => mapMobileRoadmapRow(row));
+        updates.roadmaps = syllabusRes.data.map((row: any) =>
+          mapMobileRoadmapRow(row, nextProgressMap)
+        );
       }
 
       if (circRes.data && circRes.data.length > 0) {
@@ -887,7 +1188,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         mobileBroadcastChannel = null;
       }
 
-      mobileBroadcastChannel = supabase.channel('edzy-live:DVPS01', {
+      mobileBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolCode}`, {
         config: { broadcast: { self: false, ack: true } },
       });
 
@@ -969,13 +1270,18 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
               liveSyncToast: `Attendance updated: ${att}%`,
             }));
           }
-        } else if (action === 'SYLLABUS_ADDED') {
-          const mapped = mapMobileRoadmapRow(data.record || data);
+        } else if (action === 'SYLLABUS_ADDED' || action === 'SYLLABUS_UPDATED') {
+          const mapped = mapMobileRoadmapRow(data.record || data, get().studentRoadmapProgress);
           set((state) => {
             const exists = state.roadmaps.some((r) => r.id === mapped.id);
             return {
-              roadmaps: exists ? state.roadmaps : [mapped, ...state.roadmaps],
-              liveSyncToast: `New Syllabus Chapter synced: Ch ${mapped.chapterNumber}`,
+              roadmaps: exists
+                ? state.roadmaps.map((r) => (r.id === mapped.id ? mapped : r))
+                : [mapped, ...state.roadmaps],
+              liveSyncToast:
+                action === 'SYLLABUS_UPDATED'
+                  ? `Flowchart updated by Teacher: Ch ${mapped.chapterNumber}`
+                  : `New Syllabus Chapter synced: Ch ${mapped.chapterNumber}`,
             };
           });
         }
@@ -1084,13 +1390,15 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
-              const newRoadmap = mapMobileRoadmapRow(row);
+              const newRoadmap = mapMobileRoadmapRow(row, state.studentRoadmapProgress);
               const exists = state.roadmaps.some((r) => r.id === row.id);
               return {
                 roadmaps: exists
                   ? state.roadmaps.map((r) => (r.id === row.id ? newRoadmap : r))
                   : [...state.roadmaps, newRoadmap],
-                liveSyncToast: `New Syllabus Chapter synced: Ch ${newRoadmap.chapterNumber}`,
+                liveSyncToast: exists
+                  ? `Syllabus Flowchart updated: Ch ${newRoadmap.chapterNumber}`
+                  : `New Syllabus Chapter synced: Ch ${newRoadmap.chapterNumber}`,
               };
             });
           }
@@ -1161,7 +1469,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
           const { data: rollData } = await supabase
             .from('students')
             .select('*')
-            .or(`roll_no.eq.${cleanId},roll_number.eq.${cleanId}`)
+            .eq('roll_number', cleanId)
             .maybeSingle();
           studentRow = rollData;
         }
@@ -1175,13 +1483,22 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             };
           }
 
+          const studentSchoolCode = studentRow.school_code || studentRow.school_id || schoolCode || 'DVPS01';
+          const { data: schoolData } = await supabase
+            .from('schools')
+            .select('*')
+            .eq('school_code', studentSchoolCode)
+            .maybeSingle()
+            .then((r) => r, () => ({ data: null }));
+
           const profile: StudentProfile = {
             id: studentRow.id,
             name: studentRow.name || studentRow.full_name || 'Student',
             classGrade: studentRow.class_grade || 'Class 10-A',
             rollNo: String(studentRow.roll_no || studentRow.roll_number || '24').padStart(2, '0'),
-            schoolName: 'Doon Valley Public School',
-            schoolCode: studentRow.school_code || schoolCode || 'DVPS01',
+            schoolName: schoolData?.name || 'Doon Valley Public School',
+            schoolCode: studentSchoolCode,
+            schoolBoard: cleanBoardCode(schoolData?.board || 'CBSE'),
             parentName: studentRow.parent_name || 'Parent',
             parentPin: expectedPin,
             weeklyStudyHours: Number(studentRow.at_home_hours || studentRow.weekly_study_hours || 6.5),
@@ -1189,16 +1506,25 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             attendancePct: Number(studentRow.attendance_pct || studentRow.attendance_percent || 96.8),
           };
 
-          const [feeRes, marksRes, syllabusRes, circRes] = await Promise.all([
+          const [feeRes, marksRes, syllabusRes, circRes, progressRes] = await Promise.all([
             supabase.from('fee_ledger').select('*').eq('student_id', studentRow.id).order('due_date', { ascending: true }),
             supabase.from('exam_marks').select('*').eq('student_id', studentRow.id),
             supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
             supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
+            supabase.from('student_roadmap_progress').select('*').eq('student_id', studentRow.id).then((r) => r, () => ({ data: null })),
           ]);
+
+          const nextProgressMap: Record<string, StudentRoadmapProgress> = {};
+          if (progressRes.data && progressRes.data.length > 0) {
+            for (const pRow of progressRes.data) {
+              const mp = mapMobileProgressRow(pRow);
+              nextProgressMap[mp.roadmapId] = mp;
+            }
+          }
 
           const mappedFees = feeRes.data && feeRes.data.length > 0 ? feeRes.data.map((r: any) => mapMobileFeeRow(r)) : get().feeInstallments;
           const mappedMarks = marksRes.data && marksRes.data.length > 0 ? consolidateMobileExamRows(marksRes.data, get().examMarks) : get().examMarks;
-          const mappedRoadmaps = syllabusRes.data && syllabusRes.data.length > 0 ? syllabusRes.data.map((r: any) => mapMobileRoadmapRow(r)) : get().roadmaps;
+          const mappedRoadmaps = syllabusRes.data && syllabusRes.data.length > 0 ? syllabusRes.data.map((r: any) => mapMobileRoadmapRow(r, nextProgressMap)) : get().roadmaps;
           const mappedCircs = (circRes.data && circRes.data.length > 0 ? circRes.data.map((r: any) => mapMobileCircularRow(r)) : get().circulars)
             .filter((c: SchoolCircular) => isCircularForStudent(c.targetClass, profile.classGrade));
 
@@ -1208,6 +1534,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             feeInstallments: mappedFees,
             examMarks: mappedMarks,
             roadmaps: mappedRoadmaps,
+            studentRoadmapProgress: nextProgressMap,
             circulars: mappedCircs,
             connectionMode: 'LIVE_CLOUD',
           });
@@ -1309,7 +1636,229 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     });
   },
 
-  sendSocraticPrompt: (question: string) => {
+  updateFlowchartNodeStatus: (roadmapId, nodeId, status, nodeTitle) => {
+    const state = get();
+    const targetRoadmap = state.roadmaps.find((r) => r.id === roadmapId);
+    if (!targetRoadmap) return;
+
+    const spineList: FlowchartSpineMilestone[] = targetRoadmap.milestones.map((m) => ({
+      ...m,
+      nodeId: m.nodeId || m.id,
+      branches: m.branches || [],
+    }));
+    const trackable = extractTrackableNodes(spineList);
+    const todayStr = getLocalDateString(0);
+
+    const existing =
+      state.studentRoadmapProgress[roadmapId] ||
+      buildSchedulePlan({
+        roadmapId,
+        studentId: state.studentProfile.id,
+        schoolId: state.studentProfile.schoolCode || 'DVPS01',
+        milestones: spineList,
+        targetDays: 7,
+        dailyPaceMinutes: 45,
+        focusLimitMinutes: state.sessionTimeLimitMinutes || 45,
+      });
+
+    const prevEntry = existing.nodeStates[nodeId] || {
+      status: 'not_started' as const,
+      scheduledDate: todayStr,
+    };
+    const wasDone = prevEntry.status === 'done';
+
+    const nextStates: Record<string, NodeProgressEntry> = {
+      ...existing.nodeStates,
+      [nodeId]: {
+        status,
+        scheduledDate: prevEntry.scheduledDate || todayStr,
+        completedAt: status === 'done' ? new Date().toISOString() : undefined,
+      },
+    };
+
+    const stats = calculateCompletionStats(trackable, nextStates);
+    const resolvedTitle =
+      nodeTitle || trackable.find((n) => n.id === nodeId)?.title || existing.lastMasteredTopicTitle;
+
+    const updatedProgress: StudentRoadmapProgress = {
+      ...existing,
+      nodeStates: nextStates,
+      completionPct: stats.completionPct,
+      completedTodayCount: stats.completedTodayCount,
+      lastMasteredTopicTitle:
+        status === 'done' ? resolvedTitle : existing.lastMasteredTopicTitle,
+      paceStatus:
+        stats.completionPct === 100
+          ? 'COMPLETED'
+          : existing.isOverloaded
+          ? 'HIGH_PACE'
+          : existing.skippedDaysCount > 0
+          ? 'AUTO_ADJUSTED'
+          : 'ON_TRACK',
+      updatedAt: new Date().toISOString(),
+    };
+
+    const nextWeeklyHours =
+      status === 'done' && !wasDone
+        ? parseFloat((state.studentProfile.weeklyStudyHours + 0.25).toFixed(2))
+        : state.studentProfile.weeklyStudyHours;
+
+    set((curr) => ({
+      studentRoadmapProgress: {
+        ...curr.studentRoadmapProgress,
+        [roadmapId]: updatedProgress,
+      },
+      studentProfile: {
+        ...curr.studentProfile,
+        weeklyStudyHours: nextWeeklyHours,
+      },
+      roadmaps: curr.roadmaps.map((r) =>
+        r.id === roadmapId
+          ? {
+              ...r,
+              totalSubtopics: stats.totalCount,
+              completedSubtopics: stats.completedCount,
+              progressPercent: stats.completionPct,
+            }
+          : r
+      ),
+    }));
+
+    persistAndBroadcastRoadmapProgress(updatedProgress);
+  },
+
+  updateRoadmapGoalSchedule: (roadmapId, targetDays, dailyPaceMinutes, options) => {
+    const state = get();
+    const targetRoadmap = state.roadmaps.find((r) => r.id === roadmapId);
+    if (!targetRoadmap) return;
+
+    const spineList: FlowchartSpineMilestone[] = targetRoadmap.milestones.map((m) => ({
+      ...m,
+      nodeId: m.nodeId || m.id,
+      branches: m.branches || [],
+    }));
+
+    const existing = state.studentRoadmapProgress[roadmapId];
+    const nextPlan = buildSchedulePlan({
+      roadmapId,
+      studentId: state.studentProfile.id,
+      schoolId: state.studentProfile.schoolCode || 'DVPS01',
+      milestones: spineList,
+      targetDays,
+      dailyPaceMinutes,
+      focusLimitMinutes: state.sessionTimeLimitMinutes || 45,
+      existingProgress: existing,
+      focusMustKnowOnly: options?.focusMustKnowOnly,
+    });
+
+    set((curr) => ({
+      studentRoadmapProgress: {
+        ...curr.studentRoadmapProgress,
+        [roadmapId]: nextPlan,
+      },
+    }));
+
+    persistAndBroadcastRoadmapProgress(nextPlan);
+  },
+
+  reconcileRoadmapSchedule: (roadmapId, simulateSkippedDay = false) => {
+    const state = get();
+    const targetRoadmap = state.roadmaps.find((r) => r.id === roadmapId);
+    if (!targetRoadmap) return false;
+
+    const spineList: FlowchartSpineMilestone[] = targetRoadmap.milestones.map((m) => ({
+      ...m,
+      nodeId: m.nodeId || m.id,
+      branches: m.branches || [],
+    }));
+
+    const existing =
+      state.studentRoadmapProgress[roadmapId] ||
+      buildSchedulePlan({
+        roadmapId,
+        studentId: state.studentProfile.id,
+        schoolId: state.studentProfile.schoolCode || 'DVPS01',
+        milestones: spineList,
+        targetDays: 7,
+        dailyPaceMinutes: 45,
+        focusLimitMinutes: state.sessionTimeLimitMinutes || 45,
+      });
+
+    const { updated, didRecover } = reconcileAndRecoverProgress({
+      progress: existing,
+      milestones: spineList,
+      focusLimitMinutes: state.sessionTimeLimitMinutes || 45,
+      simulateSkippedDay,
+    });
+
+    set((curr) => ({
+      studentRoadmapProgress: {
+        ...curr.studentRoadmapProgress,
+        [roadmapId]: updated,
+      },
+    }));
+
+    if (didRecover) {
+      persistAndBroadcastRoadmapProgress(updated);
+    }
+    return didRecover;
+  },
+
+  applyRoadmapGuardrail: (roadmapId, action) => {
+    const state = get();
+    const targetRoadmap = state.roadmaps.find((r) => r.id === roadmapId);
+    if (!targetRoadmap) return;
+
+    const spineList: FlowchartSpineMilestone[] = targetRoadmap.milestones.map((m) => ({
+      ...m,
+      nodeId: m.nodeId || m.id,
+      branches: m.branches || [],
+    }));
+
+    const existing = state.studentRoadmapProgress[roadmapId];
+    const currentDays = existing?.totalDays || 7;
+    const pace = existing?.dailyPaceMinutes || 45;
+
+    const nextPlan =
+      action === 'FOCUS_MUST_KNOW'
+        ? buildSchedulePlan({
+            roadmapId,
+            studentId: state.studentProfile.id,
+            schoolId: state.studentProfile.schoolCode || 'DVPS01',
+            milestones: spineList,
+            targetDays: currentDays,
+            dailyPaceMinutes: pace,
+            focusLimitMinutes: state.sessionTimeLimitMinutes || 45,
+            existingProgress: existing,
+            focusMustKnowOnly: true,
+          })
+        : buildSchedulePlan({
+            roadmapId,
+            studentId: state.studentProfile.id,
+            schoolId: state.studentProfile.schoolCode || 'DVPS01',
+            milestones: spineList,
+            targetDays: currentDays + 2,
+            dailyPaceMinutes: pace,
+            focusLimitMinutes: state.sessionTimeLimitMinutes || 45,
+            existingProgress: existing,
+          });
+
+    set((curr) => ({
+      studentRoadmapProgress: {
+        ...curr.studentRoadmapProgress,
+        [roadmapId]: nextPlan,
+      },
+    }));
+
+    persistAndBroadcastRoadmapProgress(nextPlan);
+  },
+
+  sendSocraticPrompt: (question: string, context) => {
+    const studentProfile = get().studentProfile;
+    const boardCode = cleanBoardCode(context?.board || studentProfile.schoolBoard);
+    const chapterTitle = context?.chapterTitle || 'Life Processes (Ch 6)';
+    const subjectName = context?.subject || 'Biology';
+
     const studentMsg: ChatMessage = {
       id: `msg-${Date.now()}-user`,
       sender: 'STUDENT',
@@ -1317,7 +1866,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    // Syllabus-grounded pedagogical responses tailored to Class 10 CBSE NCERT
+    // Syllabus-grounded pedagogical responses tailored dynamically to school board & chapter
     let aiResponseText = '';
     let targetNode = 'Aorta';
     const qLower = question.toLowerCase();
@@ -1329,15 +1878,19 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     } else if (qLower.includes('ventricle') || qLower.includes('pressure') || qLower.includes('wall')) {
       targetNode = 'Left Ventricle';
       aiResponseText =
-        'Observe the myocardial muscle thickness of the left ventricle compared to the right ventricle. Since it must pump blood to the entire human body through systemic circulation, why must its muscular wall be 3x thicker?';
+        'Observe the myocardial muscle thickness of the left ventricle compared to the right ventricle. Since it pumps blood through systemic circulation, why must its muscular wall be 3x thicker?';
     } else if (qLower.includes('pulmonary') || qLower.includes('lungs') || qLower.includes('vein')) {
       targetNode = 'Pulmonary Vein';
-      aiResponseText =
-        'Recall from NCERT page 106: veins typically carry deoxygenated blood, EXCEPT the pulmonary vein! Which organ does it arrive from, and why is its oxygen saturation above 98%?';
+      aiResponseText = `Recall from your ${boardCode} school notes: veins typically carry deoxygenated blood, EXCEPT the pulmonary vein! Which organ does it arrive from, and why is its oxygen saturation above 98%?`;
+    } else if (qLower.includes('lens') || qLower.includes('mirror') || qLower.includes('snell') || qLower.includes('optic')) {
+      targetNode = 'Concave Mirror Focus';
+      aiResponseText = `Great optics doubt! Look at the ray convergence in "${chapterTitle}". Under the Cartesian sign convention for ${boardCode} ${subjectName}, why do we treat object distance u as negative?`;
+    } else if (qLower.includes('quadratic') || qLower.includes('discriminant') || qLower.includes('root')) {
+      targetNode = 'Roots Intercept';
+      aiResponseText = `Let's examine "${chapterTitle}": look at D = b^2 - 4ac. When D = 0, what happens graphically to the parabola's vertex relative to the x-axis?`;
     } else {
       targetNode = 'Aorta';
-      aiResponseText =
-        'Based on Class 10 NCERT Life Processes (Ch 6), the Aorta is the largest systemic artery, enduring a systolic pressure of 120 mmHg. Look at the 3D model: where does it arch over the pulmonary trunk?';
+      aiResponseText = `Grounded in your school-verified ${boardCode} ${subjectName} notes ("${chapterTitle}"), break down the primary mechanism step-by-step. Which rule or structure initiates the change here?`;
     }
 
     const aiMsg: ChatMessage = {
@@ -1345,9 +1898,13 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       sender: 'SOCRATIC_AI',
       text: aiResponseText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      sourceDoc: 'Class10_Bio_Ch6_SchoolNotes.pdf (Page 106-107)',
+      sourceDoc: `${boardCode} ${subjectName} • ${chapterTitle}`,
       arTriggerNode: targetNode,
-      arModelName: 'Human Heart (3D Spatial Lab)',
+      arModelName: subjectName.toLowerCase().includes('optic')
+        ? 'Optics Ray Bench 3D'
+        : subjectName.toLowerCase().includes('math')
+        ? 'Quadratic Graph 3D'
+        : 'Human Heart 3D',
     };
 
     set((state) => ({
@@ -1356,7 +1913,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         ...state.activeArDirective,
         targetNode,
         highlight: true,
-        note: `Socratic Focus: ${targetNode} highlighted as referenced in ${aiMsg.sourceDoc}`,
+        note: `Socratic Focus: ${targetNode} highlighted from ${aiMsg.sourceDoc}`,
       },
     }));
   },

@@ -102,7 +102,9 @@ export default function ExamMarksScreen() {
           <View style={styles.overviewTopRow}>
             <View style={[styles.overviewBadge, { backgroundColor: theme.brandTint }]}>
               <Award size={14} color={theme.brandPrimary} />
-              <Text style={[styles.overviewBadgeText, { color: theme.brandPrimary }]}>CBSE MERIT SCORECARD</Text>
+              <Text style={[styles.overviewBadgeText, { color: theme.brandPrimary }]}>
+                {(studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase()} MERIT SCORECARD
+              </Text>
             </View>
             <View style={[styles.rankPill, { backgroundColor: theme.surfaceSubtle }]}>
               <Text style={[styles.rankPillText, { color: theme.textSecondary }]}>
@@ -141,7 +143,7 @@ export default function ExamMarksScreen() {
           <View style={styles.endorseRow}>
             <ShieldCheck size={14} color={theme.success} />
             <Text style={[styles.endorseText, { color: theme.textSecondary }]}>
-              Official CBSE Term Marksheet verified by Academic Coordinator
+              Official {(studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase()} Term Marksheet verified by Academic Coordinator
             </Text>
           </View>
         </View>
