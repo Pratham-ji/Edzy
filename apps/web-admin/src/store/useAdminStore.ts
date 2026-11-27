@@ -866,6 +866,12 @@ interface AdminState {
   toggleThemeMode: () => void;
   setThemeMode: (mode: 'light' | 'dark') => void;
   switchActiveSchool: (schoolId: string) => void;
+  provisionPilotSchool: (payload: {
+    schoolCode: string;
+    name: string;
+    board: string;
+    principalName?: string;
+  }) => Promise<{ school: SchoolTenantRecord; principalStaff: SchoolStaff }>;
   addCircular: (payload: Omit<AdminCircular, 'id' | 'date'>) => void;
   toggleStudentAttendance: (studentId: string, status: 'PRESENT' | 'ABSENT') => void;
   markAllAttendance: (classGrade: string, status: 'PRESENT' | 'ABSENT') => void;
@@ -1077,6 +1083,94 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     if (isLiveSupabaseConfigured) {
       get().initializeRealtimeSync();
     }
+  },
+
+  provisionPilotSchool: async (payload) => {
+    const cleanCode = payload.schoolCode.trim().toUpperCase();
+    const cleanName = payload.name.trim();
+    const cleanBoard = payload.board.trim() || 'CBSE';
+    const cleanPrincipal = (payload.principalName || '').trim() || 'Principal In-Charge';
+
+    if (!cleanCode || !cleanName) {
+      throw new Error('School Code and Official Institution Name are required.');
+    }
+
+    const parsedSerial = parseInt(cleanCode.replace(/\D/g, ''), 10);
+    const maxSerial = get().availableSchools.reduce(
+      (max, s) => Math.max(max, s.schoolSerial || 0),
+      0
+    );
+    const schoolSerial = Number.isFinite(parsedSerial) && parsedSerial > 0 ? parsedSerial : maxSerial + 1;
+
+    const newSchool: SchoolTenantRecord = {
+      id: cleanCode,
+      schoolSerial,
+      schoolCode: cleanCode,
+      name: cleanName,
+      board: cleanBoard,
+      academicSession: '2026-2027',
+      principalName: cleanPrincipal,
+    };
+
+    const principalStaff: SchoolStaff = {
+      id: `${cleanCode}-ADM-001`,
+      schoolId: cleanCode,
+      employeeSerial: 1,
+      fullName: cleanPrincipal,
+      department: 'ADM',
+      designation: 'Principal & ERP Admin',
+      assignedClass: null,
+      subject: null,
+      phone: null,
+      passwordHash: null,
+      isPasswordSet: false,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+    };
+
+    if (isLiveSupabaseConfigured) {
+      const { error: schoolErr } = await supabase.from('schools').insert({
+        id: newSchool.id,
+        school_serial: newSchool.schoolSerial,
+        school_code: newSchool.schoolCode,
+        name: newSchool.name,
+        board: newSchool.board,
+        academic_session: newSchool.academicSession,
+        principal_name: newSchool.principalName,
+      });
+
+      if (schoolErr) {
+        throw new Error(schoolErr.message);
+      }
+
+      const { error: staffErr } = await supabase.from('school_staff').insert({
+        id: principalStaff.id,
+        school_id: principalStaff.schoolId,
+        school_code: principalStaff.schoolId,
+        employee_serial: principalStaff.employeeSerial,
+        full_name: principalStaff.fullName,
+        department: principalStaff.department,
+        designation: principalStaff.designation,
+        assigned_class: null,
+        subject: null,
+        phone: null,
+        password_hash: null,
+        is_password_set: false,
+        status: 'ACTIVE',
+      });
+
+      if (staffErr) {
+        throw new Error(`School created, but Principal account failed: ${staffErr.message}`);
+      }
+    }
+
+    set((state) => ({
+      availableSchools: state.availableSchools.some((s) => s.id === newSchool.id)
+        ? state.availableSchools
+        : [...state.availableSchools, newSchool],
+    }));
+
+    return { school: newSchool, principalStaff };
   },
 
   fetchStaffList: async (schoolIdParam) => {

@@ -147,7 +147,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           <div className="h-5 w-px bg-slate-200 dark:bg-[#1A2336]" />
 
-          {/* Database Status Indicator: Live Cloud Sync vs Offline Demo Mode + Force Sync */}
+          {/* Database Status Indicator: Live Cloud Sync vs Local Cache Sync + Force Sync */}
           <div className="flex items-center gap-1">
             {connectionMode === 'LIVE_CLOUD' ? (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 shadow-xs whitespace-nowrap">
@@ -157,7 +157,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             ) : (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 shadow-xs whitespace-nowrap">
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                <span>Offline Demo Mode</span>
+                <span>Local Cache Sync</span>
               </div>
             )}
 

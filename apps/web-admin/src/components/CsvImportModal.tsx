@@ -135,8 +135,8 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({ onClose, onSucce
   const handleLoadDemoBatch = () => {
     setFileName(
       lockedClass
-        ? `Demo_${lockedClass.replace(/\s+/g, '_')}_Batch.csv`
-        : 'Demo_DVPS_5_Students_Batch.csv'
+        ? `Sample_${lockedClass.replace(/\s+/g, '_')}_Batch.csv`
+        : 'Sample_Campus_5_Students_Batch.csv'
     );
     setPreviewRows(applyClassScope(DEMO_PITCH_BATCH));
   };
@@ -220,7 +220,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({ onClose, onSucce
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#4F46E5] dark:text-[#6366F1]" />
                 <h3 className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] uppercase tracking-wide">
-                  Live School Pitch Mode
+                  Quick Sample Onboarding
                 </h3>
               </div>
               <p className="text-xs text-[#475569] dark:text-[#94A3B8] mt-0.5">

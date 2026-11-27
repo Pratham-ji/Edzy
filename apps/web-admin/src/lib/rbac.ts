@@ -61,7 +61,7 @@ export function getRoleNavigation(department: StaffDepartment): RoleNavConfig {
     return {
       sectionLabel: 'ADMINISTRATION',
       defaultTab: 'dashboard',
-      allowedTabs: items.map((i) => i.id),
+      allowedTabs: [...items.map((i) => i.id), 'accounts-export'],
       items,
     };
   }

@@ -30,6 +30,7 @@ import {
   Area,
 } from 'recharts';
 import { useAdminStore } from '../store/useAdminStore';
+import { computeFeeReconciliationSummary } from '../lib/feeMetrics';
 
 interface DashboardPageProps {
   onNavigate?: (tab: any) => void;
@@ -84,12 +85,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const defaultersCount = students.filter((s) => s.totalPending > 0).length;
 
   const paidInstallments = feeInstallments.filter((f) => f.status === 'PAID');
-  const upiCollected = paidInstallments
-    .filter((f) => f.paymentMethod === 'ONLINE_UPI')
-    .reduce((sum, f) => sum + f.amount, 0);
-  const offlineCollected = paidInstallments
-    .filter((f) => f.paymentMethod === 'OFFLINE_CASH' || f.paymentMethod === 'OFFLINE_CHEQUE')
-    .reduce((sum, f) => sum + f.amount, 0);
+  const reconciliation = computeFeeReconciliationSummary(feeInstallments);
+  const upiCollected = reconciliation.upiCollected;
+  const offlineCollected = reconciliation.deskCollected;
 
   // Recent fee receipts
   const recentPayments = paidInstallments.slice(-5).reverse();

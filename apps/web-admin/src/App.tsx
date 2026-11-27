@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download } from 'lucide-react';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { useAdminStore } from './store/useAdminStore';
 import { getRoleNavigation } from './lib/rbac';
+import { downloadCsvFile, formatReceiptNumber } from './lib/feeMetrics';
 import DashboardPage from './pages/DashboardPage';
 import StaffManagementPage from './pages/StaffManagementPage';
 import FeesPage from './pages/FeesPage';
+import AccountsExportPage from './pages/AccountsExportPage';
 import StudentsPage from './pages/StudentsPage';
 import { CircularsAttendancePage } from './pages/CircularsAttendancePage';
 import SyllabusPage from './pages/SyllabusPage';
@@ -112,30 +113,35 @@ export default function App() {
   };
 
   const handleExportLedgerCsv = () => {
-    const header = 'Installment ID,Student ID,Student Name,Class,Quarter,Amount,Status,Payment Mode,Receipt Number,Paid Date\n';
-    const csvRows = feeInstallments
-      .map((f) =>
-        [
-          f.id,
-          f.studentId,
-          `"${f.studentName.replace(/"/g, '""')}"`,
-          f.classGrade,
-          `"${f.quarter}"`,
-          f.amount,
-          f.status,
-          f.paymentMethod || 'PENDING',
-          f.receiptNumber || '',
-          f.paidDate || '',
-        ].join(',')
-      )
-      .join('\n');
-    const blob = new Blob([header + csvRows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `edzy-${schoolProfile.code.toLowerCase()}-fee-ledger.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const headers = [
+      'Student ID',
+      'Student Name',
+      'Class',
+      'Quarter',
+      'Amount (INR)',
+      'Mode',
+      'Receipt #',
+      'Status',
+      'Paid Date',
+      'Reference Note',
+    ];
+    const rows = feeInstallments.map((f) => [
+      f.studentId,
+      f.studentName,
+      f.classGrade,
+      f.quarter,
+      f.amount,
+      f.paymentMethod || 'PENDING',
+      formatReceiptNumber(f.receiptNumber),
+      f.status,
+      f.paidDate || '',
+      f.paymentRef || f.clerkNote || '',
+    ]);
+    downloadCsvFile(
+      `edzy-${schoolProfile.code.toLowerCase()}-fee-ledger.csv`,
+      headers,
+      rows
+    );
   };
 
   // Tab Titles & Subtitles for Header
@@ -250,45 +256,18 @@ export default function App() {
 
             {safeTab === 'fees' && <FeesPage />}
 
-            {safeTab === 'accounts-export' && (
-              <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-[#059669] dark:text-[#34D399] flex items-center justify-center shrink-0">
-                      <FileSpreadsheet className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
-                          Tally & Fee Ledger Exports
-                        </h2>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-[#059669] dark:text-[#34D399]">
-                          READY TO EXPORT
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#475569] dark:text-[#94A3B8] mt-1">
-                        {feeInstallments.filter((f) => f.status === 'PAID').length} settled installments and{' '}
-                        {feeInstallments.filter((f) => f.status !== 'PAID').length} pending quarters synced across {schoolProfile.code}.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleExportLedgerCsv}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold shadow-sm transition cursor-pointer shrink-0"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download Ledger CSV</span>
-                  </button>
-                </div>
-              </div>
-            )}
+            {safeTab === 'accounts-export' &&
+              (currentStaff.department === 'ACT' || currentStaff.department === 'ADM') && (
+                <AccountsExportPage />
+              )}
 
             {safeTab === 'students' && <StudentsPage />}
             {safeTab === 'circulars' && <CircularsAttendancePage />}
             {safeTab === 'syllabus' && <SyllabusPage />}
             {safeTab === 'marks' && <MarksPage />}
-            {safeTab === 'settings' && <SettingsPage />}
+            {safeTab === 'settings' && (
+              <SettingsPage onOpenAccountsExport={() => handleSelectTab('accounts-export')} />
+            )}
           </div>
         </main>
       </div>

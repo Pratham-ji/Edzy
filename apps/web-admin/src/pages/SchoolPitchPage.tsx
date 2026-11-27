@@ -160,6 +160,50 @@ export default function SchoolPitchPage({
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
+            {/* Role Card 1 */}
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
+                  SCH-01-ADM-001
+                </span>
+                <ShieldCheck className="w-4 h-4 text-indigo-400" />
+              </div>
+              <h3 className="text-base font-bold text-white">Principal Hierarchy & School OS</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Provision partner campuses, issue sequential Employee IDs for teachers and bursars with self-setup onboarding cards, and oversee every fee and study KPI.
+              </p>
+            </div>
+
+            {/* Role Card 2 */}
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono font-bold text-cyan-300 bg-cyan-500/15 px-2.5 py-0.5 rounded-full border border-cyan-400/30">
+                  SCH-01-TCH-001
+                </span>
+                <Users className="w-4 h-4 text-cyan-400" />
+              </div>
+              <h3 className="text-base font-bold text-white">Alphabetical Teacher Cockpit</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Dedicated Class Admin scoped strictly to their assigned section with automatic A → Z roll sequencing, 1-click attendance, marks entry, and syllabus flowcharts.
+              </p>
+            </div>
+
+            {/* Role Card 3 */}
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono font-bold text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-400/30">
+                  ID: SCH-01-205
+                </span>
+                <FileCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <h3 className="text-base font-bold text-white">Lightning Accounts ID Counter</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Instant Unique Student ID lookup (SCH-01-205 or 205), paginated ledger for 3,000+ students, live UPI reconciliation, and 1-click Tally-ready CSV exports.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
             {/* Pillar 1 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between space-y-6 hover:border-slate-700 transition-colors">
               <div className="space-y-4">
@@ -306,7 +350,7 @@ export default function SchoolPitchPage({
                 <span>200 (Pilot Batch)</span>
                 <span>800 (Mid Campus)</span>
                 <span>1,500 (Senior School)</span>
-                <span>3,000+ (K-12 Flagship)</span>
+                <span>3,000+ (Enterprise K-12 Campus)</span>
               </div>
             </div>
 
