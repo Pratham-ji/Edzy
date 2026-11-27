@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
-  CreditCard,
   Banknote,
   Building2,
   CheckCircle2,
-  AlertCircle,
   ShieldCheck,
 } from 'lucide-react';
 import { useAdminStore, FeeInstallmentRecord } from '../store/useAdminStore';
@@ -29,13 +27,22 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
     installment ||
     (preselectedStudentId
       ? feeInstallments.find((f) => f.studentId === preselectedStudentId && f.status !== 'PAID')
-      : feeInstallments.find((f) => f.status !== 'PAID')) ||
-    null;
+      : null);
 
   const [mode, setMode] = useState<'OFFLINE_CASH' | 'OFFLINE_CHEQUE'>('OFFLINE_CASH');
   const [referenceNo, setReferenceNo] = useState('');
   const [clerkNote, setClerkNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   if (!activeInstallment) return null;
 
@@ -51,32 +58,42 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
         } else {
           onClose();
         }
-      } catch (err) {
+      } catch {
         setIsSubmitting(false);
         alert('Failed to process fee collection.');
       }
-    }, 400);
+    }, 250);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-lg w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
-              <Banknote className="w-4 h-4 text-emerald-400" />
+            <div className="w-8 h-8 rounded-lg bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-center">
+              <Banknote className="w-4 h-4 text-[#059669] dark:text-[#34D399]" />
             </div>
             <div>
-              <h2 className="text-sm font-bold tracking-tight">Offline Fee Collection Desk</h2>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Reception Counter • {schoolProfile.name}
+              <h2 className="text-sm font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+                Accounts Fee Collection Desk
+              </h2>
+              <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+                {schoolProfile.name} • Instant Mobile Sync
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition p-1 rounded-md"
+            aria-label="Close fee collection dialog"
+            className="text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white transition p-1 rounded-md cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -84,19 +101,27 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Student Info Card */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 tracking-wider">STUDENT</span>
-              <h3 className="text-base font-bold text-slate-900">{activeInstallment.studentName}</h3>
-              <p className="text-xs text-slate-600 font-medium">
-                {activeInstallment.classGrade} • ID: <span className="font-mono font-semibold">{activeInstallment.studentId}</span>
+          {/* Student Info Card with Prominent ID Pill */}
+          <div className="bg-[#F6F8FC] dark:bg-[#090D16] border border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-4 flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md font-mono font-extrabold text-[11px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                {activeInstallment.studentId}
+              </span>
+              <h3 className="text-base font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
+                {activeInstallment.studentName}
+              </h3>
+              <p className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
+                {activeInstallment.classGrade}
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-[10px] font-bold text-slate-500 tracking-wider">INSTALLMENT</span>
-              <p className="text-xs font-semibold text-slate-800">{activeInstallment.quarter}</p>
-              <p className="text-xl font-extrabold text-emerald-600 mt-0.5">
+            <div className="text-right shrink-0">
+              <span className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider">
+                INSTALLMENT
+              </span>
+              <p className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                {activeInstallment.quarter}
+              </p>
+              <p className="text-xl font-extrabold text-[#059669] dark:text-[#34D399] mt-0.5">
                 ₹{activeInstallment.amount.toLocaleString('en-IN')}
               </p>
             </div>
@@ -104,51 +129,55 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
 
           {/* Payment Method Selector */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] uppercase tracking-wider mb-2">
               Select Payment Instrument
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setMode('OFFLINE_CASH')}
-                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition ${
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition cursor-pointer ${
                   mode === 'OFFLINE_CASH'
-                    ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/20 text-emerald-950'
-                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    ? 'border-[#059669] bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] ring-2 ring-emerald-500/20 text-[#0F172A] dark:text-[#F8FAFC]'
+                    : 'border-[#E2E8F0] dark:border-[#232E44] hover:bg-[#F6F8FC] dark:hover:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8]'
                 }`}
               >
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    mode === 'OFFLINE_CASH' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    mode === 'OFFLINE_CASH'
+                      ? 'bg-[#059669] text-white'
+                      : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8]'
                   }`}
                 >
                   <Banknote className="w-4 h-4" />
                 </div>
                 <div>
                   <p className="text-xs font-bold">Physical Cash</p>
-                  <p className="text-[10px] text-slate-500">Collected at Desk Counter</p>
+                  <p className="text-[10px] text-[#475569] dark:text-[#94A3B8]">Collected at Counter</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setMode('OFFLINE_CHEQUE')}
-                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition ${
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition cursor-pointer ${
                   mode === 'OFFLINE_CHEQUE'
-                    ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-600/20 text-indigo-950'
-                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    ? 'border-[#4F46E5] bg-[#EEF2FF] dark:bg-[#1B2440] ring-2 ring-indigo-500/20 text-[#0F172A] dark:text-[#F8FAFC]'
+                    : 'border-[#E2E8F0] dark:border-[#232E44] hover:bg-[#F6F8FC] dark:hover:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8]'
                 }`}
               >
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    mode === 'OFFLINE_CHEQUE' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    mode === 'OFFLINE_CHEQUE'
+                      ? 'bg-[#4F46E5] text-white'
+                      : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8]'
                   }`}
                 >
                   <Building2 className="w-4 h-4" />
                 </div>
                 <div>
                   <p className="text-xs font-bold">Bank Cheque / DD</p>
-                  <p className="text-[10px] text-slate-500">Subject to Clearing</p>
+                  <p className="text-[10px] text-[#475569] dark:text-[#94A3B8]">Subject to Clearing</p>
                 </div>
               </button>
             </div>
@@ -156,8 +185,10 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
 
           {/* Reference / Cheque Input */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {mode === 'OFFLINE_CHEQUE' ? 'Bank Name & Cheque Number *' : 'Cash Receipt Notes / Counter No.'}
+            <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1.5">
+              {mode === 'OFFLINE_CHEQUE'
+                ? 'Bank Name & Cheque Number *'
+                : 'Cash Receipt Notes / Counter No.'}
             </label>
             <input
               type="text"
@@ -166,51 +197,55 @@ export const OfflineFeeModal: React.FC<OfflineFeeModalProps> = ({
               onChange={(e) => setReferenceNo(e.target.value)}
               placeholder={
                 mode === 'OFFLINE_CHEQUE'
-                  ? 'e.g. HDFC Bank, Chq #902188 (Connaught Place)'
-                  : 'e.g. Counter #1 (Verified by Clerk)'
+                  ? 'e.g. HDFC Bank, Chq #902188'
+                  : 'e.g. Counter #1 (Verified by Accounts Officer)'
               }
-              className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full h-10 px-3 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
             />
           </div>
 
           {/* Internal Note */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Accounts Clerk Notes (Optional)
+            <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1.5">
+              Accounts Reference Note (Optional)
             </label>
             <input
               type="text"
               value={clerkNote}
               onChange={(e) => setClerkNote(e.target.value)}
-              placeholder="e.g. Father visited in-person, handed receipt duplicate."
-              className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="e.g. Parent collected duplicate receipt at desk."
+              className="w-full h-10 px-3 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
             />
           </div>
 
           {/* Compliance notice */}
-          <div className="flex items-center gap-2 p-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-lg text-[11px] text-emerald-800">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="flex items-center gap-2 p-3 bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-[11px] text-[#059669] dark:text-[#34D399]">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
             <span>
-              Generating this entry instantly assigns a verifiable <span className="font-bold">#SCH-XXXX</span> receipt number and updates the parent app in real time.
+              Assigns a verifiable <span className="font-bold font-mono">#{schoolProfile.code}-XXXX</span> receipt number and flips the Parent Mobile App to <span className="font-bold">PAID</span> in real time.
             </span>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E2E8F0] dark:border-[#232E44]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+              className="px-4 py-2 border border-[#E2E8F0] dark:border-[#232E44] rounded-xl text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-600/20 transition disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#059669] hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition disabled:opacity-50 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{isSubmitting ? 'Recording...' : `Confirm & Record ₹${activeInstallment.amount.toLocaleString('en-IN')}`}</span>
+              <span>
+                {isSubmitting
+                  ? 'Recording...'
+                  : `Confirm & Record ₹${activeInstallment.amount.toLocaleString('en-IN')}`}
+              </span>
             </button>
           </div>
         </form>

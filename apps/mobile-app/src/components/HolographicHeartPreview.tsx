@@ -196,7 +196,7 @@ export const HolographicHeartPreview: React.FC<HolographicHeartPreviewProps> = (
 
         {/* Bottom Labels */}
         <SvgText x="24" y="202" fill="#38BDF8" fontSize="7.5" fontWeight="bold" fontFamily="monospace">
-          NCERT BIO CH 6.2 • SYSTEMIC CIRCULATION
+          SCHOOL BIO CH 6.2 • SYSTEMIC CIRCULATION
         </SvgText>
         <SvgText x="375" y="202" fill="#10B981" fontSize="7" fontWeight="bold" fontFamily="monospace" textAnchor="end">
           [● AR ANCHOR LOCKED]

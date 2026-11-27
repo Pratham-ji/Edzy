@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import Svg, { Path, Circle, Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { PressableScale } from '@/components/PressableScale';
 import {
   Sparkles,
@@ -23,20 +24,17 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
-  TrendingUp,
-  FileText,
-  Lock,
   ChevronRight,
   Heart,
   Bell,
-  Settings,
   ShieldCheck,
-  Calendar,
-  Layers,
   GraduationCap,
+  X,
+  Download,
+  Lock,
 } from 'lucide-react-native';
-import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { useEdzyStore, SchoolCircular } from '@/store/useEdzyStore';
+import { useAppTheme, getCardShadow } from '@/theme/colors';
 
 const SUBJECT_CHIPS = ['All', 'Science', 'Mathematics', 'Physics', 'English'];
 
@@ -47,23 +45,27 @@ export default function MasterBentoDashboard() {
     setActiveMode,
     studentProfile,
     roadmaps,
+    studentRoadmapProgress,
     feeInstallments,
     examMarks,
-    logout,
-    sessionTimeLimitMinutes,
     sessionRemainingSeconds,
     isTimeLimitActive,
     isSessionLocked,
     decrementSessionSecond,
     unlockOrExtendSession,
-    connectionMode,
     liveSyncToast,
     clearLiveSyncToast,
     initializeMobileSync,
+    circulars,
+    unreadCircularsCount,
+    clearUnreadCirculars,
   } = useEdzyStore();
 
+  const { theme, isDark } = useAppTheme();
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [parentOverridePin, setParentOverridePin] = useState('');
+  const [selectedCircular, setSelectedCircular] = useState<SchoolCircular | null>(null);
+  const [showAllCircularsModal, setShowAllCircularsModal] = useState(false);
 
   // Digital Wellbeing Countdown Timer
   useEffect(() => {
@@ -95,6 +97,7 @@ export default function MasterBentoDashboard() {
   }, [liveSyncToast, clearLiveSyncToast]);
 
   const isStudent = activeMode === 'STUDENT';
+  const schoolBoard = (studentProfile.schoolBoard || 'CBSE').split(' ')[0].toUpperCase();
 
   // Format time remaining
   const formatTimeRemaining = (seconds: number) => {
@@ -114,26 +117,63 @@ export default function MasterBentoDashboard() {
   const pendingQuarter = feeInstallments.find((f) => f.status === 'PENDING' || f.status === 'OVERDUE');
   const allFeesCleared = totalDue === 0;
 
-  // Latest exam report
-  const latestExam = examMarks && examMarks.length > 0 ? examMarks[0] : null;
+  // Latest exam report - prioritizes Class 10 Pre-Board Examination (92.6%)
+  const latestExam =
+    examMarks?.find((m) => m.termId === 'PRE_BOARD') ||
+    (examMarks && examMarks.length > 0 ? examMarks[0] : null);
 
-  // Active roadmap
-  const activeRoadmap = roadmaps.find((r) => r.isCurrent) || roadmaps[0];
+  const activeCircular = circulars && circulars.length > 0 ? circulars[0] : null;
+
+  // Filter roadmaps by subject chip
+  const filteredRoadmaps = roadmaps.filter((r) => {
+    if (selectedSubject === 'All') return true;
+    return r.subject.toLowerCase().includes(selectedSubject.toLowerCase());
+  });
+  const activeRoadmap = filteredRoadmaps.find((r) => r.isCurrent) || filteredRoadmaps[0] || roadmaps[0];
+  const progressEntries = Object.values(studentRoadmapProgress || {});
+  const primaryProgress =
+    (activeRoadmap && studentRoadmapProgress?.[activeRoadmap.id]) || progressEntries[0];
+
+  const heroPct = primaryProgress?.completionPct ?? activeRoadmap?.progressPercent ?? 50;
+  const heroTotalSubtopics = activeRoadmap?.totalSubtopics || 8;
+  const heroCompletedSubtopics = primaryProgress
+    ? Math.round((heroPct / 100) * heroTotalSubtopics)
+    : activeRoadmap?.completedSubtopics || 4;
+
+  const masteredTodayCount = progressEntries.reduce(
+    (sum, p) => sum + (p.completedTodayCount || 0),
+    0
+  );
+  const recentMasteredTopic =
+    progressEntries.find((p) => p.lastMasteredTopicTitle)?.lastMasteredTopicTitle ||
+    'Human Heart Chambers & Valves';
+
+  const sprintGoalLabel = primaryProgress
+    ? primaryProgress.paceStatus === 'COMPLETED'
+      ? `${primaryProgress.totalDays}-Day Goal: Completed`
+      : primaryProgress.paceStatus === 'AUTO_ADJUSTED'
+      ? `Auto-Adjusted — ${primaryProgress.skippedDaysCount || 1} Day${(primaryProgress.skippedDaysCount || 1) > 1 ? 's' : ''} Missed`
+      : primaryProgress.paceStatus === 'HIGH_PACE'
+      ? `High Pace • ${primaryProgress.totalDays}-Day Goal`
+      : `${primaryProgress.totalDays}-Day Goal: On Track`
+    : '7-Day Goal: On Track';
 
   const handleParentUnlock = () => {
     if (unlockOrExtendSession(parentOverridePin, 30)) {
       setParentOverridePin('');
       Alert.alert('Session Extended', '30 additional minutes granted for study.');
     } else {
-      Alert.alert('Incorrect PIN', 'Please enter valid 4-digit Parent PIN.');
+      Alert.alert('Incorrect PIN', 'Please enter valid 4-digit Parent PIN (Default: 1234).');
     }
   };
 
+  const cardShadow = getCardShadow(isDark);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top', 'left', 'right']}>
       {/* ─── LIVE SYNC TOAST ─── */}
       {liveSyncToast && (
-        <View style={styles.toastContainer}>
+        <View style={[styles.toastContainer, { backgroundColor: theme.success }]}>
           <CheckCircle2 size={16} color="#FFFFFF" />
           <Text style={styles.toastText} numberOfLines={1}>
             {liveSyncToast}
@@ -141,72 +181,91 @@ export default function MasterBentoDashboard() {
         </View>
       )}
 
-      {/* ─── 1. COMPACT 1-ROW CONSUMER HEADER (Zomato/Blinkit Style) ─── */}
-      <View style={styles.header}>
+      {/* ─── 1. COMPACT 1-ROW CONSUMER HEADER (Flagship Single-Row Standard) ─── */}
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <View style={styles.headerLeft}>
-          <View style={styles.avatarCircle}>
+          <View style={[styles.avatarCircle, { backgroundColor: isStudent ? theme.brandPrimary : theme.success }]}>
             <Text style={styles.avatarText}>
-              {isStudent ? studentProfile.name[0] : studentProfile.parentName[0]}
+              {isStudent ? (studentProfile?.name?.[0] || 'A') : (studentProfile?.parentName?.[0] || 'R')}
             </Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName} numberOfLines={1}>
-              {isStudent ? `Hi, ${studentProfile.name.split(' ')[0]}` : `Hi, ${studentProfile.parentName.split(' ')[0]}`}
+            <Text style={[styles.userName, { color: theme.textPrimary }]} numberOfLines={1}>
+              {isStudent
+                ? `Hi, ${studentProfile?.name?.split(' ')[0] || 'Aarav'}`
+                : `Hi, ${studentProfile?.parentName?.split(' ')[0] || 'Rajesh'}`}
             </Text>
-            <Text style={styles.userSub} numberOfLines={1}>
-              {studentProfile.schoolName.split(' ')[0]} {studentProfile.schoolName.split(' ')[1] || ''} • {studentProfile.classGrade}
+            <Text style={[styles.userSub, { color: theme.textMuted }]} numberOfLines={1}>
+              {studentProfile?.schoolName?.split(' ')[0] || 'Doon Valley'} • {studentProfile?.classGrade || 'Class 10-A'}
             </Text>
           </View>
         </View>
 
         <View style={styles.headerRight}>
-          {isTimeLimitActive && (
-            <View style={styles.timerPill}>
-              <Clock size={12} color={colors.brand.primary} />
-              <Text style={styles.timerText}>
+          {isTimeLimitActive && isStudent && (
+            <View style={[styles.timerPill, { backgroundColor: theme.brandTint }]}>
+              <Clock size={11} color={theme.brandPrimary} />
+              <Text style={[styles.timerText, { color: theme.brandPrimary }]}>
                 {formatTimeRemaining(sessionRemainingSeconds)}
               </Text>
             </View>
           )}
+
+          {/* Compact Persona Pill */}
           <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push('/(tabs)/profile')}
+            style={[
+              styles.personaPill,
+              {
+                backgroundColor: isStudent ? theme.brandTint : theme.successTint,
+                borderColor: isStudent ? theme.brandBorder : theme.border,
+              },
+            ]}
+            onPress={() => setActiveMode(isStudent ? 'PARENT' : 'STUDENT')}
+            activeOpacity={0.75}
+          >
+            <Text
+              style={[
+                styles.personaPillText,
+                { color: isStudent ? theme.brandPrimary : theme.success },
+              ]}
+            >
+              {isStudent ? 'Student ⇄' : 'Parent ⇄'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Circular Notice Bell Button */}
+          <TouchableOpacity
+            style={[
+              styles.bellButton,
+              { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+            ]}
+            onPress={() => {
+              clearUnreadCirculars();
+              if (circulars && circulars.length > 0) {
+                setShowAllCircularsModal(true);
+              } else {
+                Alert.alert('Notice Board', 'No new circulars issued today.');
+              }
+            }}
             activeOpacity={0.7}
           >
-            <Settings size={18} color="#222222" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ─── 2. SLEEK SEGMENTED MODE PILL ─── */}
-      <View style={styles.modeContainer}>
-        <View style={styles.modeTrack}>
-          <TouchableOpacity
-            style={[styles.modeTab, isStudent && styles.modeTabActive]}
-            onPress={() => setActiveMode('STUDENT')}
-            activeOpacity={0.85}
-          >
-            <Sparkles size={14} color={isStudent ? colors.brand.primary : colors.text.muted} />
-            <Text style={[styles.modeLabel, isStudent && styles.modeLabelActive]}>
-              Study Space
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.modeTab, !isStudent && styles.modeTabActive]}
-            onPress={() => setActiveMode('PARENT')}
-            activeOpacity={0.85}
-          >
-            <CreditCard size={14} color={!isStudent ? colors.parent.primary : colors.text.muted} />
-            <Text style={[styles.modeLabel, !isStudent && styles.modeLabelActiveParent]}>
-              Parent ERP
-            </Text>
+            <Bell size={16} color={theme.textSecondary} />
+            {(unreadCircularsCount > 0 || (circulars && circulars.length > 0)) && (
+              <View
+                style={[
+                  styles.bellDot,
+                  {
+                    backgroundColor: unreadCircularsCount > 0 ? theme.danger : theme.brandPrimary,
+                  },
+                ]}
+              />
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 132 }]}
         showsVerticalScrollIndicator={false}
       >
         {isStudent ? (
@@ -214,7 +273,7 @@ export default function MasterBentoDashboard() {
              STUDENT STUDY SPACE
              ========================================================================= */
           <View style={styles.contentSection}>
-            {/* Subject Filter Chips */}
+            {/* Horizontal Subject Chips */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -225,11 +284,22 @@ export default function MasterBentoDashboard() {
                 return (
                   <TouchableOpacity
                     key={chip}
-                    style={[styles.chip, isActive && styles.chipActive]}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: isActive ? theme.brandPrimary : theme.surface,
+                        borderColor: isActive ? theme.brandPrimary : theme.border,
+                      },
+                    ]}
                     onPress={() => setSelectedSubject(chip)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: isActive ? '#FFFFFF' : theme.textSecondary },
+                      ]}
+                    >
                       {chip}
                     </Text>
                   </TouchableOpacity>
@@ -238,44 +308,67 @@ export default function MasterBentoDashboard() {
             </ScrollView>
 
             {/* HERO CARD: Continue Learning */}
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                cardShadow,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
               <View style={styles.cardHeaderRow}>
-                <View style={styles.pillBadgeIndigo}>
-                  <BookOpen size={12} color={colors.brand.primary} />
-                  <Text style={styles.pillBadgeIndigoText}>
+                <View style={[styles.pillBadgeIndigo, { backgroundColor: theme.brandTint }]}>
+                  <BookOpen size={12} color={theme.brandPrimary} />
+                  <Text style={[styles.pillBadgeIndigoText, { color: theme.brandPrimary }]}>
                     {activeRoadmap?.subject || 'Science'} • Ch {activeRoadmap?.chapterNumber || 6}
                   </Text>
                 </View>
-                <Text style={styles.cardMetaText}>NCERT Class 10</Text>
+                <Text style={[styles.cardMetaText, { color: theme.textMuted }]}>
+                  {schoolBoard} • {studentProfile.classGrade.split('-')[0] || 'Class 10'}
+                </Text>
               </View>
 
-              <Text style={styles.heroTitle}>
+              <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
                 {activeRoadmap?.title || 'Life Processes & Human Heart'}
               </Text>
 
               {/* Progress Bar */}
               <View style={styles.progressContainer}>
-                <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarTrack, { backgroundColor: theme.surfaceSubtle }]}>
                   <View
                     style={[
                       styles.progressBarFill,
-                      { width: `${activeRoadmap?.progressPercent || 65}%` },
+                      {
+                        width: `${heroPct}%`,
+                        backgroundColor: heroPct === 100 ? theme.success : theme.brandPrimary,
+                      },
                     ]}
                   />
                 </View>
                 <View style={styles.progressLabelRow}>
-                  <Text style={styles.progressPercentText}>
-                    {activeRoadmap?.progressPercent || 65}% Mastered
+                  <Text style={[styles.progressPercentText, { color: heroPct === 100 ? theme.success : theme.brandPrimary }]}>
+                    {heroPct}% Mastered
                   </Text>
-                  <Text style={styles.progressSubText}>
-                    {activeRoadmap?.completedSubtopics || 3} of {activeRoadmap?.totalSubtopics || 5} topics done
+                  <Text style={[styles.progressSubText, { color: theme.textMuted }]}>
+                    {heroCompletedSubtopics} of {heroTotalSubtopics} topics done
                   </Text>
                 </View>
               </View>
 
+              <View style={styles.nextTopicRow}>
+                <Sparkles size={12} color={theme.brandPrimary} />
+                <Text style={[styles.nextTopicText, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {sprintGoalLabel} • {activeRoadmap?.milestones?.[1]?.title || 'Interactive Flowchart'}
+                </Text>
+              </View>
+
               <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => router.push('/study/roadmap')}
+                style={[styles.primaryButton, { backgroundColor: theme.brandPrimary }]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/study/roadmap',
+                    params: { roadmapId: activeRoadmap?.id },
+                  })
+                }
                 activeOpacity={0.85}
               >
                 <Text style={styles.primaryButtonText}>Continue Chapter</Text>
@@ -283,94 +376,194 @@ export default function MasterBentoDashboard() {
               </TouchableOpacity>
             </View>
 
-            {/* INTERACTIVE 3D LAB CARD (Clean Slot for AR Teammate) */}
-            <View style={styles.card}>
+            {/* 3D VISUAL LAB SHOWCASE CARD */}
+            <View
+              style={[
+                styles.card,
+                cardShadow,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              {/* Rich Stylized SVG Holographic Heart Viewport */}
               <View style={styles.arPreviewContainer}>
-                <View style={styles.arGradientBox}>
-                  <View style={styles.heartIconCircle}>
-                    <Heart size={36} color={colors.brand.primary} fill="#EEF2FF" />
+                <View style={[styles.arViewportCanvas, { backgroundColor: isDark ? '#080C14' : '#111827' }]}>
+                  <Svg width="100%" height="160" viewBox="0 0 320 160">
+                    <Defs>
+                      <RadialGradient id="heartGlow" cx="50%" cy="50%" rx="50%" ry="50%">
+                        <Stop offset="0%" stopColor="#6366F1" stopOpacity="0.35" />
+                        <Stop offset="60%" stopColor="#4F46E5" stopOpacity="0.12" />
+                        <Stop offset="100%" stopColor="#1E1B4B" stopOpacity="0" />
+                      </RadialGradient>
+                      <RadialGradient id="pulseCenter" cx="50%" cy="50%" rx="50%" ry="50%">
+                        <Stop offset="0%" stopColor="#EC4899" stopOpacity="0.7" />
+                        <Stop offset="100%" stopColor="#6366F1" stopOpacity="0" />
+                      </RadialGradient>
+                    </Defs>
+
+                    {/* Ambient Glow */}
+                    <Rect x="0" y="0" width="320" height="160" fill="url(#heartGlow)" />
+
+                    {/* Concentric Telemetry Orbit Rings */}
+                    <Circle cx="160" cy="80" r="64" stroke="#6366F1" strokeWidth="1" strokeDasharray="4,4" opacity="0.35" />
+                    <Circle cx="160" cy="80" r="46" stroke="#38BDF8" strokeWidth="1" strokeDasharray="3,3" opacity="0.4" />
+                    <Circle cx="160" cy="80" r="28" stroke="#A855F7" strokeWidth="1" opacity="0.45" />
+
+                    {/* Stylized Anatomical Heart Wireframe Graphic */}
+                    <Path
+                      d="M160,54 C150,38 128,38 122,54 C114,75 142,98 160,114 C178,98 206,75 198,54 C192,38 170,38 160,54 Z"
+                      fill="url(#pulseCenter)"
+                      stroke="#818CF8"
+                      strokeWidth="2"
+                    />
+
+                    {/* Aorta Arch Detail */}
+                    <Path
+                      d="M152,50 C152,36 168,36 168,50"
+                      fill="none"
+                      stroke="#F43F5E"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                    />
+                    <Path
+                      d="M146,42 L146,34 M158,40 L158,32 M168,44 L168,36"
+                      stroke="#FB7185"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+
+                    {/* Aorta Target Crosshair */}
+                    <Circle cx="160" cy="40" r="5" stroke="#F43F5E" strokeWidth="1.5" fill="none" />
+                    <Circle cx="160" cy="40" r="1.5" fill="#F43F5E" />
+                  </Svg>
+
+                  {/* Overlaid Badges */}
+                  <View style={styles.arBadgeRow}>
+                    <View style={styles.arModelBadge}>
+                      <Boxes size={11} color="#38BDF8" />
+                      <Text style={styles.arModelBadgeText}>3D Interactive</Text>
+                    </View>
+                    <View style={styles.arChBadge}>
+                      <Text style={styles.arChBadgeText}>Ch 6 Biology</Text>
+                    </View>
                   </View>
-                  <View style={styles.arModelBadge}>
-                    <Boxes size={12} color={colors.brand.primary} />
-                    <Text style={styles.arModelBadgeText}>Interactive 3D Model</Text>
+
+                  <View style={styles.focusAortaBadge}>
+                    <Text style={styles.focusAortaText}>FOCUS: AORTA</Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.arCardBody}>
-                <Text style={styles.cardTitle}>Human Heart — 3D Visual Lab</Text>
-                <Text style={styles.cardDescription}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Human Heart — 3D Visual Lab
+                </Text>
+                <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
                   Rotate, zoom, and explore chambers, valves, and blood flow in full 3D simulation.
                 </Text>
 
                 <TouchableOpacity
-                  style={styles.secondaryBrandButton}
+                  style={[
+                    styles.secondaryBrandButton,
+                    { backgroundColor: theme.brandTint },
+                  ]}
                   onPress={() => router.push('/study/ar-lab')}
                   activeOpacity={0.85}
                 >
-                  <Boxes size={16} color={colors.brand.primary} />
-                  <Text style={styles.secondaryBrandButtonText}>Open 3D Lab</Text>
+                  <Boxes size={16} color={theme.brandPrimary} />
+                  <Text style={[styles.secondaryBrandButtonText, { color: theme.brandPrimary }]}>
+                    Explore in 3D
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* 2-COLUMN QUICK ACTION GRID */}
+            {/* 2-COLUMN ACTION GRID */}
             <View style={styles.quickGrid}>
               {/* Left Tile: AI Doubt Tutor */}
               <TouchableOpacity
-                style={[styles.gridTile, styles.gridTileLeft]}
+                style={[
+                  styles.gridTile,
+                  cardShadow,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
                 onPress={() => router.push('/study/tutor')}
                 activeOpacity={0.85}
               >
-                <View style={styles.iconCircleIndigo}>
-                  <HelpCircle size={22} color={colors.brand.primary} />
+                <View style={[styles.iconCircleIndigo, { backgroundColor: theme.brandTint }]}>
+                  <HelpCircle size={20} color={theme.brandPrimary} />
                 </View>
-                <Text style={styles.gridTileTitle}>AI Doubt Tutor</Text>
-                <Text style={styles.gridTileSub}>
-                  Ask anything grounded in school notes & NCERT
+                <Text style={[styles.gridTileTitle, { color: theme.textPrimary }]}>AI Doubt Tutor</Text>
+                <Text style={[styles.gridTileSub, { color: theme.textSecondary }]}>
+                  Ask from your {schoolBoard} notes
                 </Text>
                 <View style={styles.gridTileAction}>
-                  <Text style={styles.gridActionTextIndigo}>Ask Doubts →</Text>
+                  <Text style={[styles.gridActionTextIndigo, { color: theme.brandPrimary }]}>
+                    Ask Doubts →
+                  </Text>
                 </View>
               </TouchableOpacity>
 
               {/* Right Tile: Study Streak */}
-              <View style={[styles.gridTile, styles.gridTileRight]}>
-                <View style={styles.iconCircleOrange}>
-                  <Flame size={22} color={colors.streak.primary} />
+              <View
+                style={[
+                  styles.gridTile,
+                  cardShadow,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <View style={[styles.iconCircleOrange, { backgroundColor: theme.streakTint }]}>
+                  <Flame size={20} color={theme.streakPrimary} />
                 </View>
-                <Text style={styles.gridTileTitle}>
+                <Text style={[styles.gridTileTitle, { color: theme.textPrimary }]}>
                   {studentProfile.streakDays || 12} Days
                 </Text>
-                <Text style={styles.gridTileSub}>
+                <Text style={[styles.gridTileSub, { color: theme.textSecondary }]}>
                   {studentProfile.weeklyStudyHours || 6.5} hrs logged this week
                 </Text>
                 <View style={styles.streakBadgeRow}>
-                  <CheckCircle2 size={12} color={colors.status.success} />
-                  <Text style={styles.streakBadgeText}>Daily Goal Met</Text>
+                  <CheckCircle2 size={12} color={theme.success} />
+                  <Text style={[styles.streakBadgeText, { color: theme.success }]}>Daily Goal Met</Text>
                 </View>
               </View>
             </View>
+
+            {/* Subtle Focus Limit Indicator Footer */}
+            {isTimeLimitActive && (
+              <View style={styles.focusFooter}>
+                <Clock size={11} color={theme.textMuted} />
+                <Text style={[styles.focusFooterText, { color: theme.textMuted }]}>
+                  Focus limit active • {formatTimeRemaining(sessionRemainingSeconds)} remaining for today
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           /* =========================================================================
              PARENT ERP MODE
              ========================================================================= */
           <View style={styles.contentSection}>
-            {/* PAYMENT SUMMARY CARD (PhonePe/Groww Style) */}
-            <View style={styles.card}>
+            {/* PAYMENT SUMMARY CARD */}
+            <View
+              style={[
+                styles.card,
+                cardShadow,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardCategoryTitle}>School Fee Summary</Text>
+                <Text style={[styles.cardCategoryTitle, { color: theme.textPrimary }]}>
+                  School Fee Summary
+                </Text>
                 {allFeesCleared ? (
-                  <View style={styles.badgeSuccess}>
-                    <CheckCircle2 size={12} color={colors.status.success} />
-                    <Text style={styles.badgeSuccessText}>All Dues Cleared</Text>
+                  <View style={[styles.badgeSuccess, { backgroundColor: theme.successTint }]}>
+                    <CheckCircle2 size={12} color={theme.success} />
+                    <Text style={[styles.badgeSuccessText, { color: theme.success }]}>All Dues Cleared</Text>
                   </View>
                 ) : (
-                  <View style={styles.badgeWarning}>
-                    <Clock size={12} color={colors.status.warning} />
-                    <Text style={styles.badgeWarningText}>
-                      {pendingQuarter?.quarter.split(' ')[0] || 'Q4'} Due • 30 Nov
+                  <View style={[styles.badgeWarning, { backgroundColor: theme.warningTint }]}>
+                    <Clock size={12} color={theme.warning} />
+                    <Text style={[styles.badgeWarningText, { color: theme.warning }]}>
+                      {pendingQuarter?.quarter?.split(' ')?.[0] || 'Q4'} Due • 30 Nov
                     </Text>
                   </View>
                 )}
@@ -378,42 +571,61 @@ export default function MasterBentoDashboard() {
 
               <View style={styles.feeNumbersRow}>
                 <View>
-                  <Text style={styles.feeLabel}>Outstanding Balance</Text>
-                  <Text style={[styles.feeAmountLarge, allFeesCleared && { color: colors.status.success }]}>
+                  <Text style={[styles.feeLabel, { color: theme.textSecondary }]}>Outstanding Balance</Text>
+                  <Text
+                    style={[
+                      styles.feeAmountLarge,
+                      { color: allFeesCleared ? theme.success : theme.danger },
+                    ]}
+                  >
                     ₹{totalDue.toLocaleString('en-IN')}
                   </Text>
                 </View>
                 <View style={styles.feePaidColumn}>
-                  <Text style={styles.feeLabel}>Total Paid to Date</Text>
-                  <Text style={styles.feePaidAmount}>
+                  <Text style={[styles.feeLabel, { color: theme.textSecondary }]}>Total Paid to Date</Text>
+                  <Text style={[styles.feePaidAmount, { color: theme.success }]}>
                     ₹{totalPaid.toLocaleString('en-IN')}
                   </Text>
                 </View>
               </View>
 
               <TouchableOpacity
-                style={allFeesCleared ? styles.secondaryBrandButton : styles.primaryButtonEmerald}
+                style={[
+                  allFeesCleared ? styles.secondaryBrandButton : styles.primaryButtonEmerald,
+                  { backgroundColor: allFeesCleared ? theme.brandTint : theme.success },
+                ]}
                 onPress={() => router.push('/erp/fees')}
                 activeOpacity={0.85}
               >
-                <Text style={allFeesCleared ? styles.secondaryBrandButtonText : styles.primaryButtonText}>
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    allFeesCleared && { color: theme.brandPrimary },
+                  ]}
+                >
                   {allFeesCleared ? 'View Receipts & Passbook' : 'Pay via UPI / View Passbook'}
                 </Text>
-                <ChevronRight size={16} color={allFeesCleared ? colors.brand.primary : '#FFFFFF'} />
+                <ChevronRight size={16} color={allFeesCleared ? theme.brandPrimary : '#FFFFFF'} />
               </TouchableOpacity>
             </View>
 
             {/* EXAM REPORT CARD SUMMARY */}
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                cardShadow,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
               <View style={styles.cardHeaderRow}>
-                <View style={styles.pillBadgeEmerald}>
-                  <GraduationCap size={12} color={colors.parent.primary} />
-                  <Text style={styles.pillBadgeEmeraldText}>
-                    {latestExam?.termName || 'Pre-Board Examination'}
+                <View style={[styles.pillBadgeEmerald, { backgroundColor: theme.successTint }]}>
+                  <GraduationCap size={12} color={theme.success} />
+                  <Text style={[styles.pillBadgeEmeraldText, { color: theme.success }]}>
+                    {latestExam?.termName || 'Class 10 Pre-Board Examination'}
                   </Text>
                 </View>
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankBadgeText}>
+                <View style={[styles.rankBadge, { backgroundColor: theme.surfaceSubtle }]}>
+                  <Text style={[styles.rankBadgeText, { color: theme.textSecondary }]}>
                     Rank #{latestExam?.rankInClass || 2} of {latestExam?.totalStudents || 42}
                   </Text>
                 </View>
@@ -421,105 +633,505 @@ export default function MasterBentoDashboard() {
 
               <View style={styles.examScoreRow}>
                 <View>
-                  <Text style={styles.examAggregate}>
+                  <Text style={[styles.examAggregate, { color: theme.textPrimary }]}>
                     {latestExam?.percentage || 92.6}%
                   </Text>
-                  <Text style={styles.examAggregateLabel}>Overall Aggregate Score</Text>
+                  <Text style={[styles.examAggregateLabel, { color: theme.textMuted }]}>
+                    Overall Aggregate Score
+                  </Text>
                 </View>
                 <View style={styles.attendanceColumn}>
-                  <Text style={styles.attendanceValue}>
-                    {latestExam?.attendancePercentage || 96.8}%
+                  <Text style={[styles.attendanceValue, { color: theme.success }]}>
+                    {(studentProfile.attendancePct ?? latestExam?.attendancePercentage ?? 96.8)}%
                   </Text>
-                  <Text style={styles.attendanceLabel}>Attendance</Text>
+                  <Text style={[styles.attendanceLabel, { color: theme.textMuted }]}>Attendance</Text>
                 </View>
               </View>
 
               {/* Subject Score Pills */}
               <View style={styles.subjectPillsRow}>
-                {latestExam?.scores.slice(0, 3).map((sc) => (
-                  <View key={sc.subject} style={styles.subjectPill}>
-                    <Text style={styles.subjectPillName}>
-                      {sc.subject.split(' ')[0]}
-                    </Text>
-                    <Text style={styles.subjectPillScore}>
-                      {sc.marksObtained}/{sc.maxMarks}
-                    </Text>
-                  </View>
-                ))}
+                {(latestExam?.scores || [
+                  { subject: 'Mathematics', marksObtained: 96, maxMarks: 100 },
+                  { subject: 'Science', marksObtained: 94, maxMarks: 100 },
+                  { subject: 'English', marksObtained: 88, maxMarks: 100 },
+                ])
+                  .slice(0, 3)
+                  .map((sc) => (
+                    <View
+                      key={sc.subject}
+                      style={[styles.subjectPill, { backgroundColor: theme.surfaceSubtle }]}
+                    >
+                      <Text style={[styles.subjectPillName, { color: theme.textSecondary }]}>
+                        {sc.subject.split(' ')[0]}
+                      </Text>
+                      <Text style={[styles.subjectPillScore, { color: theme.textPrimary }]}>
+                        {sc.marksObtained}/{sc.maxMarks}
+                      </Text>
+                    </View>
+                  ))}
               </View>
 
               <TouchableOpacity
-                style={styles.outlineButton}
+                style={[
+                  styles.outlineButton,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
                 onPress={() => router.push('/erp/marks')}
                 activeOpacity={0.85}
               >
-                <Text style={styles.outlineButtonText}>View Full Report Card</Text>
-                <ChevronRight size={16} color={colors.text.secondary} />
+                <Text style={[styles.outlineButtonText, { color: theme.textSecondary }]}>
+                  View Full Report Card
+                </Text>
+                <ChevronRight size={16} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
 
             {/* AT-HOME STUDY PROOF CARD */}
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                cardShadow,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
               <View style={styles.proofHeaderRow}>
-                <View style={styles.iconCircleIndigoSmall}>
-                  <ShieldCheck size={18} color={colors.brand.primary} />
+                <View style={[styles.iconCircleIndigoSmall, { backgroundColor: theme.brandTint }]}>
+                  <ShieldCheck size={18} color={theme.brandPrimary} />
                 </View>
                 <View style={styles.proofHeaderText}>
-                  <Text style={styles.cardTitle}>Verified At-Home Study</Text>
-                  <Text style={styles.cardDescription}>
-                    {studentProfile.name} studied {studentProfile.weeklyStudyHours || 6.5} hrs at home this week — 3 school chapters covered.
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                      Verified At-Home Study
+                    </Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 8,
+                        backgroundColor:
+                          primaryProgress?.paceStatus === 'AUTO_ADJUSTED' ||
+                          primaryProgress?.paceStatus === 'HIGH_PACE'
+                            ? theme.warningTint
+                            : theme.successTint,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: '700',
+                          color:
+                            primaryProgress?.paceStatus === 'AUTO_ADJUSTED' ||
+                            primaryProgress?.paceStatus === 'HIGH_PACE'
+                              ? theme.warning
+                              : theme.success,
+                        }}
+                      >
+                        {masteredTodayCount} topic{masteredTodayCount === 1 ? '' : 's'} mastered today
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.cardDescription, { color: theme.textPrimary, fontWeight: '600', marginBottom: 4 }]}>
+                    Mastered: {recentMasteredTopic} • {sprintGoalLabel}
+                  </Text>
+                  <Text style={[styles.cardDescription, { color: theme.textSecondary, marginBottom: 0 }]}>
+                    {studentProfile?.name || 'Aarav'} studied {studentProfile?.weeklyStudyHours || 6.5} hrs at home this week across {roadmaps.length} school chapters ({heroPct}% chapter completion).
                   </Text>
                 </View>
               </View>
             </View>
 
             {/* SCHOOL CIRCULAR / NOTICE CARD */}
-            <View style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.noticeHeaderLeft}>
-                  <Bell size={14} color={colors.brand.primary} />
-                  <Text style={styles.cardCategoryTitle}>School Circular</Text>
+            {activeCircular && (
+              <PressableScale
+                style={[
+                  styles.card,
+                  cardShadow,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={() => setSelectedCircular(activeCircular)}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.noticeHeaderLeft}>
+                    <Bell size={14} color={theme.brandPrimary} />
+                    <Text style={[styles.cardCategoryTitle, { color: theme.textPrimary }]}>
+                      Official School Circular
+                    </Text>
+                  </View>
+                  <Text style={[styles.cardMetaText, { color: theme.textMuted }]}>
+                    {activeCircular.date}
+                  </Text>
                 </View>
-                <Text style={styles.cardMetaText}>21 Nov 2026</Text>
-              </View>
-              <Text style={styles.noticeBody}>
-                Pre-Board practical schedules released. Please ensure all outstanding term dues are cleared before hall tickets are generated.
-              </Text>
-            </View>
+                <Text
+                  style={[
+                    styles.cardTitle,
+                    { color: theme.textPrimary, fontSize: 15, marginBottom: 4 },
+                  ]}
+                >
+                  {activeCircular.title}
+                </Text>
+                <Text
+                  style={[styles.noticeBody, { color: theme.textSecondary }]}
+                  numberOfLines={2}
+                >
+                  {activeCircular.message}
+                </Text>
+                <View
+                  style={[
+                    styles.circularFooterRow,
+                    { borderTopColor: theme.border },
+                  ]}
+                >
+                  <Text style={[styles.circularAuthorText, { color: theme.textSecondary }]}>
+                    {activeCircular.author}
+                  </Text>
+                  <Text style={[styles.circularActionText, { color: theme.brandPrimary }]}>
+                    Read Full Circular →
+                  </Text>
+                </View>
+              </PressableScale>
+            )}
           </View>
         )}
       </ScrollView>
 
-      {/* ─── DIGITAL WELLBEING SESSION LOCK MODAL ─── */}
-      <Modal visible={isSessionLocked} transparent animationType="fade">
+      {/* ─── DIGITAL WELLBEING SESSION LOCK MODAL (Only when STUDENT mode) ─── */}
+      <Modal visible={isSessionLocked && isStudent} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.lockCard}>
-            <View style={styles.lockIconCircle}>
-              <Lock size={28} color={colors.brand.primary} />
+          <View
+            style={[
+              styles.lockCard,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
+            <View style={[styles.lockIconCircle, { backgroundColor: theme.brandTint }]}>
+              <Lock size={26} color={theme.brandPrimary} />
             </View>
-            <Text style={styles.lockTitle}>Daily Focus Limit Reached</Text>
-            <Text style={styles.lockDescription}>
+            <Text style={[styles.lockTitle, { color: theme.textPrimary }]}>
+              Daily Focus Limit Reached
+            </Text>
+            <Text style={[styles.lockDescription, { color: theme.textSecondary }]}>
               Great job today! To avoid digital fatigue, this device is temporarily paused.
               Ask your parent to enter their 4-digit PIN to extend study time.
             </Text>
 
-            <TextInput
-              style={styles.pinInput}
-              placeholder="Enter 4-digit Parent PIN"
-              placeholderTextColor={colors.text.muted}
-              secureTextEntry
-              keyboardType="numeric"
-              maxLength={4}
-              value={parentOverridePin}
-              onChangeText={setParentOverridePin}
-            />
+            {/* 4 Individual OTP Digit Boxes with Hidden Input */}
+            <View style={styles.otpBoxesRow}>
+              {[0, 1, 2, 3].map((idx) => {
+                const char = parentOverridePin[idx];
+                const isCurrent = parentOverridePin.length === idx;
+                return (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.otpBox,
+                      {
+                        backgroundColor: theme.surfaceSubtle,
+                        borderColor: isCurrent ? theme.brandPrimary : theme.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.otpDigit, { color: theme.textPrimary }]}>
+                      {char ? '●' : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+              <TextInput
+                style={styles.hiddenPinInput}
+                keyboardType="numeric"
+                maxLength={4}
+                value={parentOverridePin}
+                onChangeText={setParentOverridePin}
+                autoFocus
+                caretHidden
+              />
+            </View>
 
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[
+                styles.primaryButton,
+                { width: '100%', backgroundColor: theme.brandPrimary, height: 48 },
+              ]}
               onPress={handleParentUnlock}
               activeOpacity={0.85}
             >
               <Text style={styles.primaryButtonText}>Extend 30 Minutes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.switchModeLink}
+              onPress={() => setActiveMode('PARENT')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.switchModeLinkText, { color: theme.brandPrimary }]}>
+                Switch to Parent View
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── SCHOOL CIRCULAR NOTICE BOARD (ALL NOTICES) MODAL ─── */}
+      <Modal visible={showAllCircularsModal} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.circularModalCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                maxHeight: '80%',
+              },
+            ]}
+          >
+            <View style={styles.circularModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    backgroundColor: theme.brandTint,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Bell size={16} color={theme.brandPrimary} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: theme.textPrimary }}>
+                    School Notice Board
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textMuted }}>
+                    Official notices for {studentProfile.classGrade}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAllCircularsModal(false)}
+                style={[styles.closeButton, { backgroundColor: theme.surfaceSubtle }]}
+              >
+                <X size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
+              {circulars && circulars.length > 0 ? (
+                circulars.map((circ, idx) => (
+                  <TouchableOpacity
+                    key={`${circ.id}-${idx}`}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setShowAllCircularsModal(false);
+                      setSelectedCircular(circ);
+                    }}
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: theme.surfaceSubtle,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 6,
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.categoryPill,
+                          {
+                            backgroundColor:
+                              circ.category === 'EXAM'
+                                ? theme.warningTint
+                                : circ.category === 'HOLIDAY'
+                                ? theme.dangerTint
+                                : theme.brandTint,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryPillText,
+                            {
+                              color:
+                                circ.category === 'EXAM'
+                                  ? theme.warning
+                                  : circ.category === 'HOLIDAY'
+                                  ? theme.danger
+                                  : theme.brandPrimary,
+                            },
+                          ]}
+                        >
+                          {circ.category}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: theme.textMuted, fontWeight: '500' }}>
+                        {circ.date}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '700',
+                        color: theme.textPrimary,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {circ.title}
+                    </Text>
+
+                    <Text
+                      style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}
+                      numberOfLines={2}
+                    >
+                      {circ.message}
+                    </Text>
+
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTopWidth: 1,
+                        borderTopColor: theme.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, color: theme.textMuted }}>
+                        Target: {circ.targetClass}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: theme.brandPrimary, fontWeight: '600' }}>
+                        Tap to Read Full Notice →
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={{ textAlign: 'center', color: theme.textMuted, padding: 20 }}>
+                  No circulars currently published.
+                </Text>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                { width: '100%', backgroundColor: theme.brandPrimary, marginTop: 10 },
+              ]}
+              onPress={() => setShowAllCircularsModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Close Notice Board</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── SCHOOL CIRCULAR FULL VIEW MODAL ─── */}
+      <Modal visible={Boolean(selectedCircular)} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.circularModalCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View style={styles.circularModalHeader}>
+              <View
+                style={[
+                  styles.categoryPill,
+                  {
+                    backgroundColor:
+                      selectedCircular?.category === 'EXAM'
+                        ? theme.warningTint
+                        : selectedCircular?.category === 'HOLIDAY'
+                        ? theme.dangerTint
+                        : theme.brandTint,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryPillText,
+                    {
+                      color:
+                        selectedCircular?.category === 'EXAM'
+                          ? theme.warning
+                          : selectedCircular?.category === 'HOLIDAY'
+                          ? theme.danger
+                          : theme.brandPrimary,
+                    },
+                  ]}
+                >
+                  {selectedCircular?.category} CIRCULAR
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedCircular(null)}
+                style={[styles.closeButton, { backgroundColor: theme.surfaceSubtle }]}
+              >
+                <X size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.circularModalTitle, { color: theme.textPrimary }]}>
+              {selectedCircular?.title}
+            </Text>
+            <Text style={[styles.circularModalMeta, { color: theme.textMuted }]}>
+              Issued {selectedCircular?.date} • Target: {selectedCircular?.targetClass}
+            </Text>
+
+            <View style={[styles.circularMessageBox, { backgroundColor: theme.surfaceSubtle }]}>
+              <Text style={[styles.circularMessageText, { color: theme.textPrimary }]}>
+                {selectedCircular?.message}
+              </Text>
+            </View>
+
+            <View style={[styles.circularMetaRow, { borderTopColor: theme.border }]}>
+              <Text style={[styles.circularAuthorMeta, { color: theme.textSecondary }]}>
+                By {selectedCircular?.author}
+              </Text>
+              {selectedCircular?.attachmentName && (
+                <TouchableOpacity
+                  onPress={() =>
+                    Alert.alert(
+                      'Download Attachment',
+                      `Downloaded ${selectedCircular.attachmentName} to school files.`
+                    )
+                  }
+                  style={styles.attachmentButton}
+                >
+                  <Download size={13} color={theme.brandPrimary} />
+                  <Text style={[styles.attachmentText, { color: theme.brandPrimary }]}>
+                    PDF Attached
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                { width: '100%', backgroundColor: theme.brandPrimary },
+              ]}
+              onPress={() => setSelectedCircular(null)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Acknowledge & Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -531,14 +1143,12 @@ export default function MasterBentoDashboard() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   toastContainer: {
     position: 'absolute',
     top: 50,
     left: 16,
     right: 16,
-    backgroundColor: colors.status.success,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -546,8 +1156,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     zIndex: 999,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 5,
@@ -566,9 +1176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -580,7 +1188,6 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -595,11 +1202,9 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.text.primary,
   },
   userSub: {
     fontSize: 12,
-    color: colors.text.secondary,
     marginTop: 1,
   },
   headerRight: {
@@ -610,93 +1215,48 @@ const styles = StyleSheet.create({
   timerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.brand.tint,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   timerText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  personaPill: {
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personaPillText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+  bellButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-      default: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-    }),
+    position: 'relative',
   },
-
-  // Mode Switcher Pill
-  modeContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
-    backgroundColor: colors.background,
-  },
-  modeTrack: {
-    flexDirection: 'row',
-    backgroundColor: '#EAEEF4',
-    borderRadius: 25,
-    padding: 3,
-  },
-  modeTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 22,
-  },
-  modeTabActive: {
-    backgroundColor: colors.surface,
-    shadowColor: colors.shadow.color,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  modeLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text.muted,
-  },
-  modeLabelActive: {
-    color: colors.brand.primary,
-    fontWeight: '700',
-  },
-  modeLabelActiveParent: {
-    color: colors.parent.primary,
-    fontWeight: '700',
+  bellDot: {
+    position: 'absolute',
+    top: 7,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 116,
+    paddingTop: 12,
   },
   contentSection: {
     gap: 12,
@@ -706,54 +1266,24 @@ const styles = StyleSheet.create({
   chipsRow: {
     flexDirection: 'row',
     gap: 8,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 18,
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  chipActive: {
-    backgroundColor: colors.brand.primary,
-    borderColor: colors.brand.primary,
   },
   chipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.text.secondary,
-  },
-  chipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
   },
 
-  // Airbnb Standard Clean White Card
+  // Flagship Clean Card
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#EBEBEB',
     padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.06,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 3,
-      },
-      default: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.06,
-        shadowRadius: 16,
-      },
-    }),
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -764,21 +1294,22 @@ const styles = StyleSheet.create({
   cardCategoryTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.text.primary,
   },
   cardMetaText: {
     fontSize: 12,
-    color: colors.text.muted,
+  },
+  heroTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.text.primary,
     marginBottom: 4,
   },
   cardDescription: {
     fontSize: 13,
-    color: colors.text.secondary,
     lineHeight: 18,
     marginBottom: 14,
   },
@@ -788,7 +1319,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.brand.tint,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
@@ -796,13 +1326,11 @@ const styles = StyleSheet.create({
   pillBadgeIndigoText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   pillBadgeEmerald: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.parent.cardBg,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
@@ -810,29 +1338,20 @@ const styles = StyleSheet.create({
   pillBadgeEmeraldText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.parent.primary,
   },
 
-  // Hero Card
-  heroTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: 12,
-  },
+  // Hero Card Progress
   progressContainer: {
-    marginBottom: 14,
+    marginBottom: 10,
   },
   progressBarTrack: {
     height: 6,
-    backgroundColor: colors.background,
     borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 6,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.brand.primary,
     borderRadius: 3,
   },
   progressLabelRow: {
@@ -842,11 +1361,19 @@ const styles = StyleSheet.create({
   progressPercentText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   progressSubText: {
     fontSize: 12,
-    color: colors.text.muted,
+  },
+  nextTopicRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 14,
+  },
+  nextTopicText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 
   // Buttons
@@ -855,9 +1382,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.brand.primary,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   primaryButtonText: {
     color: '#FFFFFF',
@@ -869,21 +1395,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.parent.primary,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   secondaryBrandButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.brand.tint,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   secondaryBrandButtonText: {
-    color: colors.brand.primary,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -892,113 +1415,109 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
     paddingVertical: 11,
     borderRadius: 12,
     marginTop: 10,
   },
   outlineButtonText: {
-    color: colors.text.secondary,
     fontSize: 13,
     fontWeight: '600',
   },
 
-  // AR 3D Lab Preview
+  // AR 3D Lab Viewport
   arPreviewContainer: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     marginBottom: 12,
   },
-  arGradientBox: {
-    height: 120,
-    backgroundColor: '#EEF2FF',
+  arViewportCanvas: {
+    height: 160,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
     position: 'relative',
   },
-  heartIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFFFFF',
+  arBadgeRow: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
   },
   arModelBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
   },
   arModelBadgeText: {
     fontSize: 11,
+    fontWeight: '700',
+    color: '#38BDF8',
+  },
+  arChBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.45)',
+  },
+  arChBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: colors.brand.primary,
+    color: '#C7D2FE',
+  },
+  focusAortaBadge: {
+    position: 'absolute',
+    bottom: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.70)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.4)',
+  },
+  focusAortaText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FDA4AF',
+    letterSpacing: 0.8,
   },
   arCardBody: {
     paddingHorizontal: 2,
   },
 
-  // 2-Column Quick Grid
+  // 2-Column Action Grid
   quickGrid: {
     flexDirection: 'row',
     gap: 12,
   },
   gridTile: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#EBEBEB',
     padding: 14,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 2,
-      },
-      default: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-      },
-    }),
   },
-  gridTileLeft: {},
-  gridTileRight: {},
   iconCircleIndigo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.brand.tint,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
   },
   iconCircleOrange: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.streak.tint,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -1007,19 +1526,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.brand.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   gridTileTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.text.primary,
     marginBottom: 4,
   },
   gridTileSub: {
     fontSize: 12,
-    color: colors.text.secondary,
     lineHeight: 16,
     marginBottom: 10,
   },
@@ -1029,7 +1545,6 @@ const styles = StyleSheet.create({
   gridActionTextIndigo: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   streakBadgeRow: {
     flexDirection: 'row',
@@ -1040,15 +1555,26 @@ const styles = StyleSheet.create({
   streakBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.status.success,
   },
 
-  // Parent ERP Cards
+  // Subtle Focus Limit Footer
+  focusFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  focusFooterText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+
+  // Parent ERP Fees
   badgeSuccess: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.status.successBg,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
@@ -1056,13 +1582,11 @@ const styles = StyleSheet.create({
   badgeSuccessText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.status.success,
   },
   badgeWarning: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.status.warningBg,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
@@ -1070,7 +1594,6 @@ const styles = StyleSheet.create({
   badgeWarningText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.status.warning,
   },
   feeNumbersRow: {
     flexDirection: 'row',
@@ -1080,13 +1603,11 @@ const styles = StyleSheet.create({
   },
   feeLabel: {
     fontSize: 12,
-    color: colors.text.secondary,
     marginBottom: 4,
   },
   feeAmountLarge: {
     fontSize: 24,
     fontWeight: '800',
-    color: colors.status.error,
   },
   feePaidColumn: {
     alignItems: 'flex-end',
@@ -1094,12 +1615,10 @@ const styles = StyleSheet.create({
   feePaidAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.status.success,
   },
 
   // Exam Score Card
   rankBadge: {
-    backgroundColor: colors.background,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1107,7 +1626,6 @@ const styles = StyleSheet.create({
   rankBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.text.secondary,
   },
   examScoreRow: {
     flexDirection: 'row',
@@ -1118,11 +1636,9 @@ const styles = StyleSheet.create({
   examAggregate: {
     fontSize: 26,
     fontWeight: '800',
-    color: colors.text.primary,
   },
   examAggregateLabel: {
     fontSize: 12,
-    color: colors.text.secondary,
     marginTop: 2,
   },
   attendanceColumn: {
@@ -1131,11 +1647,9 @@ const styles = StyleSheet.create({
   attendanceValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.parent.primary,
   },
   attendanceLabel: {
     fontSize: 11,
-    color: colors.text.muted,
     marginTop: 2,
   },
   subjectPillsRow: {
@@ -1146,7 +1660,6 @@ const styles = StyleSheet.create({
   },
   subjectPill: {
     flex: 1,
-    backgroundColor: colors.background,
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 8,
@@ -1154,12 +1667,10 @@ const styles = StyleSheet.create({
   },
   subjectPillName: {
     fontSize: 11,
-    color: colors.text.secondary,
   },
   subjectPillScore: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.text.primary,
     marginTop: 2,
   },
 
@@ -1181,66 +1692,181 @@ const styles = StyleSheet.create({
   },
   noticeBody: {
     fontSize: 13,
-    color: colors.text.secondary,
     lineHeight: 18,
+  },
+  circularFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  circularAuthorText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  circularActionText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   // Session Lock Modal
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   lockCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 24,
+    borderWidth: 1,
     padding: 24,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
-    shadowColor: colors.shadow.color,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
     elevation: 8,
   },
   lockIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.brand.tint,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   lockTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text.primary,
     marginBottom: 8,
     textAlign: 'center',
   },
   lockDescription: {
     fontSize: 13,
-    color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 20,
   },
-  pinInput: {
+  otpBoxesRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+    position: 'relative',
+    justifyContent: 'center',
     width: '100%',
-    backgroundColor: colors.background,
+  },
+  otpBox: {
+    width: 52,
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpDigit: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  hiddenPinInput: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.01,
+  },
+  switchModeLink: {
+    marginTop: 14,
+    paddingVertical: 4,
+  },
+  switchModeLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Circular View Modal
+  circularModalCard: {
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text.primary,
-    textAlign: 'center',
-    letterSpacing: 4,
+    padding: 22,
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  circularModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 12,
+  },
+  categoryPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  categoryPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circularModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'left',
+    width: '100%',
+  },
+  circularModalMeta: {
+    fontSize: 12,
+    marginBottom: 14,
+    width: '100%',
+  },
+  circularMessageBox: {
+    borderRadius: 14,
+    padding: 14,
+    width: '100%',
     marginBottom: 16,
+  },
+  circularMessageText: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  circularMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  circularAuthorMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  attachmentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  attachmentText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
