@@ -1,15 +1,15 @@
 /**
  * ModelViewerScreen
- * Full-screen 3D model viewer. Receives a model entry and renders
- * the GLModelViewer with a header overlay.
+ * Standalone full-screen 3D model viewer wrapper.
+ * Resolves any catalog model ID and renders the reusable GLModelViewer.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronLeft } from 'lucide-react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { GLModelViewer } from '@/sections/3d-models/components/GLModelViewer';
-import { MODELS } from '@/sections/3d-models/data/models';
+import { GLModelViewer } from './components/GLModelViewer';
+import { resolveModelByIdOrName } from './data/models';
 
 interface ModelViewerScreenProps {
   modelId?: string;
@@ -17,12 +17,12 @@ interface ModelViewerScreenProps {
 }
 
 export default function ModelViewerScreen({ modelId, onClose }: ModelViewerScreenProps = {}) {
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const targetId = modelId ?? params.id;
-  const modelEntry = MODELS.find((m) => m.id === targetId) ?? MODELS[0];
+  const modelEntry = resolveModelByIdOrName(targetId);
 
   const handleBack = () => {
     if (onClose) {
@@ -34,15 +34,8 @@ export default function ModelViewerScreen({ modelId, onClose }: ModelViewerScree
 
   return (
     <View style={styles.root}>
-      {/* Full-screen GL viewer */}
-      <GLModelViewer
-        modelAsset={modelEntry.asset}
-        accentColor={modelEntry.accentColor}
-        annotations={modelEntry.annotations}
-        attribution={modelEntry.attribution}
-      />
+      <GLModelViewer modelEntry={modelEntry} />
 
-      {/* Header overlay on top of GL canvas */}
       <View
         style={[
           styles.header,
@@ -56,14 +49,14 @@ export default function ModelViewerScreen({ modelId, onClose }: ModelViewerScree
           accessibilityLabel="Go back"
           accessibilityRole="button"
         >
-          <ThemedText style={styles.backIcon}>‹</ThemedText>
+          <ChevronLeft size={20} color="#FFFFFF" />
         </Pressable>
 
         <View style={styles.headerInfo}>
-          <ThemedText type="small" style={styles.subjectLabel}>
-            {modelEntry.subject}
-          </ThemedText>
-          <ThemedText style={styles.modelName}>{modelEntry.name}</ThemedText>
+          <Text style={styles.subjectLabel}>
+            {modelEntry.subject} • Class {modelEntry.classLevel} • {modelEntry.chapter}
+          </Text>
+          <Text style={styles.modelName}>{modelEntry.name}</Text>
         </View>
       </View>
     </View>
@@ -73,7 +66,7 @@ export default function ModelViewerScreen({ modelId, onClose }: ModelViewerScree
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0d0d1a',
+    backgroundColor: '#0B101B',
   },
   header: {
     position: 'absolute',
@@ -85,7 +78,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 12,
-    backgroundColor: 'rgba(13,13,26,0.6)',
+    backgroundColor: 'rgba(11, 16, 27, 0.68)',
   },
   backButton: {
     width: 36,
@@ -97,26 +90,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
   },
-  backIcon: {
-    color: '#fff',
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '300',
-    marginTop: -2,
-  },
   headerInfo: {
+    flex: 1,
     gap: 2,
   },
   subjectLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    fontWeight: '600',
+    letterSpacing: 0.9,
+    fontWeight: '700',
   },
   modelName: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });
