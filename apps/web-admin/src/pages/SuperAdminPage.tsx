@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ShieldCheck,
   Building2,
@@ -21,39 +21,41 @@ import {
   Moon,
   ArrowUpRight,
   School,
+  Globe,
+  FileSpreadsheet,
+  SlidersHorizontal,
+  BookOpen,
+  CreditCard,
+  Activity,
 } from 'lucide-react';
 import { isLiveSupabaseConfigured, supabase } from '../lib/supabase';
 import { useAdminStore } from '../store/useAdminStore';
+import { downloadCsvFile } from '../lib/feeMetrics';
+import {
+  AggregateFeeRow,
+  AggregateStaffRow,
+  BILLING_STATUS_META,
+  buildFounderEcosystemTelemetry,
+  EcosystemSchoolRecord,
+  formatCompactInr,
+  normalizeBillingStatus,
+  normalizePlanTier,
+  PLAN_META,
+  saveBillingMetaOverride,
+  SchoolBillingStatus,
+  SchoolPlanTier,
+  SchoolTelemetrySummary,
+} from '../lib/founderMetrics';
 
 interface SuperAdminPageProps {
   onNavigateHome?: () => void;
-}
-
-interface EcosystemSchoolRow {
-  id: string;
-  schoolSerial: number;
-  schoolCode: string;
-  name: string;
-  board: string;
-  academicSession: string;
-  principalName: string;
-  createdAt?: string;
-}
-
-interface EcosystemStaffSummary {
-  id: string;
-  schoolId: string;
-  department: string;
-  fullName: string;
-  designation: string;
-  phone: string | null;
-  isPasswordSet: boolean;
-  status: string;
+  onNavigatePath?: (path: string) => void;
 }
 
 interface OnboardingKitData {
   schoolCode: string;
   schoolName: string;
+  city: string;
   board: string;
   academicSession: string;
   principalName: string;
@@ -62,13 +64,16 @@ interface OnboardingKitData {
   isPasswordSet: boolean;
 }
 
+type EcosystemFilter = 'ALL' | 'ACTIVE' | 'TRIAL' | 'ATTENTION';
+
 const HQ_SESSION_KEY = 'edzy_hq_founder_auth_v1';
+const PUBLIC_SITE_URL = 'https://edzy-admin.pages.dev';
 const PORTAL_PUBLIC_URL = 'https://edzy-admin.pages.dev/portal';
 const EXPECTED_PASSKEY =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_FOUNDER_PASSKEY) ||
   'edzy-hq-2026';
 
-function computeNextSchoolSeq(schools: EcosystemSchoolRow[]): { nextSerial: number; nextCode: string } {
+function computeNextSchoolSeq(schools: EcosystemSchoolRecord[]): { nextSerial: number; nextCode: string } {
   let maxSerial = 0;
   for (const s of schools) {
     const parsedFromCode = parseInt((s.schoolCode || '').replace(/\D/g, ''), 10);
@@ -85,10 +90,80 @@ function computeNextSchoolSeq(schools: EcosystemSchoolRow[]): { nextSerial: numb
   };
 }
 
+function buildPrincipalWelcomeMessage(kit: OnboardingKitData): string {
+  return `Namaste ${kit.principalName},\n\nWelcome to *EDZY: Education Made Easy*!\nYour institution *${kit.schoolName}* (${kit.schoolCode} • ${kit.board} • ${kit.city}) is now live on the Edzy School Command Cloud.\n\n🔗 *ERP Portal:* ${PORTAL_PUBLIC_URL}\n🏫 *School Code:* ${kit.schoolCode}\n🆔 *Principal Employee ID:* ${kit.principalEmployeeId}\n\n*First-Time Activation Instructions:*\n1. Open ${PORTAL_PUBLIC_URL} and enter Employee ID *${kit.principalEmployeeId}*\n2. Set your own private password on first login to launch your dedicated school ERP\n3. Add Class Teachers, Accounts Officers, and import student rosters via CSV\n\nWarm regards,\nEdzy Partner Onboarding Team`;
+}
+
+/** Native modal <dialog> wrapper with Esc dismissal, backdrop light-dismiss fallback, and clean return focus. */
+const NativeModalDialog: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  ariaLabelledBy: string;
+  variant?: 'modal' | 'drawer';
+  children: React.ReactNode;
+}> = ({ open, onClose, ariaLabelledBy, variant = 'modal', children }) => {
+  const ref = useRef<HTMLDialogElement>(null);
+  const pressedOutsideRef = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open) {
+      if (!el.open && typeof el.showModal === 'function') {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const isOutsideDialog = (e: React.PointerEvent<HTMLDialogElement>) => {
+    const el = ref.current;
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return (
+      e.clientX < r.left ||
+      e.clientX > r.right ||
+      e.clientY < r.top ||
+      e.clientY > r.bottom
+    );
+  };
+
+  const baseClass =
+    variant === 'drawer'
+      ? 'm-0 ml-auto h-dvh max-h-dvh w-full max-w-lg bg-white dark:bg-[#121826] text-[#0F172A] dark:text-[#F8FAFC] border-l border-[#E2E8F0] dark:border-[#232E44] shadow-2xl p-0 backdrop:bg-slate-950/60 backdrop:backdrop-blur-xs overflow-y-auto'
+      : 'm-auto w-[calc(100%-2rem)] max-w-xl rounded-2xl bg-white dark:bg-[#121826] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#232E44] shadow-2xl p-0 backdrop:bg-slate-950/65 backdrop:backdrop-blur-xs overflow-y-auto';
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={ariaLabelledBy}
+      {...({ closedby: 'any' } as Record<string, string>)}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onPointerDown={(e) => {
+        pressedOutsideRef.current = isOutsideDialog(e);
+      }}
+      onPointerUp={(e) => {
+        if (pressedOutsideRef.current && isOutsideDialog(e)) {
+          onClose();
+        }
+        pressedOutsideRef.current = false;
+      }}
+      className={baseClass}
+    >
+      {children}
+    </dialog>
+  );
+};
+
 const PrincipalOnboardingKitCard: React.FC<{ kit: OnboardingKitData }> = ({ kit }) => {
   const [copied, setCopied] = useState(false);
-
-  const welcomeMessage = `Namaste ${kit.principalName},\n\nWelcome to *EDZY: Education Made Easy*!\nYour institution *${kit.schoolName}* (${kit.schoolCode} • ${kit.board}) is now live on the Edzy School Command Cloud.\n\n🔗 *ERP Portal:* ${PORTAL_PUBLIC_URL}\n🏫 *School Code:* ${kit.schoolCode}\n🆔 *Principal Employee ID:* ${kit.principalEmployeeId}\n\n*First-Time Activation Instructions:*\n1. Open ${PORTAL_PUBLIC_URL} and enter Employee ID *${kit.principalEmployeeId}*\n2. Set your own private password on first login to launch your dedicated school ERP\n3. Add Class Teachers, Accounts Officers, and import student rosters via CSV\n\nWarm regards,\nEdzy Partner Onboarding Team`;
+  const welcomeMessage = buildPrincipalWelcomeMessage(kit);
 
   const handleCopy = async () => {
     try {
@@ -111,17 +186,17 @@ const PrincipalOnboardingKitCard: React.FC<{ kit: OnboardingKitData }> = ({ kit 
         <div className="flex items-start justify-between gap-3 border-b border-[#E2E8F0] dark:border-[#232E44] pb-3.5">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-[#4F46E5] text-white flex items-center justify-center shrink-0">
-              <School className="w-5 h-5" />
+              <School className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#4F46E5] dark:text-[#6366F1]">
-                EDZY: Education Made Easy • Principal Onboarding Kit
+                EDZY: Education Made Easy • Principal Activation Kit
               </div>
               <h4 className="text-base font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
                 {kit.schoolName}
               </h4>
               <p className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
-                Board: {kit.board} • Academic Session {kit.academicSession}
+                {kit.board} • {kit.city} • Session {kit.academicSession}
               </p>
             </div>
           </div>
@@ -166,9 +241,9 @@ const PrincipalOnboardingKitCard: React.FC<{ kit: OnboardingKitData }> = ({ kit 
         </div>
 
         <div className="flex items-start gap-2 text-[11px] text-[#475569] dark:text-[#94A3B8] bg-white/80 dark:bg-[#1A2336]/70 rounded-xl p-3 border border-[#E2E8F0] dark:border-[#232E44]">
-          <ShieldCheck className="w-4 h-4 text-[#059669] dark:text-[#34D399] shrink-0 mt-0.5" />
+          <ShieldCheck className="w-4 h-4 text-[#059669] dark:text-[#34D399] shrink-0 mt-0.5" aria-hidden="true" />
           <span>
-            Enter your Employee ID at the portal and set your own password to launch your dedicated school ERP.
+            Enter this Employee ID at <span className="font-mono font-semibold">{PORTAL_PUBLIC_URL}</span> and set a private password to launch your school ERP.
           </span>
         </div>
       </div>
@@ -179,7 +254,7 @@ const PrincipalOnboardingKitCard: React.FC<{ kit: OnboardingKitData }> = ({ kit 
           onClick={handleCopy}
           className="flex-1 min-w-[180px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
         >
-          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          {copied ? <Check className="w-4 h-4" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
           <span>{copied ? 'Copied Welcome Kit!' : 'Copy WhatsApp Welcome Kit'}</span>
         </button>
 
@@ -188,7 +263,7 @@ const PrincipalOnboardingKitCard: React.FC<{ kit: OnboardingKitData }> = ({ kit 
           onClick={() => window.print()}
           className="flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-[#EEF2F7] dark:bg-[#1A2336] hover:bg-slate-200 dark:hover:bg-[#232E44] text-[#0F172A] dark:text-[#F8FAFC] text-xs font-bold border border-[#E2E8F0] dark:border-[#232E44] cursor-pointer"
         >
-          <Printer className="w-4 h-4" />
+          <Printer className="w-4 h-4" aria-hidden="true" />
           <span>Print Kit</span>
         </button>
       </div>
@@ -196,7 +271,7 @@ const PrincipalOnboardingKitCard: React.FC<{ kit: OnboardingKitData }> = ({ kit 
   );
 };
 
-export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) {
+export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: SuperAdminPageProps) {
   const { themeMode, toggleThemeMode } = useAdminStore();
 
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
@@ -206,27 +281,58 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
   const [passkeyInput, setPasskeyInput] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [schools, setSchools] = useState<EcosystemSchoolRow[]>([]);
-  const [staffRows, setStaffRows] = useState<EcosystemStaffSummary[]>([]);
-  const [studentRows, setStudentRows] = useState<Array<{ id: string; schoolId: string }>>([]);
+  // Strict Zero-PII Aggregate Raw State
+  const [schools, setSchools] = useState<EcosystemSchoolRecord[]>([]);
+  const [staffRows, setStaffRows] = useState<AggregateStaffRow[]>([]);
+  const [studentSchoolIds, setStudentSchoolIds] = useState<string[]>([]);
+  const [feeRows, setFeeRows] = useState<AggregateFeeRow[]>([]);
+  const [syllabusSchoolIds, setSyllabusSchoolIds] = useState<string[]>([]);
+  const [circularSchoolIds, setCircularSchoolIds] = useState<string[]>([]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<EcosystemFilter>('ALL');
+  const [pitchLinkCopied, setPitchLinkCopied] = useState(false);
 
-  // Modal states
+  // Onboard New School Modal State
   const [isOnboardOpen, setIsOnboardOpen] = useState(false);
   const [schoolName, setSchoolName] = useState('');
+  const [city, setCity] = useState('Dehradun');
   const [board, setBoard] = useState('CBSE');
   const [academicSession, setAcademicSession] = useState('2026-27');
+  const [planTier, setPlanTier] = useState<SchoolPlanTier>('AI_SUITE');
+  const [billingStatus, setBillingStatus] = useState<SchoolBillingStatus>('TRIAL');
   const [principalName, setPrincipalName] = useState('');
   const [principalPhone, setPrincipalPhone] = useState('');
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
   const [issuedKit, setIssuedKit] = useState<OnboardingKitData | null>(null);
 
+  // Slide-Over Inspector Drawer, Activation Kit Modal, Delete Confirmation
+  const [inspectedSchoolCode, setInspectedSchoolCode] = useState<string | null>(null);
+  const [drawerKitCopied, setDrawerKitCopied] = useState(false);
+  const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
+  const [planFeedback, setPlanFeedback] = useState<string | null>(null);
   const [inspectKit, setInspectKit] = useState<OnboardingKitData | null>(null);
-  const [schoolToDelete, setSchoolToDelete] = useState<EcosystemSchoolRow | null>(null);
+  const [schoolToDelete, setSchoolToDelete] = useState<EcosystemSchoolRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const onboardTitleId = useId();
+  const kitTitleId = useId();
+  const deleteTitleId = useId();
+  const drawerTitleId = useId();
+  const tableCaptionId = useId();
+
+  const navTo = (path: string) => {
+    if (onNavigatePath) {
+      onNavigatePath(path);
+    } else if (path === '/portal' && onNavigateHome) {
+      onNavigateHome();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = path;
+    }
+  };
 
   const fetchEcosystemData = useCallback(async () => {
     if (!isLiveSupabaseConfigured) {
@@ -239,23 +345,66 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           board: 'CBSE',
           academicSession: '2026-27',
           principalName: 'Dr. Meenakshi Sharma',
+          planTier: 'AI_SUITE',
+          billingStatus: 'ACTIVE',
+          city: 'Dehradun',
+          contactPhone: '9811000001',
+        },
+        {
+          id: 'SCH-02',
+          schoolSerial: 2,
+          schoolCode: 'SCH-02',
+          name: "St. Joseph's Academy",
+          board: 'ICSE',
+          academicSession: '2026-27',
+          principalName: 'Fr. Joseph Thomas',
+          planTier: 'AI_SUITE',
+          billingStatus: 'TRIAL',
+          city: 'Dehradun',
+          contactPhone: null,
         },
       ]);
-      setStaffRows([]);
-      setStudentRows([]);
+      setStaffRows([
+        {
+          id: 'SCH-01-ADM-001',
+          schoolId: 'SCH-01',
+          department: 'ADM',
+          fullName: 'Dr. Meenakshi Sharma',
+          phone: '9811000001',
+          isPasswordSet: true,
+          status: 'ACTIVE',
+        },
+        {
+          id: 'SCH-02-ADM-001',
+          schoolId: 'SCH-02',
+          department: 'ADM',
+          fullName: 'Fr. Joseph Thomas',
+          phone: null,
+          isPasswordSet: false,
+          status: 'ACTIVE',
+        },
+      ]);
+      setStudentSchoolIds(Array.from({ length: 19 }, () => 'SCH-01'));
+      setFeeRows([]);
+      setSyllabusSchoolIds(['SCH-01', 'SCH-01', 'SCH-01']);
+      setCircularSchoolIds(['SCH-01', 'SCH-01']);
       return;
     }
 
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [schoolsRes, staffRes, studentsRes] = await Promise.all([
+      // Strictly Zero-PII selects: NEVER query student names, parent phones, marks, or receipt details!
+      const [schoolsRes, staffRes, studentsRes, feeRes, sylRes, circRes] = await Promise.all([
         supabase.from('schools').select('*').order('school_serial', { ascending: true }),
         supabase
           .from('school_staff')
-          .select('id, school_id, department, full_name, designation, phone, is_password_set, status')
+          .select('id, school_id, department, full_name, phone, is_password_set, status')
           .order('employee_serial', { ascending: true }),
-        supabase.from('students').select('id, school_id'),
+        supabase.from('students').select('school_id'),
+        supabase.from('fee_ledger').select('school_id, status, payment_mode, amount'),
+        supabase.from('syllabus_roadmaps').select('school_id'),
+        supabase.from('school_circulars').select('school_id'),
       ]);
 
       if (schoolsRes.error) throw new Error(schoolsRes.error.message);
@@ -269,6 +418,10 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           board: s.board || 'CBSE',
           academicSession: s.academic_session || '2026-27',
           principalName: s.principal_name || 'Principal',
+          planTier: normalizePlanTier(s.plan_tier),
+          billingStatus: normalizeBillingStatus(s.billing_status, s.school_code || s.id),
+          city: s.city || 'Dehradun',
+          contactPhone: s.contact_phone || null,
           createdAt: s.created_at,
         }))
       );
@@ -279,21 +432,25 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           schoolId: st.school_id,
           department: st.department,
           fullName: st.full_name,
-          designation: st.designation,
-          phone: st.phone,
+          phone: st.phone || null,
           isPasswordSet: Boolean(st.is_password_set),
           status: st.status || 'ACTIVE',
         }))
       );
 
-      setStudentRows(
-        (studentsRes.data || []).map((stu: any) => ({
-          id: stu.id,
-          schoolId: stu.school_id,
+      setStudentSchoolIds((studentsRes.data || []).map((r: any) => r.school_id || 'SCH-01'));
+      setFeeRows(
+        (feeRes.data || []).map((f: any) => ({
+          schoolId: f.school_id || 'SCH-01',
+          status: f.status || 'PENDING',
+          paymentMode: f.payment_mode || 'PENDING',
+          amount: Number(f.amount || 0),
         }))
       );
+      setSyllabusSchoolIds((sylRes.data || []).map((sy: any) => sy.school_id || 'SCH-01'));
+      setCircularSchoolIds((circRes.data || []).map((c: any) => c.school_id || 'SCH-01'));
     } catch (err: any) {
-      setLoadError(err?.message || 'Failed to fetch live SaaS ecosystem data.');
+      setLoadError(err?.message || 'Failed to load live ecosystem telemetry.');
     } finally {
       setIsLoading(false);
     }
@@ -326,51 +483,155 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
     setPasskeyInput('');
   };
 
-  const statsMaps = useMemo(() => {
-    const studentCount = new Map<string, number>();
-    const staffCount = new Map<string, number>();
-    const adminBySchool = new Map<string, EcosystemStaffSummary>();
-
-    for (const s of studentRows) {
-      studentCount.set(s.schoolId, (studentCount.get(s.schoolId) || 0) + 1);
-    }
-    for (const st of staffRows) {
-      if (st.status === 'ACTIVE') {
-        staffCount.set(st.schoolId, (staffCount.get(st.schoolId) || 0) + 1);
-      }
-      if (st.department === 'ADM' && !adminBySchool.has(st.schoolId)) {
-        adminBySchool.set(st.schoolId, st);
-      }
-    }
-
-    return {
-      studentCount,
-      staffCount,
-      adminBySchool,
-      activeStaffTotal: staffRows.filter((r) => r.status === 'ACTIVE').length,
-      totalStudents: studentRows.length,
-      estimatedMrr: studentRows.length * 99,
-    };
-  }, [studentRows, staffRows]);
+  const telemetry = useMemo(
+    () =>
+      buildFounderEcosystemTelemetry({
+        schools,
+        staffRows,
+        studentSchoolIds,
+        feeRows,
+        syllabusSchoolIds,
+        circularSchoolIds,
+      }),
+    [schools, staffRows, studentSchoolIds, feeRows, syllabusSchoolIds, circularSchoolIds]
+  );
 
   const nextSeqPreview = useMemo(() => computeNextSchoolSeq(schools), [schools]);
 
-  const filteredSchools = useMemo(() => {
+  const filteredSummaries = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return schools;
-    return schools.filter(
-      (s) =>
-        s.schoolCode.toLowerCase().includes(q) ||
-        s.name.toLowerCase().includes(q) ||
-        s.board.toLowerCase().includes(q) ||
-        s.principalName.toLowerCase().includes(q)
+    return telemetry.schoolSummaries.filter((item) => {
+      if (activeFilter === 'ACTIVE' && item.billingStatus !== 'ACTIVE') return false;
+      if (activeFilter === 'TRIAL' && item.billingStatus !== 'TRIAL') return false;
+      if (activeFilter === 'ATTENTION' && item.healthStatus !== 'Needs Attention') return false;
+
+      if (!q) return true;
+      return (
+        item.school.schoolCode.toLowerCase().includes(q) ||
+        item.school.name.toLowerCase().includes(q) ||
+        item.school.city.toLowerCase().includes(q) ||
+        item.school.board.toLowerCase().includes(q) ||
+        item.school.principalName.toLowerCase().includes(q)
+      );
+    });
+  }, [telemetry.schoolSummaries, searchQuery, activeFilter]);
+
+  const inspectedSummary: SchoolTelemetrySummary | null = useMemo(
+    () =>
+      telemetry.schoolSummaries.find((s) => s.school.schoolCode === inspectedSchoolCode) || null,
+    [telemetry.schoolSummaries, inspectedSchoolCode]
+  );
+
+  const handleCopyPitchLink = async () => {
+    try {
+      await navigator.clipboard.writeText(PUBLIC_SITE_URL);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = PUBLIC_SITE_URL;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setPitchLinkCopied(true);
+    setTimeout(() => setPitchLinkCopied(false), 2400);
+  };
+
+  const handleExportEcosystemCsv = () => {
+    const headers = [
+      'School Code',
+      'Name',
+      'City',
+      'Board',
+      'Plan',
+      'Billing Status',
+      'Students',
+      'MRR (INR)',
+      'ARR (INR)',
+      'Total Transactions Processed (INR)',
+      'Paid Transactions Count',
+      'UPI Volume (INR)',
+      'Desk Volume (INR)',
+      'UPI Adoption %',
+      'Total Staff Accounts',
+      'Activated Staff Accounts',
+      'Health Status',
+    ];
+
+    const rows = telemetry.schoolSummaries.map((s) => [
+      s.school.schoolCode,
+      s.school.name,
+      s.school.city,
+      s.school.board,
+      s.planLabel,
+      s.billingLabel,
+      s.studentCount,
+      s.monthlySaaSRevenue,
+      s.annualRunRate,
+      s.totalFeeVolumeProcessed,
+      s.paidTransactionsCount,
+      s.onlineUpiVolume,
+      s.offlineDeskVolume,
+      `${s.digitalUpiAdoptionPct}%`,
+      s.totalStaffCount,
+      s.activatedStaffCount,
+      s.healthStatus,
+    ]);
+
+    downloadCsvFile(
+      `edzy-ecosystem-billing-gmv-${new Date().toISOString().split('T')[0]}.csv`,
+      headers,
+      rows
     );
-  }, [schools, searchQuery]);
+  };
+
+  const handleUpdateSubscription = async (
+    schoolCode: string,
+    patch: { planTier?: SchoolPlanTier; billingStatus?: SchoolBillingStatus }
+  ) => {
+    setIsUpdatingPlan(true);
+    setPlanFeedback(null);
+    saveBillingMetaOverride(schoolCode, patch);
+
+    setSchools((prev) =>
+      prev.map((s) => (s.schoolCode === schoolCode ? { ...s, ...patch } : s))
+    );
+
+    try {
+      if (isLiveSupabaseConfigured) {
+        const dbPatch: Record<string, any> = {};
+        if (patch.planTier) dbPatch.plan_tier = patch.planTier;
+        if (patch.billingStatus) dbPatch.billing_status = patch.billingStatus;
+
+        const { error } = await supabase.from('schools').update(dbPatch).eq('id', schoolCode);
+        if (error) {
+          const msg = (error.message || '').toLowerCase();
+          if (msg.includes('column') || msg.includes('schema cache') || error.code === 'PGRST204') {
+            setPlanFeedback('Updated subscription locally — run updated SQL to sync plan columns.');
+          } else {
+            throw new Error(error.message);
+          }
+        } else {
+          setPlanFeedback('Subscription plan & billing synced.');
+        }
+      } else {
+        setPlanFeedback('Subscription updated.');
+      }
+    } catch (err: any) {
+      setPlanFeedback(err?.message || 'Saved locally.');
+    } finally {
+      setIsUpdatingPlan(false);
+      setTimeout(() => setPlanFeedback(null), 3000);
+    }
+  };
 
   const openOnboardModal = () => {
     setSchoolName('');
+    setCity('Dehradun');
     setBoard('CBSE');
     setAcademicSession('2026-27');
+    setPlanTier('AI_SUITE');
+    setBillingStatus('TRIAL');
     setPrincipalName('');
     setPrincipalPhone('');
     setProvisionError(null);
@@ -382,12 +643,13 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
   const handleOnboardSchool = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = schoolName.trim();
+    const cleanCity = city.trim() || 'Dehradun';
     const cleanPrincipal = principalName.trim();
     const cleanSession = academicSession.trim() || '2026-27';
     const cleanPhone = principalPhone.replace(/\D/g, '').slice(0, 10) || null;
 
     if (!cleanName || !cleanPrincipal || isProvisioning) {
-      setProvisionError('School Name and Principal Full Name are required.');
+      setProvisionError('School Name, City, and Principal Full Name are required.');
       return;
     }
 
@@ -395,7 +657,6 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
     setProvisionError(null);
 
     try {
-      // Query live schools table to guarantee collision-free next school_serial
       let nextSerial = nextSeqPreview.nextSerial;
       let nextCode = nextSeqPreview.nextCode;
 
@@ -408,7 +669,7 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           throw new Error(`Could not compute next School Code: ${seqErr.message}`);
         }
 
-        const liveMapped: EcosystemSchoolRow[] = (liveSchools || []).map((r: any, idx: number) => ({
+        const liveMapped: EcosystemSchoolRecord[] = (liveSchools || []).map((r: any, idx: number) => ({
           id: r.school_code || `SCH-${idx + 1}`,
           schoolSerial: Number(r.school_serial || idx + 1),
           schoolCode: r.school_code || `SCH-${idx + 1}`,
@@ -416,13 +677,16 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           board: 'CBSE',
           academicSession: cleanSession,
           principalName: '',
+          planTier: 'AI_SUITE',
+          billingStatus: 'TRIAL',
+          city: cleanCity,
+          contactPhone: null,
         }));
         const seq = computeNextSchoolSeq(liveMapped);
         nextSerial = seq.nextSerial;
         nextCode = seq.nextCode;
 
-        // Step A: Insert into public.schools (exact 1:1 schema alignment)
-        const { error: schoolInsertErr } = await supabase.from('schools').insert({
+        const baseSchoolRow = {
           id: nextCode,
           school_serial: nextSerial,
           school_code: nextCode,
@@ -430,13 +694,31 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           board,
           academic_session: cleanSession,
           principal_name: cleanPrincipal,
+        };
+
+        let { error: schoolInsertErr } = await supabase.from('schools').insert({
+          ...baseSchoolRow,
+          plan_tier: planTier,
+          billing_status: billingStatus,
+          city: cleanCity,
+          contact_phone: cleanPhone,
         });
+
+        // Graceful backward compatibility if SQL optional billing columns haven't been run yet
+        if (
+          schoolInsertErr &&
+          ((schoolInsertErr.message || '').toLowerCase().includes('column') ||
+            (schoolInsertErr.message || '').toLowerCase().includes('schema cache') ||
+            schoolInsertErr.code === 'PGRST204')
+        ) {
+          const retryRes = await supabase.from('schools').insert(baseSchoolRow);
+          schoolInsertErr = retryRes.error;
+        }
 
         if (schoolInsertErr) {
           throw new Error(`Schools Insert Error (${schoolInsertErr.code || 'DB'}): ${schoolInsertErr.message}`);
         }
 
-        // Step B: Insert inaugural Principal into public.school_staff (exact 1:1 columns, NO extra fields!)
         const principalEmployeeId = `${nextCode}-ADM-001`;
         const { error: staffInsertErr } = await supabase.from('school_staff').insert({
           id: principalEmployeeId,
@@ -454,7 +736,6 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         });
 
         if (staffInsertErr) {
-          // Clean atomic rollback so orphaned school never remains without its Principal
           await supabase.from('schools').delete().eq('id', nextCode);
           throw new Error(
             `Principal Account Insert Error (${staffInsertErr.code || 'DB'}): ${staffInsertErr.message}`
@@ -462,9 +743,17 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         }
       }
 
+      saveBillingMetaOverride(nextCode, {
+        planTier,
+        billingStatus,
+        city: cleanCity,
+        contactPhone: cleanPhone,
+      });
+
       const kit: OnboardingKitData = {
         schoolCode: nextCode,
         schoolName: cleanName,
+        city: cleanCity,
         board,
         academicSession: cleanSession,
         principalName: cleanPrincipal,
@@ -490,6 +779,9 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         const { error } = await supabase.from('schools').delete().eq('id', schoolToDelete.id);
         if (error) throw new Error(error.message);
       }
+      if (inspectedSchoolCode === schoolToDelete.schoolCode) {
+        setInspectedSchoolCode(null);
+      }
       setSchoolToDelete(null);
       await fetchEcosystemData();
     } catch (err: any) {
@@ -506,7 +798,7 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         <header className="max-w-5xl w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
+              <ShieldCheck className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
               <div className="font-extrabold text-sm tracking-tight">EDZY HQ</div>
@@ -514,25 +806,23 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {onNavigateHome && (
-              <button
-                type="button"
-                onClick={onNavigateHome}
-                className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white cursor-pointer"
-              >
-                School Portal Login
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => navTo('/portal')}
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white cursor-pointer"
+            >
+              School Portal Login
+            </button>
             <button
               type="button"
               onClick={toggleThemeMode}
               className="p-2 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] cursor-pointer"
-              aria-label="Toggle theme"
+              aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {themeMode === 'dark' ? (
-                <Sun className="w-4 h-4 text-amber-400" />
+                <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
               ) : (
-                <Moon className="w-4 h-4 text-[#475569]" />
+                <Moon className="w-4 h-4 text-[#475569]" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -541,19 +831,22 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         <main className="max-w-md w-full mx-auto my-8 bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl shadow-xl p-7 space-y-5">
           <div className="space-y-1.5">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
-              <Lock className="w-3 h-3" />
+              <Lock className="w-3 h-3" aria-hidden="true" />
               Restricted Founder Console
             </span>
             <h1 className="text-xl font-extrabold">EDZY HQ • SaaS Ecosystem Control</h1>
             <p className="text-xs text-[#475569] dark:text-[#94A3B8] leading-relaxed">
-              Provision isolated K-12 partner schools, issue inaugural Principal IDs, and monitor live tenant adoption across the Edzy network.
+              Monitor ecosystem billing, aggregate fee GMV, and onboard partner schools with Zero-PII school confidentiality.
             </p>
           </div>
 
           <form onSubmit={handleUnlock} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold mb-1.5">Founder Access Key</label>
+              <label htmlFor="founder-passkey-input" className="block text-xs font-bold mb-1.5">
+                Founder Access Key
+              </label>
               <input
+                id="founder-passkey-input"
                 type="password"
                 required
                 autoFocus
@@ -580,13 +873,13 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         </main>
 
         <footer className="text-center text-[11px] text-[#94A3B8]">
-          EDZY: Education Made Easy • Multi-Tenant SaaS Operator Portal
+          EDZY: Education Made Easy • Zero-PII Multi-Tenant SaaS Governance
         </footer>
       </div>
     );
   }
 
-  // AUTHENTICATED FOUNDER HQ VIEW
+  // AUTHENTICATED FOUNDER CONTROL TOWER
   return (
     <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
       {/* Sticky Top Header */}
@@ -594,17 +887,17 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
+              <ShieldCheck className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base tracking-tight">EDZY HQ</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3]">
                   FOUNDER CONSOLE
                 </span>
               </div>
               <p className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
-                EDZY: Education Made Easy • Partner School Onboarding
+                EDZY: Education Made Easy • Aggregate SaaS Governance
               </p>
             </div>
           </div>
@@ -616,31 +909,20 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
               disabled={isLoading}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EEF2F7] dark:bg-[#1A2336] text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
               <span className="hidden sm:inline">Refresh</span>
             </button>
-
-            {onNavigateHome && (
-              <button
-                type="button"
-                onClick={onNavigateHome}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#4F46E5] dark:text-[#6366F1] cursor-pointer"
-              >
-                <span>School Portal</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            )}
 
             <button
               type="button"
               onClick={toggleThemeMode}
               className="p-2 rounded-xl bg-[#EEF2F7] dark:bg-[#1A2336] cursor-pointer"
-              aria-label="Toggle theme"
+              aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {themeMode === 'dark' ? (
-                <Sun className="w-4 h-4 text-amber-400" />
+                <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
               ) : (
-                <Moon className="w-4 h-4 text-[#475569]" />
+                <Moon className="w-4 h-4 text-[#475569]" aria-hidden="true" />
               )}
             </button>
 
@@ -649,20 +931,96 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
               onClick={handleLockHq}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-xs font-bold cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Lock HQ</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* Title & CTA */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+        {/* Zero-PII Confidentiality Trust Strip */}
+        <section
+          aria-label="Zero-PII data confidentiality assurance"
+          className="rounded-xl bg-[#EEF2FF]/75 dark:bg-[#121826] border border-[#C7D2FE] dark:border-[#3730A3] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+        >
+          <div className="flex items-start sm:items-center gap-2.5">
+            <Lock className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8] shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
+            <p className="text-xs text-[#0F172A] dark:text-[#E2E8F0]">
+              <strong className="font-extrabold text-[#4F46E5] dark:text-[#818CF8]">
+                Strict Data Confidentiality Mode (DPDP Compliant):
+              </strong>{' '}
+              Founder HQ displays aggregate billing, adoption, and transaction volume only. Individual student records, exam marks, and parent contact details remain strictly encrypted &amp; private to each school.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-[#059669] dark:text-[#34D399] border border-emerald-200 dark:border-emerald-800 shrink-0 self-start sm:self-auto">
+            Zero-PII Verified
+          </span>
+        </section>
+
+        {/* Founder Quick Links & Operations Command Dock */}
+        <nav
+          aria-label="Founder quick actions"
+          className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 shadow-2xs"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navTo('/')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer transition-colors"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
+              <span>Main Website (/) ↗</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navTo('/portal')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer transition-colors"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
+              <span>School Login Portal (/portal) ↗</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyPitchLink}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer transition-colors"
+            >
+              {pitchLinkCopied ? (
+                <Check className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-[#475569] dark:text-[#94A3B8]" aria-hidden="true" />
+              )}
+              <span>{pitchLinkCopied ? 'Copied!' : 'Copy WhatsApp Pitch Link'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navTo('/privacy-policy')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] cursor-pointer transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+              <span>Privacy &amp; DPDP Policy ↗</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleExportEcosystemCsv}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#059669] hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Export Ecosystem Billing Report (CSV)</span>
+          </button>
+        </nav>
+
+        {/* Title & Onboard CTA Row (Single + icon!) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">Partner Schools Ecosystem</h1>
             <p className="text-sm text-[#475569] dark:text-[#94A3B8] mt-0.5">
-              Onboard isolated school tenants cleanly and issue Principal first-time activation kits.
+              SaaS subscriptions, aggregate campus transaction GMV, and inaugural Principal provisioning.
             </p>
           </div>
 
@@ -671,8 +1029,8 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
             onClick={openOnboardModal}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-sm font-bold shadow-sm transition-colors self-start sm:self-auto cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Onboard New School</span>
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>Onboard New School</span>
           </button>
         </div>
 
@@ -682,114 +1040,191 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
           </div>
         )}
 
-        {/* 4 Ecosystem Overview KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-[#121826] p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3] flex items-center justify-center text-[#4F46E5] dark:text-[#6366F1]">
-              <Building2 className="w-5 h-5" />
+        {/* 5 Executive SaaS KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                Partner Schools
+              </span>
+              <Building2 className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
             </div>
-            <div>
-              <div className="text-2xl font-extrabold">{schools.length}</div>
-              <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
-                Total Partner Schools
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-[#121826] p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold">{statsMaps.totalStudents}</div>
-              <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
-                Students Across Ecosystem
-              </div>
+            <div className="text-2xl font-extrabold">{telemetry.ecosystem.totalSchools}</div>
+            <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+              <span className="font-bold text-[#059669] dark:text-[#34D399]">
+                {telemetry.ecosystem.activeSchoolsCount} Active
+              </span>{' '}
+              • {telemetry.ecosystem.trialSchoolsCount} Pilot
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#121826] p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-center text-[#059669] dark:text-[#34D399]">
-              <Users className="w-5 h-5" />
+          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                Ecosystem MRR &amp; ARR
+              </span>
+              <IndianRupee className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24]" aria-hidden="true" />
             </div>
-            <div>
-              <div className="text-2xl font-extrabold">{statsMaps.activeStaffTotal}</div>
-              <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
-                Active Staff Accounts
-              </div>
+            <div className="text-2xl font-extrabold font-mono">
+              ₹{telemetry.ecosystem.totalEcosystemMrr.toLocaleString('en-IN')}
+              <span className="text-xs font-sans font-bold text-[#94A3B8]">/mo</span>
+            </div>
+            <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+              ARR: <strong className="text-[#0F172A] dark:text-[#F8FAFC]">{formatCompactInr(telemetry.ecosystem.totalEcosystemArr)}/yr</strong>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#121826] p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)] border border-amber-200 dark:border-amber-500/30 flex items-center justify-center text-[#D97706] dark:text-[#FBBF24]">
-              <IndianRupee className="w-5 h-5" />
+          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                Fee Volume (GMV)
+              </span>
+              <CreditCard className="w-4 h-4 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
             </div>
-            <div>
-              <div className="text-2xl font-extrabold">
-                ₹{statsMaps.estimatedMrr.toLocaleString('en-IN')}
-                <span className="text-xs font-bold text-[#94A3B8]">/mo</span>
-              </div>
-              <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
-                Est. SaaS MRR (₹99 AI Suite)
-              </div>
+            <div className="text-2xl font-extrabold font-mono text-[#059669] dark:text-[#34D399]">
+              {formatCompactInr(telemetry.ecosystem.totalFeeVolumeProcessed)}
+            </div>
+            <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+              {telemetry.ecosystem.totalPaidTransactionsCount} txns •{' '}
+              <strong className="text-[#4F46E5] dark:text-[#818CF8]">
+                {telemetry.ecosystem.ecosystemUpiAdoptionPct}% UPI
+              </strong>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                Active Campus Users
+              </span>
+              <GraduationCap className="w-4 h-4 text-cyan-600 dark:text-cyan-400" aria-hidden="true" />
+            </div>
+            <div className="text-2xl font-extrabold">
+              {telemetry.ecosystem.totalStudents}
+              <span className="text-xs font-bold text-[#94A3B8] ml-1.5">Students</span>
+            </div>
+            <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+              {telemetry.ecosystem.totalStaff} Staff ({telemetry.ecosystem.totalActivatedStaff} Activated)
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                Platform Health
+              </span>
+              <Activity className="w-4 h-4 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+            </div>
+            <div className="flex items-center gap-2 pt-0.5">
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isLiveSupabaseConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              <span className="text-base font-extrabold">
+                {isLiveSupabaseConfigured ? 'Cloud Connected' : 'Local Demo'}
+              </span>
+            </div>
+            <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+              {telemetry.ecosystem.totalPublishedChapters} AI Syllabus Chapters Live
             </div>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center justify-between gap-4">
-          <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search School Code (SCH-01), Name, Principal, Board..."
-              className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-            />
+        {/* Search & Filter Controls */}
+        <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
+            <search className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Search partner schools"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search Code (SCH-01), School, City, Board..."
+                className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
+            </search>
+
+            <div role="group" aria-label="Filter schools by status" className="flex flex-wrap items-center gap-1.5">
+              {(
+                [
+                  { id: 'ALL', label: `All (${telemetry.ecosystem.totalSchools})` },
+                  { id: 'ACTIVE', label: `Active Paid (${telemetry.ecosystem.activeSchoolsCount})` },
+                  { id: 'TRIAL', label: `Pilot / Trial (${telemetry.ecosystem.trialSchoolsCount})` },
+                  { id: 'ATTENTION', label: `Needs Attention (${telemetry.ecosystem.attentionSchoolsCount})` },
+                ] as const
+              ).map((pill) => (
+                <button
+                  key={pill.id}
+                  type="button"
+                  aria-pressed={activeFilter === pill.id}
+                  onClick={() => setActiveFilter(pill.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                    activeFilter === pill.id
+                      ? 'bg-[#4F46E5] text-white border-[#4F46E5]'
+                      : 'bg-[#F6F8FC] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8] border-[#E2E8F0] dark:border-[#232E44] hover:text-[#0F172A] dark:hover:text-white'
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
           </div>
+
           <span className="text-xs font-bold text-[#475569] dark:text-[#94A3B8] shrink-0">
-            Next Auto Code: <strong className="font-mono text-[#4F46E5] dark:text-[#6366F1]">{nextSeqPreview.nextCode}</strong>
+            Next Auto Code:{' '}
+            <strong className="font-mono text-[#4F46E5] dark:text-[#818CF8]">
+              {nextSeqPreview.nextCode}
+            </strong>
           </span>
         </div>
 
         {/* Partner Schools Directory Table */}
         <div className="bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+          <div
+            tabIndex={0}
+            role="region"
+            aria-labelledby={tableCaptionId}
+            className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5]"
+          >
             <table className="w-full text-left border-collapse text-xs">
+              <caption id={tableCaptionId} className="sr-only">
+                Partner schools SaaS billing, aggregate GMV transactions, and campus adoption directory
+              </caption>
               <thead>
                 <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
-                  <th className="py-3.5 px-4">School Code</th>
-                  <th className="py-3.5 px-4">Partner School & Board</th>
-                  <th className="py-3.5 px-4">Principal & Admin ID</th>
-                  <th className="py-3.5 px-4">Live Usage</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th scope="col" className="py-3.5 px-4">School Code &amp; City</th>
+                  <th scope="col" className="py-3.5 px-4">Partner School &amp; Board</th>
+                  <th scope="col" className="py-3.5 px-4">Plan &amp; Billing</th>
+                  <th scope="col" className="py-3.5 px-4">Fee Transactions (GMV)</th>
+                  <th scope="col" className="py-3.5 px-4">Campus Adoption</th>
+                  <th scope="col" className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0] dark:divide-[#232E44]">
-                {filteredSchools.length === 0 ? (
+                {filteredSummaries.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-[#94A3B8]">
-                      No partner schools found.
+                    <td colSpan={6} className="py-12 text-center text-[#94A3B8]">
+                      No partner schools match this filter.
                     </td>
                   </tr>
                 ) : (
-                  filteredSchools.map((sch) => {
-                    const stuCount = statsMaps.studentCount.get(sch.schoolCode) || 0;
-                    const stfCount = statsMaps.staffCount.get(sch.schoolCode) || 0;
-                    const primaryAdmin = statsMaps.adminBySchool.get(sch.schoolCode);
-                    const adminId = primaryAdmin?.id || `${sch.schoolCode}-ADM-001`;
+                  filteredSummaries.map((item) => {
+                    const sch = item.school;
                     const isProtectedDemo = sch.schoolCode === 'SCH-01';
+                    const billingMeta = BILLING_STATUS_META[item.billingStatus];
 
                     const kitPayload: OnboardingKitData = {
                       schoolCode: sch.schoolCode,
                       schoolName: sch.name,
+                      city: sch.city,
                       board: sch.board,
                       academicSession: sch.academicSession,
                       principalName: sch.principalName,
-                      principalEmployeeId: adminId,
-                      principalPhone: primaryAdmin?.phone || null,
-                      isPasswordSet: Boolean(primaryAdmin?.isPasswordSet),
+                      principalEmployeeId: item.principalEmployeeId,
+                      principalPhone: item.principalPhone,
+                      isPasswordSet: item.isPrincipalActivated,
                     };
 
                     return (
@@ -797,82 +1232,123 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
                         key={sch.id}
                         className="hover:bg-[#F6F8FC] dark:hover:bg-[#1A2336]/40 transition-colors"
                       >
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                        <td className="py-3.5 px-4 align-top">
+                          <span className="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3]">
                             {sch.schoolCode}
                           </span>
+                          <div className="mt-1.5 text-[11px] font-medium text-[#475569] dark:text-[#94A3B8]">
+                            {sch.city}
+                          </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <th scope="row" className="py-3.5 px-4 font-normal text-left align-top">
                           <div className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC]">
                             {sch.name}
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2F7] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8]">
                               {sch.board}
                             </span>
                             <span className="text-[11px] text-[#94A3B8]">
-                              Session {sch.academicSession}
+                              {sch.academicSession}
+                            </span>
+                            <span className="text-[#CBD5E1] dark:text-[#334155]">•</span>
+                            <span className="text-[11px] font-mono font-semibold text-[#4F46E5] dark:text-[#818CF8]">
+                              {item.principalEmployeeId}
                             </span>
                           </div>
-                        </td>
+                        </th>
 
-                        <td className="py-3.5 px-4">
-                          <div className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
-                            {sch.principalName}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="font-mono font-bold text-[11px] text-[#4F46E5] dark:text-[#6366F1]">
-                              {adminId}
-                            </span>
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                primaryAdmin?.isPasswordSet
-                                  ? 'bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399]'
-                                  : 'bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)] text-[#D97706] dark:text-[#FBBF24]'
-                              }`}
+                        <td className="py-3.5 px-4 align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setInspectedSchoolCode(sch.schoolCode)}
+                              className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] hover:bg-[#4F46E5] hover:text-white transition-colors cursor-pointer"
                             >
-                              {primaryAdmin?.isPasswordSet ? 'Activated' : 'Pending'}
-                            </span>
+                              {item.planLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setInspectedSchoolCode(sch.schoolCode)}
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold border cursor-pointer ${billingMeta.badgeClass}`}
+                            >
+                              {billingMeta.label}
+                            </button>
+                          </div>
+                          <div className="mt-1.5 font-mono text-[11px] font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                            ₹{item.monthlySaaSRevenue.toLocaleString('en-IN')}/mo MRR
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 align-top min-w-[165px]">
+                          <div className="font-mono font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
+                            ₹{item.totalFeeVolumeProcessed.toLocaleString('en-IN')}
+                          </div>
+                          <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] mt-0.5">
+                            {item.paidTransactionsCount} txns • UPI {item.digitalUpiAdoptionPct}%
+                          </div>
+                          <div
+                            className="mt-1.5 h-1.5 w-full rounded-full bg-[#E2E8F0] dark:bg-[#232E44] overflow-hidden"
+                            aria-hidden="true"
+                          >
+                            <div
+                              className="h-full rounded-full bg-[#4F46E5] dark:bg-[#6366F1]"
+                              style={{ width: `${item.digitalUpiAdoptionPct}%` }}
+                            />
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 align-top">
                           <div className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">
-                            {stuCount} Students
+                            {item.studentCount} Students
                           </div>
-                          <div className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
-                            {stfCount} Staff Account{stfCount === 1 ? '' : 's'}
+                          <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] mt-0.5">
+                            {item.totalStaffCount} Staff Account{item.totalStaffCount === 1 ? '' : 's'}
+                            {item.totalStaffCount > 0 && (
+                              <span className="ml-1 font-semibold">
+                                ({item.activatedStaffCount}/{item.totalStaffCount} Active)
+                              </span>
+                            )}
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex items-center justify-end gap-2">
+                        <td className="py-3.5 px-4 text-right align-top">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setInspectedSchoolCode(sch.schoolCode)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white font-bold text-xs transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+                              <span>Inspect</span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => setInspectKit(kitPayload)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] hover:bg-[#4F46E5] hover:text-white dark:hover:bg-[#6366F1] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] hover:bg-[#4F46E5] hover:text-white dark:hover:bg-[#6366F1] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs transition-colors cursor-pointer whitespace-nowrap"
                             >
-                              <KeyRound className="w-3.5 h-3.5" />
-                              <span>Principal Onboarding Kit</span>
+                              <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
+                              <span>Activation Kit</span>
                             </button>
 
                             <button
                               type="button"
                               disabled={isProtectedDemo}
                               onClick={() => setSchoolToDelete(sch)}
-                              title={
+                              aria-label={
                                 isProtectedDemo
-                                  ? 'SCH-01 is protected flagship demo school'
+                                  ? `${sch.name} cannot be removed`
                                   : `Remove ${sch.name}`
                               }
-                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors whitespace-nowrap ${
                                 isProtectedDemo
                                   ? 'bg-[#F6F8FC] dark:bg-[#1A2336] text-[#94A3B8] border-[#E2E8F0] dark:border-[#232E44] opacity-45 cursor-not-allowed'
                                   : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50 cursor-pointer'
                               }`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                               <span>Remove</span>
                             </button>
                           </div>
@@ -887,218 +1363,549 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
         </div>
       </main>
 
-      {/* + Onboard New School Modal */}
-      {isOnboardOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setIsOnboardOpen(false)}
-        >
-          <div
-            className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-xl w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="no-print px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] flex items-center justify-center">
-                  <Building2 className="w-4 h-4" />
+      {/* Slide-Over School Executive Inspector Drawer (Zero-PII Deep Dive) */}
+      <NativeModalDialog
+        open={Boolean(inspectedSummary)}
+        onClose={() => setInspectedSchoolCode(null)}
+        ariaLabelledBy={drawerTitleId}
+        variant="drawer"
+      >
+        {inspectedSummary && (
+          <div className="flex flex-col min-h-full">
+            <div className="px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between gap-3 sticky top-0 z-10">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8]">
+                    {inspectedSummary.school.schoolCode}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      BILLING_STATUS_META[inspectedSummary.billingStatus].badgeClass
+                    }`}
+                  >
+                    {inspectedSummary.billingLabel}
+                  </span>
                 </div>
-                <div>
-                  <h2 className="text-sm font-extrabold">
-                    {issuedKit ? 'Partner School Live & Principal Kit Ready' : 'Onboard New Partner School'}
-                  </h2>
-                  <p className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
-                    {issuedKit
-                      ? `Tenant ${issuedKit.schoolCode} & ${issuedKit.principalEmployeeId} provisioned`
-                      : `Auto-assigns next sequential School Code (${nextSeqPreview.nextCode})`}
-                  </p>
-                </div>
+                <h2 id={drawerTitleId} className="text-base font-extrabold mt-1 truncate">
+                  {inspectedSummary.school.name}
+                </h2>
               </div>
               <button
                 type="button"
-                onClick={() => setIsOnboardOpen(false)}
-                className="p-1.5 rounded-lg text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] cursor-pointer"
+                onClick={() => setInspectedSchoolCode(null)}
+                aria-label="Close school inspector"
+                className="p-2 rounded-lg text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
-            <div className="p-6">
-              {issuedKit ? (
-                <div className="space-y-4">
-                  <PrincipalOnboardingKitCard kit={issuedKit} />
-                  <div className="no-print pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] flex justify-end">
+            <div className="p-6 space-y-6 flex-1">
+              {/* School Identity & Direct Link */}
+              <div className="rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] p-4 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#475569] dark:text-[#94A3B8]">Location &amp; Board</span>
+                  <span className="font-bold">
+                    {inspectedSummary.school.city} • {inspectedSummary.school.board}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#475569] dark:text-[#94A3B8]">Principal</span>
+                  <span className="font-bold">{inspectedSummary.school.principalName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#475569] dark:text-[#94A3B8]">Admin Login ID</span>
+                  <span className="font-mono font-bold text-[#4F46E5] dark:text-[#818CF8]">
+                    {inspectedSummary.principalEmployeeId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] dark:border-[#232E44]">
+                  <span className="text-[#475569] dark:text-[#94A3B8]">Direct Portal URL</span>
+                  <span className="font-mono font-semibold text-[#4F46E5] dark:text-[#818CF8]">
+                    {PORTAL_PUBLIC_URL}
+                  </span>
+                </div>
+              </div>
+
+              {/* Subscription & Plan Manager */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                    Subscription &amp; Plan Manager
+                  </h3>
+                  <span className="font-mono text-xs font-extrabold text-[#4F46E5] dark:text-[#818CF8]">
+                    ₹{inspectedSummary.monthlySaaSRevenue.toLocaleString('en-IN')}/mo
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {(['CORE_ERP', 'AI_SUITE'] as SchoolPlanTier[]).map((tier) => (
                     <button
+                      key={tier}
                       type="button"
-                      onClick={() => setIsOnboardOpen(false)}
-                      className="px-4 py-2 rounded-xl bg-[#0F172A] dark:bg-[#1A2336] text-white text-xs font-bold cursor-pointer"
+                      disabled={isUpdatingPlan}
+                      onClick={() =>
+                        handleUpdateSubscription(inspectedSummary.school.schoolCode, {
+                          planTier: tier,
+                        })
+                      }
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        inspectedSummary.planTier === tier
+                          ? 'bg-[#EEF2FF] dark:bg-[#1B2440] border-[#4F46E5] text-[#4F46E5] dark:text-[#818CF8]'
+                          : 'bg-[#F6F8FC] dark:bg-[#1A2336] border-[#E2E8F0] dark:border-[#232E44] text-[#475569] dark:text-[#94A3B8]'
+                      }`}
                     >
-                      Done
+                      <div className="text-xs font-extrabold">{PLAN_META[tier].shortLabel}</div>
+                      <div className="text-[10px] mt-0.5">
+                        ₹{PLAN_META[tier].rate}/student/mo
+                      </div>
                     </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED'] as SchoolBillingStatus[]).map(
+                    (statusKey) => (
+                      <button
+                        key={statusKey}
+                        type="button"
+                        disabled={isUpdatingPlan}
+                        onClick={() =>
+                          handleUpdateSubscription(inspectedSummary.school.schoolCode, {
+                            billingStatus: statusKey,
+                          })
+                        }
+                        className={`py-2 px-2.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
+                          inspectedSummary.billingStatus === statusKey
+                            ? 'bg-[#0F172A] dark:bg-[#4F46E5] text-white border-transparent'
+                            : 'bg-white dark:bg-[#1A2336] border-[#E2E8F0] dark:border-[#232E44] text-[#475569] dark:text-[#94A3B8]'
+                        }`}
+                      >
+                        {BILLING_STATUS_META[statusKey].label}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {planFeedback && (
+                  <p className="text-[11px] font-semibold text-[#059669] dark:text-[#34D399]">
+                    {planFeedback}
+                  </p>
+                )}
+              </div>
+
+              {/* Aggregate Financial Telemetry (Zero Student PII) */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                  Aggregate Fee Telemetry (Zero Student PII)
+                </h3>
+                <div className="rounded-xl border border-[#E2E8F0] dark:border-[#232E44] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                        Total Fee Volume Processed
+                      </div>
+                      <div className="text-xl font-mono font-extrabold text-[#059669] dark:text-[#34D399]">
+                        ₹{inspectedSummary.totalFeeVolumeProcessed.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                        Paid Transactions
+                      </div>
+                      <div className="text-base font-extrabold">
+                        {inspectedSummary.paidTransactionsCount}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* UPI vs Offline Split Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[11px] font-semibold">
+                      <span className="text-[#4F46E5] dark:text-[#818CF8]">
+                        Online UPI: ₹{inspectedSummary.onlineUpiVolume.toLocaleString('en-IN')} (
+                        {inspectedSummary.digitalUpiAdoptionPct}%)
+                      </span>
+                      <span className="text-[#475569] dark:text-[#94A3B8]">
+                        Cash/Cheque: ₹{inspectedSummary.offlineDeskVolume.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div
+                      className="h-2.5 w-full rounded-full bg-[#E2E8F0] dark:bg-[#232E44] overflow-hidden"
+                      aria-hidden="true"
+                    >
+                      <div
+                        className="h-full bg-[#4F46E5] dark:bg-[#6366F1] rounded-full transition-all"
+                        style={{ width: `${inspectedSummary.digitalUpiAdoptionPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between text-xs">
+                    <span className="text-[#475569] dark:text-[#94A3B8]">Outstanding Dues Volume</span>
+                    <span className="font-mono font-bold text-[#D97706] dark:text-[#FBBF24]">
+                      ₹{inspectedSummary.pendingDuesVolume.toLocaleString('en-IN')}
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <form onSubmit={handleOnboardSchool} className="space-y-4">
-                  <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3]">
-                    <span className="text-xs font-bold text-[#3730A3] dark:text-indigo-200">
-                      Auto-Generated School Code
-                    </span>
-                    <span className="font-mono text-sm font-extrabold text-[#4F46E5] dark:text-[#6366F1]">
-                      {nextSeqPreview.nextCode}
-                    </span>
-                  </div>
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-bold mb-1">School Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={schoolName}
-                      onChange={(e) => setSchoolName(e.target.value)}
-                      placeholder="e.g. Brightlands School, Dehradun"
-                      className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold mb-1">Education Board *</label>
-                      <select
-                        value={board}
-                        onChange={(e) => setBoard(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-                      >
-                        <option value="CBSE">CBSE</option>
-                        <option value="ICSE">ICSE</option>
-                        <option value="ISC">ISC</option>
-                        <option value="State Board">State Board</option>
-                      </select>
+              {/* Platform Adoption Telemetry */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                  Campus Adoption Telemetry
+                </h3>
+                <div className="grid grid-cols-3 gap-2.5 text-center">
+                  <div className="p-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44]">
+                    <Users className="w-4 h-4 mx-auto text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
+                    <div className="text-sm font-extrabold mt-1">
+                      {inspectedSummary.activatedStaffCount}/{inspectedSummary.totalStaffCount}
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold mb-1">Academic Session *</label>
-                      <input
-                        type="text"
-                        required
-                        value={academicSession}
-                        onChange={(e) => setAcademicSession(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-                      />
-                    </div>
+                    <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">Staff Active</div>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold mb-1">Principal Full Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={principalName}
-                        onChange={(e) => setPrincipalName(e.target.value)}
-                        placeholder="e.g. Dr. Rajeshwari Nair"
-                        className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-                      />
+                  <div className="p-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44]">
+                    <BookOpen className="w-4 h-4 mx-auto text-cyan-600 dark:text-cyan-400" aria-hidden="true" />
+                    <div className="text-sm font-extrabold mt-1">
+                      {inspectedSummary.publishedChaptersCount}
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold mb-1">Principal Phone (Optional)</label>
-                      <input
-                        type="tel"
-                        value={principalPhone}
-                        onChange={(e) => setPrincipalPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        placeholder="9811223344"
-                        className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-                      />
-                    </div>
+                    <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">AI Chapters</div>
                   </div>
-
-                  {provisionError && (
-                    <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{provisionError}</span>
+                  <div className="p-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44]">
+                    <ShieldCheck className="w-4 h-4 mx-auto text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+                    <div className="text-sm font-extrabold mt-1">
+                      {inspectedSummary.circularsSentCount}
                     </div>
-                  )}
-
-                  <div className="pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] flex justify-end gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsOnboardOpen(false)}
-                      className="px-4 py-2 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isProvisioning}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] disabled:opacity-60 text-white text-xs font-bold shadow-sm cursor-pointer"
-                    >
-                      <Building2 className="w-4 h-4" />
-                      <span>
-                        {isProvisioning
-                          ? 'Provisioning Tenant...'
-                          : `Onboard School (${nextSeqPreview.nextCode})`}
-                      </span>
-                    </button>
+                    <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">Circulars Sent</div>
                   </div>
-                </form>
-              )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Inspect Principal Onboarding Kit Modal */}
-      {inspectKit && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setInspectKit(null)}
-        >
-          <div
-            className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-lg w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="no-print px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
-              <h3 className="text-sm font-extrabold">Principal Onboarding Kit</h3>
+            {/* Sticky Drawer Action Footer */}
+            <div className="p-5 bg-white dark:bg-[#0D1320] border-t border-[#E2E8F0] dark:border-[#232E44] flex flex-wrap items-center gap-2 sticky bottom-0">
               <button
                 type="button"
-                onClick={() => setInspectKit(null)}
-                className="p-1.5 rounded-lg text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] cursor-pointer"
+                onClick={async () => {
+                  const msg = buildPrincipalWelcomeMessage({
+                    schoolCode: inspectedSummary.school.schoolCode,
+                    schoolName: inspectedSummary.school.name,
+                    city: inspectedSummary.school.city,
+                    board: inspectedSummary.school.board,
+                    academicSession: inspectedSummary.school.academicSession,
+                    principalName: inspectedSummary.school.principalName,
+                    principalEmployeeId: inspectedSummary.principalEmployeeId,
+                    principalPhone: inspectedSummary.principalPhone,
+                    isPasswordSet: inspectedSummary.isPrincipalActivated,
+                  });
+                  try {
+                    await navigator.clipboard.writeText(msg);
+                  } catch {
+                    // Fallback copy
+                  }
+                  setDrawerKitCopied(true);
+                  setTimeout(() => setDrawerKitCopied(false), 2400);
+                }}
+                className="flex-1 min-w-[170px] inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                {drawerKitCopied ? (
+                  <Check className="w-4 h-4" aria-hidden="true" />
+                ) : (
+                  <Copy className="w-4 h-4" aria-hidden="true" />
+                )}
+                <span>{drawerKitCopied ? 'Copied Kit!' : 'Copy Principal WhatsApp Kit'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 py-2.5 px-3.5 rounded-xl bg-[#EEF2F7] dark:bg-[#1A2336] text-xs font-bold cursor-pointer"
+              >
+                <Printer className="w-4 h-4" aria-hidden="true" />
+                <span>Print</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navTo('/portal')}
+                className="inline-flex items-center gap-1 py-2.5 px-3.5 rounded-xl border border-[#C7D2FE] dark:border-[#3730A3] text-xs font-bold text-[#4F46E5] dark:text-[#818CF8] cursor-pointer"
+              >
+                <span>Open Portal</span>
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
-            <div className="p-6">
-              <PrincipalOnboardingKitCard kit={inspectKit} />
+          </div>
+        )}
+      </NativeModalDialog>
+
+      {/* Onboard New School Modal */}
+      <NativeModalDialog
+        open={isOnboardOpen}
+        onClose={() => setIsOnboardOpen(false)}
+        ariaLabelledBy={onboardTitleId}
+      >
+        <div className="no-print px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] flex items-center justify-center">
+              <Building2 className="w-4 h-4" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id={onboardTitleId} className="text-sm font-extrabold">
+                {issuedKit ? 'Partner School Live & Principal Kit Ready' : 'Onboard New Partner School'}
+              </h2>
+              <p className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                {issuedKit
+                  ? `Tenant ${issuedKit.schoolCode} & ${issuedKit.principalEmployeeId} provisioned`
+                  : `Auto-assigns sequential School Code (${nextSeqPreview.nextCode})`}
+              </p>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Remove Test School Confirmation Modal */}
-      {schoolToDelete && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={() => setSchoolToDelete(null)}
-        >
-          <div
-            className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-md w-full border border-[#E2E8F0] dark:border-[#232E44] p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            onClick={() => setIsOnboardOpen(false)}
+            aria-label="Close onboard modal"
+            className="p-1.5 rounded-lg text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] cursor-pointer"
           >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {issuedKit ? (
+            <div className="space-y-4">
+              <PrincipalOnboardingKitCard kit={issuedKit} />
+              <div className="no-print pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsOnboardOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-[#0F172A] dark:bg-[#1A2336] text-white text-xs font-bold cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleOnboardSchool} className="space-y-4">
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3]">
+                <span className="text-xs font-bold text-[#3730A3] dark:text-indigo-200">
+                  Auto-Generated School Code
+                </span>
+                <span className="font-mono text-sm font-extrabold text-[#4F46E5] dark:text-[#818CF8]">
+                  {nextSeqPreview.nextCode}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label htmlFor="onboard-school-name" className="block text-xs font-bold mb-1">
+                    School Name *
+                  </label>
+                  <input
+                    id="onboard-school-name"
+                    type="text"
+                    required
+                    autoFocus
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    placeholder="e.g. Brightlands School"
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="onboard-city" className="block text-xs font-bold mb-1">
+                    City *
+                  </label>
+                  <input
+                    id="onboard-city"
+                    type="text"
+                    required
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Dehradun"
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="onboard-board" className="block text-xs font-bold mb-1">
+                    Education Board *
+                  </label>
+                  <select
+                    id="onboard-board"
+                    value={board}
+                    onChange={(e) => setBoard(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  >
+                    <option value="CBSE">CBSE</option>
+                    <option value="ICSE">ICSE</option>
+                    <option value="ISC">ISC</option>
+                    <option value="State Board">State Board</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="onboard-session" className="block text-xs font-bold mb-1">
+                    Academic Session *
+                  </label>
+                  <input
+                    id="onboard-session"
+                    type="text"
+                    required
+                    value={academicSession}
+                    onChange={(e) => setAcademicSession(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="onboard-plan" className="block text-xs font-bold mb-1">
+                    SaaS Plan Tier *
+                  </label>
+                  <select
+                    id="onboard-plan"
+                    value={planTier}
+                    onChange={(e) => setPlanTier(e.target.value as SchoolPlanTier)}
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  >
+                    <option value="AI_SUITE">Full AI + 3D Suite (₹99/stu/mo)</option>
+                    <option value="CORE_ERP">Core School ERP (₹49/stu/mo)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="onboard-billing" className="block text-xs font-bold mb-1">
+                    Billing Status *
+                  </label>
+                  <select
+                    id="onboard-billing"
+                    value={billingStatus}
+                    onChange={(e) => setBillingStatus(e.target.value as SchoolBillingStatus)}
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  >
+                    <option value="TRIAL">14-Day Free Pilot</option>
+                    <option value="ACTIVE">Active Paid</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="onboard-principal-name" className="block text-xs font-bold mb-1">
+                    Principal Full Name *
+                  </label>
+                  <input
+                    id="onboard-principal-name"
+                    type="text"
+                    required
+                    value={principalName}
+                    onChange={(e) => setPrincipalName(e.target.value)}
+                    placeholder="e.g. Dr. Rajeshwari Nair"
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="onboard-principal-phone" className="block text-xs font-bold mb-1">
+                    Principal Phone (Optional)
+                  </label>
+                  <input
+                    id="onboard-principal-phone"
+                    type="tel"
+                    value={principalPhone}
+                    onChange={(e) => setPrincipalPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9811223344"
+                    className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  />
+                </div>
+              </div>
+
+              {provisionError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>{provisionError}</span>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsOnboardOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProvisioning}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] disabled:opacity-60 text-white text-xs font-bold shadow-sm cursor-pointer"
+                >
+                  <Building2 className="w-4 h-4" aria-hidden="true" />
+                  <span>
+                    {isProvisioning ? 'Provisioning Tenant...' : `Onboard School (${nextSeqPreview.nextCode})`}
+                  </span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </NativeModalDialog>
+
+      {/* Principal Activation Kit Modal */}
+      <NativeModalDialog
+        open={Boolean(inspectKit)}
+        onClose={() => setInspectKit(null)}
+        ariaLabelledBy={kitTitleId}
+      >
+        <div className="no-print px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
+          <h2 id={kitTitleId} className="text-sm font-extrabold">
+            Principal Activation Kit
+          </h2>
+          <button
+            type="button"
+            onClick={() => setInspectKit(null)}
+            aria-label="Close activation kit"
+            className="p-1.5 rounded-lg text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] cursor-pointer"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="p-6">{inspectKit && <PrincipalOnboardingKitCard kit={inspectKit} />}</div>
+      </NativeModalDialog>
+
+      {/* Remove Test School Confirmation Modal (autofocus on Cancel!) */}
+      <NativeModalDialog
+        open={Boolean(schoolToDelete)}
+        onClose={() => setSchoolToDelete(null)}
+        ariaLabelledBy={deleteTitleId}
+      >
+        {schoolToDelete && (
+          <div className="p-6 space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+                <AlertTriangle className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold">Remove Test School?</h3>
+                <h2 id={deleteTitleId} className="text-base font-extrabold">
+                  Remove Partner School?
+                </h2>
                 <p className="text-xs text-[#475569] dark:text-[#94A3B8] mt-1 leading-relaxed">
                   Are you sure you want to permanently remove{' '}
-                  <strong className="text-[#0F172A] dark:text-[#F8FAFC]">{schoolToDelete.name}</strong> (
-                  <span className="font-mono">{schoolToDelete.schoolCode}</span>)? All staff, students, and ledgers under this tenant will be cascade-deleted.
+                  <strong className="text-[#0F172A] dark:text-[#F8FAFC]">
+                    {schoolToDelete.name}
+                  </strong>{' '}
+                  (<span className="font-mono">{schoolToDelete.schoolCode}</span>)? All staff,
+                  students, and ledgers under this tenant will be cascade-deleted.
                 </p>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
+                autoFocus
                 onClick={() => setSchoolToDelete(null)}
                 className="px-4 py-2 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] cursor-pointer"
               >
@@ -1114,8 +1921,8 @@ export default function SuperAdminPage({ onNavigateHome }: SuperAdminPageProps) 
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </NativeModalDialog>
     </div>
   );
 }

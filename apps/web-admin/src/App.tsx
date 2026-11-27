@@ -125,7 +125,12 @@ export default function App() {
 
   // Private Edzy Founder / Super-Admin HQ Console (Never linked inside public website or school ERP)
   if (pathname === '/super-admin') {
-    return <SuperAdminPage onNavigateHome={() => navigateTo('/')} />;
+    return (
+      <SuperAdminPage
+        onNavigateHome={() => navigateTo('/portal')}
+        onNavigatePath={navigateTo}
+      />
+    );
   }
 
   // Public Flagship Landing Website (/ and normalized /pitch)

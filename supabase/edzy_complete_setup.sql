@@ -8,6 +8,18 @@
 --          and Mathematically Verified Fee/Marks/Roadmap Seed Data.
 -- ====================================================================
 
+-- SAFE IN-PLACE UPGRADE SNIPPET (Run alone if upgrading an existing DB without dropping tables):
+-- ALTER TABLE public.schools
+--     ADD COLUMN IF NOT EXISTS plan_tier TEXT NOT NULL DEFAULT 'AI_SUITE',
+--     ADD COLUMN IF NOT EXISTS billing_status TEXT NOT NULL DEFAULT 'ACTIVE',
+--     ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT 'Dehradun',
+--     ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+-- ALTER TABLE public.schools DROP CONSTRAINT IF EXISTS schools_plan_tier_check;
+-- ALTER TABLE public.schools ADD CONSTRAINT schools_plan_tier_check CHECK (plan_tier IN ('CORE_ERP', 'AI_SUITE'));
+-- ALTER TABLE public.schools DROP CONSTRAINT IF EXISTS schools_billing_status_check;
+-- ALTER TABLE public.schools ADD CONSTRAINT schools_billing_status_check CHECK (billing_status IN ('TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED'));
+-- NOTIFY pgrst, 'reload schema';
+
 -- 1. SAFE DROP OF EXISTING TABLES IN REVERSE DEPENDENCY ORDER
 DROP TABLE IF EXISTS public.school_staff CASCADE;
 DROP TABLE IF EXISTS public.student_roadmap_progress CASCADE;
@@ -41,7 +53,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 3. CORE TABLE SCHEMAS (ALL 8 TABLES USE TEXT KEYS - ZERO UUID 22P02)
 -- ====================================================================
 
--- 3.1 SCHOOLS (Multi-School Multi-Tenant Core)
+-- 3.1 SCHOOLS (Multi-School Multi-Tenant Core + SaaS Billing Metadata)
 CREATE TABLE public.schools (
     id TEXT PRIMARY KEY, -- e.g. 'SCH-01', 'SCH-02'
     school_serial INTEGER NOT NULL,
@@ -50,6 +62,10 @@ CREATE TABLE public.schools (
     board TEXT NOT NULL DEFAULT 'CBSE',
     academic_session TEXT NOT NULL DEFAULT '2026-27',
     principal_name TEXT NOT NULL,
+    plan_tier TEXT NOT NULL DEFAULT 'AI_SUITE' CHECK (plan_tier IN ('CORE_ERP', 'AI_SUITE')),
+    billing_status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (billing_status IN ('TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED')),
+    city TEXT NOT NULL DEFAULT 'Dehradun',
+    contact_phone TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -285,8 +301,11 @@ CREATE POLICY "Pilot open access on student_roadmap_progress" ON public.student_
 -- 7. COMPLETE, MATHEMATICALLY CONSISTENT MULTI-SCHOOL SEED DATA
 -- ====================================================================
 
--- 7.1 SEED SCHOOLS (SCH-01 CBSE, SCH-02 ICSE)
-INSERT INTO public.schools (id, school_serial, school_code, name, board, academic_session, principal_name)
+-- 7.1 SEED SCHOOLS (SCH-01 CBSE Paid Active, SCH-02 ICSE 14-Day Trial Pilot)
+INSERT INTO public.schools (
+    id, school_serial, school_code, name, board, academic_session, principal_name,
+    plan_tier, billing_status, city, contact_phone
+)
 VALUES
 (
     'SCH-01',
@@ -295,7 +314,11 @@ VALUES
     'Doon Valley Public School',
     'CBSE',
     '2026-27',
-    'Dr. Meenakshi Sharma'
+    'Dr. Meenakshi Sharma',
+    'AI_SUITE',
+    'ACTIVE',
+    'Dehradun',
+    '9811000001'
 ),
 (
     'SCH-02',
@@ -304,7 +327,11 @@ VALUES
     'St. Joseph''s Academy',
     'ICSE',
     '2026-27',
-    'Fr. Joseph Thomas'
+    'Fr. Joseph Thomas',
+    'AI_SUITE',
+    'TRIAL',
+    'Dehradun',
+    NULL
 )
 ON CONFLICT (id) DO UPDATE SET
     school_serial = EXCLUDED.school_serial,
@@ -312,11 +339,15 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     board = EXCLUDED.board,
     academic_session = EXCLUDED.academic_session,
-    principal_name = EXCLUDED.principal_name;
+    principal_name = EXCLUDED.principal_name,
+    plan_tier = EXCLUDED.plan_tier,
+    billing_status = EXCLUDED.billing_status,
+    city = EXCLUDED.city,
+    contact_phone = EXCLUDED.contact_phone;
 
--- 7.2 SEED 5 STAFF MEMBERS FOR SCH-01
+-- 7.2 SEED STAFF MEMBERS FOR SCH-01 (5) AND SCH-02 PRINCIPAL (1 PENDING ACTIVATION)
 -- SHA-256('edzy-salt-v1:edzy123') = ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542
--- Ms. Kavita Joshi (SCH-01-TCH-003) keeps is_password_set = FALSE for first-time setup testing.
+-- Ms. Kavita Joshi (SCH-01-TCH-003) & Fr. Joseph Thomas (SCH-02-ADM-001) keep is_password_set = FALSE for self-setup.
 INSERT INTO public.school_staff (
     id, school_id, employee_serial, full_name, department, designation,
     assigned_class, subject, phone, password_hash, is_password_set, status
@@ -325,7 +356,8 @@ INSERT INTO public.school_staff (
 ('SCH-01-TCH-001', 'SCH-01', 1, 'Mrs. Sunita Rawat',    'TCH', 'Class Teacher',           'Class 10-A', 'Science',      '9811000002', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE'),
 ('SCH-01-TCH-002', 'SCH-01', 2, 'Mr. Vikram Negi',      'TCH', 'Class Teacher',           'Class 9-B',  'Mathematics',  '9811000003', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE'),
 ('SCH-01-TCH-003', 'SCH-01', 3, 'Ms. Kavita Joshi',     'TCH', 'Class Teacher',           'Class 2-A',  'All Subjects', '9811000004', NULL,                                                               FALSE, 'ACTIVE'),
-('SCH-01-ACT-001', 'SCH-01', 1, 'Mr. Harish Pant',      'ACT', 'Senior Accounts Officer', NULL,         NULL,           '9811000005', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE')
+('SCH-01-ACT-001', 'SCH-01', 1, 'Mr. Harish Pant',      'ACT', 'Senior Accounts Officer', NULL,         NULL,           '9811000005', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE'),
+('SCH-02-ADM-001', 'SCH-02', 1, 'Fr. Joseph Thomas',    'ADM', 'Principal & ERP Admin',   NULL,         NULL,           NULL,         NULL,                                                               FALSE, 'ACTIVE')
 ON CONFLICT (id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     department = EXCLUDED.department,

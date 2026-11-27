@@ -138,3 +138,12 @@
     padding: 0 !important;
   }
 }
+
+/* Native top-layer modal/drawer scroll containment */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
