@@ -17,6 +17,7 @@ import {
   sortStudentsAlphabetically,
 } from '../lib/idGenerator';
 import { hashStaffPassword, verifyStaffPassword } from '../lib/authCrypto';
+import { resequenceStudentsAlphabeticallyByClass } from '../lib/classScope';
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
@@ -1259,25 +1260,24 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     };
 
     const newInstallments = buildQuarterInstallmentsForStudent(newStudent, 0, 'inst');
+    const { sortedStudents, rollUpdates } = resequenceStudentsAlphabeticallyByClass([
+      ...state.students,
+      newStudent,
+    ]);
+    const finalNewStudent =
+      sortedStudents.find((s) => s.id === newStudent.id) || newStudent;
 
     set((curr) => {
-      const merged = [...curr.students, newStudent];
-      const byClass = new Map<string, StudentRecord[]>();
-      for (const st of merged) {
-        const list = byClass.get(st.classGrade) || [];
-        list.push(st);
-        byClass.set(st.classGrade, list);
-      }
-      const sortedStudents: StudentRecord[] = [];
-      for (const list of byClass.values()) {
-        sortedStudents.push(...sortStudentsAlphabetically(list));
-      }
+      const resequenced = resequenceStudentsAlphabeticallyByClass([
+        ...curr.students.filter((s) => s.id !== newStudent.id),
+        finalNewStudent,
+      ]);
       return {
-        students: sortedStudents,
+        students: resequenced.sortedStudents,
         feeInstallments: [...curr.feeInstallments, ...newInstallments],
         attendanceRegister: {
           ...curr.attendanceRegister,
-          [newStudent.id]: 'PRESENT',
+          [finalNewStudent.id]: 'PRESENT',
         },
       };
     });
@@ -1287,19 +1287,19 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       supabase
         .from('students')
         .insert({
-          id: newStudent.id,
+          id: finalNewStudent.id,
           school_id: schoolId,
           school_code: schoolId,
-          roll_number: newStudent.rollNo,
-          full_name: newStudent.name,
-          class_grade: newStudent.classGrade,
-          section: newStudent.section,
-          parent_name: newStudent.parentName,
-          parent_phone: newStudent.parentPhone,
-          parent_pin: newStudent.parentPin,
-          total_fee: newStudent.annualFee,
+          roll_number: finalNewStudent.rollNo,
+          full_name: finalNewStudent.name,
+          class_grade: finalNewStudent.classGrade,
+          section: finalNewStudent.section,
+          parent_name: finalNewStudent.parentName,
+          parent_phone: finalNewStudent.parentPhone,
+          parent_pin: finalNewStudent.parentPin,
+          total_fee: finalNewStudent.annualFee,
           paid_fee: 0,
-          balance_due: newStudent.annualFee,
+          balance_due: finalNewStudent.annualFee,
           weekly_study_hours: 0,
           streak_days: 0,
           attendance_pct: 100,
@@ -1330,27 +1330,39 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 console.error('[Edzy Cloud Web] Student fee_ledger insert error:', feeErr.message);
               }
             });
+          for (const upd of rollUpdates) {
+            if (upd.id === finalNewStudent.id) continue;
+            supabase
+              .from('students')
+              .update({ roll_number: upd.rollNo, updated_at: nowIso })
+              .eq('id', upd.id)
+              .then(() => {});
+          }
         });
 
-      broadcastAdminSyncEvent('STUDENT_UPDATED', schoolId, newStudent.id, {
+      broadcastAdminSyncEvent('STUDENT_UPDATED', schoolId, finalNewStudent.id, {
         operation: 'ADDED',
-        student: newStudent,
+        student: finalNewStudent,
         installments: newInstallments,
       });
     }
 
-    return newStudent;
+    return finalNewStudent;
   },
 
   removeStudent: (studentId) => {
     const state = get();
     const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const remaining = state.students.filter((s) => s.id !== studentId);
+    const { rollUpdates } = resequenceStudentsAlphabeticallyByClass(remaining);
 
     set((curr) => {
       const nextAttendance = { ...curr.attendanceRegister };
       delete nextAttendance[studentId];
+      const nextRemaining = curr.students.filter((s) => s.id !== studentId);
+      const { sortedStudents } = resequenceStudentsAlphabeticallyByClass(nextRemaining);
       return {
-        students: curr.students.filter((s) => s.id !== studentId),
+        students: sortedStudents,
         feeInstallments: curr.feeInstallments.filter((f) => f.studentId !== studentId),
         examMarks: curr.examMarks.filter((m) => m.studentId !== studentId),
         studentProgressList: curr.studentProgressList.filter((p) => p.studentId !== studentId),
@@ -1359,6 +1371,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     });
 
     if (isLiveSupabaseConfigured) {
+      const nowIso = new Date().toISOString();
       supabase
         .from('students')
         .delete()
@@ -1367,6 +1380,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           if (error) {
             console.error('[Edzy Cloud Web] removeStudent error:', error.code, error.message);
             get().setSyncError(`Student Removal Error: ${error.message} (${error.code})`);
+            return;
+          }
+          for (const upd of rollUpdates) {
+            supabase
+              .from('students')
+              .update({ roll_number: upd.rollNo, updated_at: nowIso })
+              .eq('id', upd.id)
+              .then(() => {});
           }
         });
 
@@ -2258,14 +2279,21 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       newInstallments.push(...buildQuarterInstallmentsForStudent(newStudent, 0, 'inst'));
     }
 
+    const { sortedStudents, rollUpdates } = resequenceStudentsAlphabeticallyByClass([
+      ...state.students,
+      ...newStudents,
+    ]);
+    const syncedNewIds = new Set(newStudents.map((s) => s.id));
+    const finalNewStudents = sortedStudents.filter((s) => syncedNewIds.has(s.id));
+
     set({
-      students: sortStudentsAlphabetically([...state.students, ...newStudents]),
+      students: sortedStudents,
       feeInstallments: [...state.feeInstallments, ...newInstallments],
     });
 
-    if (isLiveSupabaseConfigured && newStudents.length > 0) {
+    if (isLiveSupabaseConfigured && finalNewStudents.length > 0) {
       const nowIso = new Date().toISOString();
-      const dbStudents = newStudents.map((st) => ({
+      const dbStudents = finalNewStudents.map((st) => ({
         id: st.id,
         school_id: schoolId,
         school_code: schoolId,
@@ -2284,6 +2312,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         attendance_pct: st.attendancePercent,
         updated_at: nowIso,
       }));
+      for (const upd of rollUpdates) {
+        if (syncedNewIds.has(upd.id)) continue;
+        supabase
+          .from('students')
+          .update({ roll_number: upd.rollNo, updated_at: nowIso })
+          .eq('id', upd.id)
+          .then(() => {});
+      }
 
       const dbInstallments = newInstallments.map((inst) => ({
         id: inst.id,

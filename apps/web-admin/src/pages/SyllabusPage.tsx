@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  BookOpen,
   Upload,
   Box,
   Layers,
@@ -10,23 +9,45 @@ import {
   Clock,
   Search,
   Cpu,
-  BookmarkCheck,
-  GitBranch,
-  ClipboardCheck,
   Edit3,
+  Lock,
 } from 'lucide-react';
-import { useAdminStore, SyllabusChapterRecord } from '../store/useAdminStore';
+import { useAdminStore } from '../store/useAdminStore';
 import UploadSyllabusModal from '../components/UploadSyllabusModal';
 import RoadmapStudioModal from '../components/RoadmapStudioModal';
 import { cleanBoardCode } from '../lib/syllabusGenerator';
+import { compareClassNames, extractBaseGrade } from '../lib/classScope';
 
 export default function SyllabusPage() {
-  const { syllabusVault, schoolProfile } = useAdminStore();
-  const [selectedClass, setSelectedClass] = useState<string>('ALL');
+  const { syllabusVault, schoolProfile, currentStaff } = useAdminStore();
+
+  const teacherBaseGrade =
+    currentStaff?.department === 'TCH' && currentStaff.assignedClass
+      ? extractBaseGrade(currentStaff.assignedClass)
+      : null;
+
+  const [selectedClass, setSelectedClass] = useState<string>(teacherBaseGrade || 'ALL');
   const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [studioChapterId, setStudioChapterId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedClass(teacherBaseGrade || 'ALL');
+  }, [teacherBaseGrade]);
+
+  const classFilterOptions = useMemo(() => {
+    const grades = new Set<string>(['Class 10', 'Class 9']);
+    for (const ch of syllabusVault) {
+      if (ch.classGrade?.trim()) {
+        grades.add(extractBaseGrade(ch.classGrade));
+      }
+    }
+    if (teacherBaseGrade) {
+      grades.add(teacherBaseGrade);
+    }
+    return ['ALL', ...Array.from(grades).sort(compareClassNames)];
+  }, [syllabusVault, teacherBaseGrade]);
 
   const schoolBoard = cleanBoardCode(schoolProfile.board);
   const studioChapter = syllabusVault.find((c) => c.id === studioChapterId) || null;
@@ -37,7 +58,8 @@ export default function SyllabusPage() {
       ch.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ch.arModelMapped.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesClass = selectedClass === 'ALL' || ch.classGrade.includes(selectedClass);
+    const matchesClass =
+      selectedClass === 'ALL' || extractBaseGrade(ch.classGrade) === selectedClass;
     const matchesSubject =
       selectedSubject === 'ALL' ||
       ch.subject.toLowerCase().includes(selectedSubject.toLowerCase());
@@ -119,9 +141,9 @@ export default function SyllabusPage() {
         </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto flex-wrap">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-semibold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider">Class:</span>
-            {['ALL', 'Class 10', 'Class 9'].map((c) => (
+            {classFilterOptions.map((c) => (
               <button
                 key={c}
                 onClick={() => setSelectedClass(c)}
@@ -134,6 +156,12 @@ export default function SyllabusPage() {
                 {c}
               </button>
             ))}
+            {teacherBaseGrade && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                <Lock className="w-2.5 h-2.5" />
+                Default: {teacherBaseGrade}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -303,6 +331,7 @@ export default function SyllabusPage() {
       {/* Syllabus Scanner Modal */}
       {isUploadModalOpen && (
         <UploadSyllabusModal
+          lockedClass={teacherBaseGrade}
           onClose={() => setIsUploadModalOpen(false)}
           onOpenStudio={(rec) => setStudioChapterId(rec.id)}
         />

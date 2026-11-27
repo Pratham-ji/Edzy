@@ -10,6 +10,7 @@ import {
   GitBranch,
   ClipboardCheck,
   Wand2,
+  Lock,
 } from 'lucide-react';
 import { useAdminStore, ARModelType, SyllabusChapterRecord } from '../store/useAdminStore';
 import { EDZY_DEFAULT_3D_MODELS } from '../lib/default3dModels';
@@ -18,14 +19,16 @@ import {
   cleanBoardCode,
   generateStudyPackFromSyllabus,
 } from '../lib/syllabusGenerator';
+import { extractBaseGrade } from '../lib/classScope';
 
 interface UploadSyllabusModalProps {
   onClose: () => void;
+  lockedClass?: string | null;
   onSuccess?: (record: SyllabusChapterRecord) => void;
   onOpenStudio?: (record: SyllabusChapterRecord) => void;
 }
 
-const CLASSES = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
+const CLASSES = Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
 const BOARDS = ['CBSE', 'ICSE', 'ISC', 'STATE_BOARD'];
 const SUBJECTS = [
   'Science',
@@ -44,15 +47,22 @@ const SAMPLE_ICSE_SYLLABUS = `1. The Circulatory System (ICSE Class 10): Blood &
 
 export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
   onClose,
+  lockedClass,
   onSuccess,
   onOpenStudio,
 }) => {
-  const { uploadSyllabusChapter, schoolProfile } = useAdminStore();
+  const { uploadSyllabusChapter, schoolProfile, currentStaff } = useAdminStore();
+
+  const effectiveLockedGrade =
+    lockedClass ||
+    (currentStaff?.department === 'TCH' && currentStaff.assignedClass
+      ? extractBaseGrade(currentStaff.assignedClass)
+      : null);
 
   const [fileName, setFileName] = useState('School_Chapter_Syllabus.txt');
   const [chapterNumber, setChapterNumber] = useState(7);
   const [title, setTitle] = useState('Human Circulatory System & Cardiac Rhythm');
-  const [classGrade, setClassGrade] = useState('Class 10');
+  const [classGrade, setClassGrade] = useState(effectiveLockedGrade || 'Class 10');
   const [subject, setSubject] = useState('Biology (Science)');
   const [board, setBoard] = useState(cleanBoardCode(schoolProfile.board));
   const [selected3dModel, setSelected3dModel] = useState<string>('AUTO_MATCH');
@@ -61,6 +71,12 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [generatedPack, setGeneratedPack] = useState<GeneratedStudyPack | null>(null);
   const [publishedResult, setPublishedResult] = useState<SyllabusChapterRecord | null>(null);
+
+  useEffect(() => {
+    if (effectiveLockedGrade) {
+      setClassGrade(effectiveLockedGrade);
+    }
+  }, [effectiveLockedGrade]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -190,13 +206,21 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1">
-                  Class / Grade *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                    Class / Grade *
+                  </label>
+                  {effectiveLockedGrade && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#4F46E5] dark:text-[#6366F1]">
+                      <Lock className="w-2.5 h-2.5" /> Locked to {effectiveLockedGrade}
+                    </span>
+                  )}
+                </div>
                 <select
                   value={classGrade}
+                  disabled={Boolean(effectiveLockedGrade)}
                   onChange={(e) => setClassGrade(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC]"
+                  className="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {CLASSES.map((c) => (
                     <option key={c} value={c}>
