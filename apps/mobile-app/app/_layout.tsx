@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEdzyStore } from '@/store/useEdzyStore';
 import { useAppTheme } from '@/theme/colors';
 import { EdzySplashScreen } from '@/components/EdzySplashScreen';
+
+// Keep native Royal Indigo splash visible until the matching React Native animated splash paints
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const { isAuthenticated } = useEdzyStore();
@@ -14,12 +18,18 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
 
+  const hideNativeSplash = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (Platform.OS === 'android') {
       (RNStatusBar as any).setBackgroundColor?.('transparent', true);
       (RNStatusBar as any).setTranslucent?.(true);
     }
-  }, []);
+    const fallbackTimer = setTimeout(hideNativeSplash, 250);
+    return () => clearTimeout(fallbackTimer);
+  }, [hideNativeSplash]);
 
   useEffect(() => {
     const inAuthGroup = segments[0] === 'login';
@@ -33,7 +43,13 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <View style={[styles.container, { backgroundColor: theme.canvas }]}>
+      <View
+        onLayout={hideNativeSplash}
+        style={[
+          styles.container,
+          { backgroundColor: showSplash ? '#312E81' : theme.canvas },
+        ]}
+      >
         <StatusBar
           style={showSplash ? 'light' : isDark ? 'light' : 'dark'}
         />

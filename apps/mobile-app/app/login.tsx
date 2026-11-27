@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  GraduationCap,
   School,
   User,
   Lock,
@@ -88,11 +88,15 @@ export default function LoginScreen() {
       >
         {/* Brand Header */}
         <View style={styles.brandHeader}>
-          <View style={[styles.logoBadge, { backgroundColor: theme.brandPrimary }]}>
-            <GraduationCap size={32} color="#FFFFFF" />
+          <View style={[styles.logoBadge, { backgroundColor: '#4F46E5', overflow: 'hidden' }]}>
+            <Image
+              source={require('../assets/icon.png')}
+              style={{ width: 64, height: 64 }}
+              resizeMode="cover"
+            />
           </View>
           <Text style={[styles.appName, { color: theme.textPrimary }]}>EDZY</Text>
-          <Text style={[styles.appTagline, { color: theme.textSecondary }]}>Education Made Easy for Gen-Z</Text>
+          <Text style={[styles.appTagline, { color: theme.textSecondary }]}>Education Made Easy</Text>
           <View style={[styles.affiliationPill, { backgroundColor: theme.successTint }]}>
             <ShieldCheck size={13} color={theme.success} />
             <Text style={[styles.affiliationText, { color: theme.success }]}>CBSE & ICSE Certified Campus Portal</Text>

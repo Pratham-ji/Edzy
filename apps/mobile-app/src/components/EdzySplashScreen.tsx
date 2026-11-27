@@ -28,24 +28,24 @@ export const EdzySplashScreen: React.FC<EdzySplashScreenProps> = ({ onFinish }) 
   const containerOpacity = useRef(new Animated.Value(1)).current;
   const containerScale = useRef(new Animated.Value(1)).current;
 
-  // Visual mark spring & opacity
-  const emblemScale = useRef(new Animated.Value(0.7)).current;
-  const emblemOpacity = useRef(new Animated.Value(0)).current;
+  // Visual mark spring & opacity (starts visible so native -> RN handoff has zero blink)
+  const emblemScale = useRef(new Animated.Value(0.92)).current;
+  const emblemOpacity = useRef(new Animated.Value(0.88)).current;
 
   // Ambient glow pulse
-  const glowScale = useRef(new Animated.Value(0.85)).current;
-  const glowOpacity = useRef(new Animated.Value(0.3)).current;
+  const glowScale = useRef(new Animated.Value(0.9)).current;
+  const glowOpacity = useRef(new Animated.Value(0.32)).current;
 
   // Typography stagger
-  const wordmarkY = useRef(new Animated.Value(18)).current;
-  const wordmarkOpacity = useRef(new Animated.Value(0)).current;
+  const wordmarkY = useRef(new Animated.Value(6)).current;
+  const wordmarkOpacity = useRef(new Animated.Value(0.88)).current;
 
-  const taglineY = useRef(new Animated.Value(10)).current;
-  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const taglineY = useRef(new Animated.Value(4)).current;
+  const taglineOpacity = useRef(new Animated.Value(0.85)).current;
 
   // Progress line
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const footerOpacity = useRef(new Animated.Value(0)).current;
+  const footerOpacity = useRef(new Animated.Value(0.75)).current;
 
   useEffect(() => {
     // 1. Ambient glow looping breathe
@@ -271,7 +271,7 @@ export const EdzySplashScreen: React.FC<EdzySplashScreenProps> = ({ onFinish }) 
             marginTop: 6,
           }}
         >
-          <Text style={styles.brandTagline}>Education Made Easy for Gen-Z</Text>
+          <Text style={styles.brandTagline}>Education Made Easy</Text>
         </Animated.View>
       </View>
 
@@ -304,11 +304,11 @@ const styles = StyleSheet.create({
     zIndex: 99999,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#312E81', // Deep Royal Indigo
+    backgroundColor: '#312E81', // Royal Indigo matching native app.json boot splash
   },
   deepBackdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#1E1B4B',
+    backgroundColor: '#312E81',
   },
   ambientGlow: {
     position: 'absolute',
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     width: 360,
     height: 360,
     borderRadius: 180,
-    backgroundColor: '#4338CA',
+    backgroundColor: '#4F46E5',
   },
   ambientGlowInner: {
     position: 'absolute',

@@ -537,7 +537,7 @@ export default function ProfileScreen() {
             <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
               <View style={[styles.aboutHeroBanner, { backgroundColor: isDark ? '#161B22' : '#F5F7FA', borderColor: activeTheme.surfaceBorder }]}>
                 <Text style={[styles.aboutHeroTagline, { color: activeTheme.brand.primary }]}>
-                  "Education Made Easy for Gen-Z"
+                  "Education Made Easy"
                 </Text>
                 <Text style={[styles.aboutHeroBody, { color: activeTheme.text.ink }]}>
                   Edzy is India's premier unified K-12 Spatial Learning & School ERP platform. Designed to give students deep conceptual clarity via 3D interactive labs while offering schools a zero-leakage hybrid fee counter and instant parent circular broadcast.
