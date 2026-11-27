@@ -265,7 +265,14 @@ export default function MarksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0] dark:divide-[#232E44] text-xs">
-              {visibleStudents.map((s) => {
+              {visibleStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={subjects.length + 5} className="py-12 text-center text-[#475569] dark:text-[#94A3B8]">
+                    No students enrolled in {effectiveClass} yet. Add students or import a CSV roster to begin grading.
+                  </td>
+                </tr>
+              ) : (
+                visibleStudents.map((s) => {
                 const record = examMarks.find(
                   (m) => m.studentId === s.id && m.term === selectedTerm
                 );
@@ -353,7 +360,8 @@ export default function MarksPage() {
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>

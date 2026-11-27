@@ -342,7 +342,12 @@ export default function AccountsExportPage() {
           </div>
 
           <div className="space-y-4">
-            {classReports.map((cls) => (
+            {classReports.length === 0 ? (
+              <div className="py-10 text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+                No class fee data available yet for {schoolProfile.name}.
+              </div>
+            ) : (
+              classReports.map((cls) => (
               <div key={cls.classGrade} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
@@ -370,7 +375,8 @@ export default function AccountsExportPage() {
                   </span>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

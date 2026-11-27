@@ -16,6 +16,7 @@ import SettingsPage from './pages/SettingsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import SchoolPitchPage from './pages/SchoolPitchPage';
 import StaffLoginPage from './pages/StaffLoginPage';
+import SuperAdminPage from './pages/SuperAdminPage';
 
 import OfflineFeeModal from './components/OfflineFeeModal';
 import CsvImportModal from './components/CsvImportModal';
@@ -95,6 +96,11 @@ export default function App() {
         onNavigatePrivacy={() => navigateTo('/privacy-policy')}
       />
     );
+  }
+
+  // Private Edzy Founder / Super-Admin HQ Console (Not linked inside any school workspace)
+  if (pathname === '/super-admin') {
+    return <SuperAdminPage onNavigateHome={() => navigateTo('/')} />;
   }
 
   // Require Staff Employee ID Login for ERP workspace

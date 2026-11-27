@@ -212,11 +212,11 @@ export default function StaffLoginPage({ onNavigatePath }: StaffLoginPageProps) 
       {/* Main Centered Institutional Portal */}
       <main className="flex-1 flex items-center justify-center px-4 py-6">
         <div className="w-full max-w-md space-y-5">
-          {/* Gen-Z Affiliation Pill */}
+          {/* Brand Affiliation Pill */}
           <div className="flex justify-center">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3] text-[11px] font-bold text-[#4F46E5] dark:text-[#6366F1]">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Education Made Easy for Gen-Z</span>
+              <span>EDZY: Education Made Easy</span>
             </div>
           </div>
 

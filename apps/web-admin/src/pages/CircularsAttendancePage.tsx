@@ -362,7 +362,12 @@ export const CircularsAttendancePage: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {visibleCirculars.map((circ) => (
+              {visibleCirculars.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+                  No school notices published yet. Broadcast your first notice using the form on the left.
+                </div>
+              ) : (
+                visibleCirculars.map((circ) => (
                 <div
                   key={circ.id}
                   className="p-5 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900 transition-all space-y-3"
@@ -402,7 +407,8 @@ export const CircularsAttendancePage: React.FC = () => {
                     )}
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </div>
         </div>
@@ -546,7 +552,14 @@ export const CircularsAttendancePage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0] dark:divide-[#232E44]">
-                  {filteredStudents.map((st) => {
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+                        No students enrolled in {effectiveClass} yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStudents.map((st) => {
                     const isPresent = attendanceRegister[st.id] !== 'ABSENT';
                     const alphaPos = String(alphaPosByStudentId.get(st.id) || st.rollNo).padStart(2, '0');
 
@@ -624,7 +637,8 @@ export const CircularsAttendancePage: React.FC = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>

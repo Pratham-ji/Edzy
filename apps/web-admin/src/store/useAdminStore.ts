@@ -892,7 +892,7 @@ interface AdminState {
     assignedClass?: string | null;
     subject?: string | null;
     phone?: string | null;
-  }) => SchoolStaff;
+  }) => Promise<{ success: boolean; staff?: SchoolStaff; error?: string }>;
   removeStaffMember: (staffId: string) => void;
   setStaffPassword: (staffId: string, passwordHash: string) => void;
 
@@ -1028,11 +1028,57 @@ function saveStaffSession(staff: SchoolStaff | null) {
 }
 
 const INITIAL_RESTORED_STAFF = loadSavedStaffSession();
+const INITIAL_BOOT_SCHOOL_ID = INITIAL_RESTORED_STAFF?.schoolId || 'SCH-01';
+const USE_LOCAL_SCH01_FALLBACK = !isLiveSupabaseConfigured && INITIAL_BOOT_SCHOOL_ID === 'SCH-01';
 
-export const useAdminStore = create<AdminState>((set, get) => ({
-  activeSchoolId: INITIAL_RESTORED_STAFF?.schoolId || 'SCH-01',
-  currentStaff: INITIAL_RESTORED_STAFF,
-  schoolProfile: {
+const EMPTY_TENANT_DATA = {
+  students: [] as StudentRecord[],
+  feeInstallments: [] as FeeInstallmentRecord[],
+  syllabusVault: [] as SyllabusChapterRecord[],
+  studentProgressList: [] as StudentRoadmapProgressSummary[],
+  examMarks: [] as StudentExamRecord[],
+  circulars: [] as AdminCircular[],
+  attendanceRegister: {} as Record<string, 'PRESENT' | 'ABSENT'>,
+};
+
+function buildDefaultProfileForSchool(
+  schoolId: string,
+  schools: SchoolTenantRecord[] = INITIAL_SCHOOLS
+): SchoolProfile {
+  const matched = schools.find((s) => s.id === schoolId || s.schoolCode === schoolId);
+  if (matched && matched.schoolCode !== 'SCH-01') {
+    return {
+      name: matched.name,
+      code: matched.schoolCode,
+      affiliationNumber: 'AFFILIATED',
+      board: cleanBoardCode(matched.board),
+      session: matched.academicSession || '2026-27',
+      address: 'Registered Campus',
+      city: '',
+      state: '',
+      principalName: matched.principalName || 'Principal',
+      accountantName: 'Accounts Office',
+      phone: '',
+      email: `admin@${matched.schoolCode.toLowerCase()}.edu.in`,
+    };
+  }
+  if (schoolId !== 'SCH-01') {
+    return {
+      name: `${schoolId} Campus`,
+      code: schoolId,
+      affiliationNumber: 'AFFILIATED',
+      board: 'CBSE',
+      session: '2026-27',
+      address: 'Registered Campus',
+      city: '',
+      state: '',
+      principalName: INITIAL_RESTORED_STAFF?.fullName || 'Principal',
+      accountantName: 'Accounts Office',
+      phone: '',
+      email: `admin@${schoolId.toLowerCase()}.edu.in`,
+    };
+  }
+  return {
     name: 'Doon Valley Public School',
     code: 'SCH-01',
     affiliationNumber: '2130842',
@@ -1045,16 +1091,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     accountantName: 'Mr. Harish Pant (Senior Accounts Officer)',
     phone: '+91 135 261 8402',
     email: 'admin@doonvalley.edu.in',
-  },
+  };
+}
+
+export const useAdminStore = create<AdminState>((set, get) => ({
+  activeSchoolId: INITIAL_BOOT_SCHOOL_ID,
+  currentStaff: INITIAL_RESTORED_STAFF,
+  schoolProfile: buildDefaultProfileForSchool(INITIAL_BOOT_SCHOOL_ID),
   availableSchools: INITIAL_SCHOOLS,
-  staffList: INITIAL_STAFF,
-  students: INITIAL_STUDENTS,
-  feeInstallments: INITIAL_INSTALLMENTS,
-  syllabusVault: INITIAL_SYLLABUS,
-  studentProgressList: INITIAL_PROGRESS_LIST,
-  examMarks: INITIAL_EXAM_MARKS,
-  circulars: INITIAL_CIRCULARS,
-  attendanceRegister: INITIAL_ATTENDANCE,
+  staffList: USE_LOCAL_SCH01_FALLBACK
+    ? INITIAL_STAFF
+    : INITIAL_RESTORED_STAFF
+    ? [INITIAL_RESTORED_STAFF]
+    : [],
+  students: USE_LOCAL_SCH01_FALLBACK ? INITIAL_STUDENTS : [],
+  feeInstallments: USE_LOCAL_SCH01_FALLBACK ? INITIAL_INSTALLMENTS : [],
+  syllabusVault: USE_LOCAL_SCH01_FALLBACK ? INITIAL_SYLLABUS : [],
+  studentProgressList: USE_LOCAL_SCH01_FALLBACK ? INITIAL_PROGRESS_LIST : [],
+  examMarks: USE_LOCAL_SCH01_FALLBACK ? INITIAL_EXAM_MARKS : [],
+  circulars: USE_LOCAL_SCH01_FALLBACK ? INITIAL_CIRCULARS : [],
+  attendanceRegister: USE_LOCAL_SCH01_FALLBACK ? INITIAL_ATTENDANCE : {},
   receiptCounter: 3240,
   connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
   isSyncing: false,
@@ -1146,7 +1202,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       const { error: staffErr } = await supabase.from('school_staff').insert({
         id: principalStaff.id,
         school_id: principalStaff.schoolId,
-        school_code: principalStaff.schoolId,
         employee_serial: principalStaff.employeeSerial,
         full_name: principalStaff.fullName,
         department: principalStaff.department,
@@ -1160,7 +1215,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       });
 
       if (staffErr) {
-        throw new Error(`School created, but Principal account failed: ${staffErr.message}`);
+        await supabase.from('schools').delete().eq('id', newSchool.id);
+        throw new Error(`School creation rolled back (Principal account failed): ${staffErr.message}`);
       }
     }
 
@@ -1192,66 +1248,140 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
-  addStaffMember: (payload) => {
+  addStaffMember: async (payload) => {
     const state = get();
-    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
-    const { id, serial } = generateNextEmployeeId(
-      schoolId,
-      payload.department,
-      state.staffList.map((m) => m.id)
-    );
+    const schoolId =
+      state.currentStaff?.schoolId || state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
 
-    const newStaff: SchoolStaff = {
-      id,
-      schoolId,
-      employeeSerial: serial,
-      fullName: payload.fullName.trim(),
-      department: payload.department,
-      designation: payload.designation.trim(),
-      assignedClass: payload.assignedClass?.trim() || null,
-      subject: payload.subject?.trim() || null,
-      phone: payload.phone?.trim() || null,
-      passwordHash: null,
-      isPasswordSet: false,
-      status: 'ACTIVE',
-      createdAt: new Date().toISOString(),
+    const cleanFullName = payload.fullName.trim();
+    const cleanDesignation = payload.designation.trim();
+    const cleanAssignedClass = payload.assignedClass?.trim() || null;
+    const cleanSubject = payload.subject?.trim() || null;
+    const cleanPhone = payload.phone?.trim() || null;
+
+    if (!isLiveSupabaseConfigured) {
+      const { id, serial } = generateNextEmployeeId(
+        schoolId,
+        payload.department,
+        state.staffList.filter((m) => m.schoolId === schoolId).map((m) => m.id)
+      );
+      const newStaff: SchoolStaff = {
+        id,
+        schoolId,
+        employeeSerial: serial,
+        fullName: cleanFullName,
+        department: payload.department,
+        designation: cleanDesignation,
+        assignedClass: cleanAssignedClass,
+        subject: cleanSubject,
+        phone: cleanPhone,
+        passwordHash: null,
+        isPasswordSet: false,
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+      };
+      set((curr) => ({
+        staffList: [...curr.staffList, newStaff],
+        syncError: null,
+      }));
+      return { success: true, staff: newStaff };
+    }
+
+    const computeNextCandidate = (liveRows: Array<{ id: string; employee_serial?: number; department?: string }>) => {
+      const existingIds = Array.from(
+        new Set([
+          ...state.staffList.filter((m) => m.schoolId === schoolId).map((m) => m.id),
+          ...liveRows.map((r) => String(r.id).toUpperCase()),
+        ])
+      );
+      const gen = generateNextEmployeeId(schoolId, payload.department, existingIds);
+      const maxLiveDeptSerial = liveRows
+        .filter((r) => (r.department || '').toUpperCase() === payload.department)
+        .reduce((max, r) => Math.max(max, Number(r.employee_serial || 0)), 0);
+      const serial = Math.max(gen.serial, maxLiveDeptSerial + 1);
+      const id = `${schoolId}-${payload.department}-${String(serial).padStart(3, '0')}`;
+      return { id, serial };
     };
 
-    set((curr) => ({
-      staffList: [...curr.staffList, newStaff],
-    }));
+    const { data: liveStaffRows, error: fetchErr } = await supabase
+      .from('school_staff')
+      .select('id, employee_serial, department')
+      .eq('school_id', schoolId);
 
-    if (isLiveSupabaseConfigured) {
-      supabase
+    if (fetchErr) {
+      const msg = `Could not query existing staff IDs: ${fetchErr.message}`;
+      get().setSyncError(msg);
+      return { success: false, error: msg };
+    }
+
+    let candidate = computeNextCandidate(liveStaffRows || []);
+
+    const attemptInsert = async (cand: { id: string; serial: number }) => {
+      return supabase
         .from('school_staff')
         .insert({
-          id: newStaff.id,
+          id: cand.id,
           school_id: schoolId,
-          employee_serial: newStaff.employeeSerial,
-          full_name: newStaff.fullName,
-          department: newStaff.department,
-          designation: newStaff.designation,
-          assigned_class: newStaff.assignedClass,
-          subject: newStaff.subject,
-          phone: newStaff.phone,
+          employee_serial: cand.serial,
+          full_name: cleanFullName,
+          department: payload.department,
+          designation: cleanDesignation,
+          assigned_class: cleanAssignedClass,
+          subject: cleanSubject,
+          phone: cleanPhone,
           password_hash: null,
           is_password_set: false,
           status: 'ACTIVE',
         })
-        .then(({ error }) => {
-          if (error) {
-            console.error('[Edzy Cloud Web] addStaffMember error:', error.code, error.message);
-            get().setSyncError(`Staff Add Error: ${error.message} (${error.code})`);
-          }
-        });
+        .select('*')
+        .single();
+    };
 
-      broadcastAdminSyncEvent('STAFF_UPDATED', schoolId, null, {
-        operation: 'ADDED',
-        staff: newStaff,
-      });
+    let { data: insertedRow, error: insertErr } = await attemptInsert(candidate);
+
+    // Retry once cleanly with bumped serial if a concurrent write collided on PK
+    if (insertErr?.code === '23505') {
+      const { data: refreshedRows } = await supabase
+        .from('school_staff')
+        .select('id, employee_serial, department')
+        .eq('school_id', schoolId);
+      const nextCand = computeNextCandidate(refreshedRows || []);
+      candidate =
+        nextCand.id === candidate.id
+          ? {
+              serial: candidate.serial + 1,
+              id: `${schoolId}-${payload.department}-${String(candidate.serial + 1).padStart(3, '0')}`,
+            }
+          : nextCand;
+      const retry = await attemptInsert(candidate);
+      insertedRow = retry.data;
+      insertErr = retry.error;
     }
 
-    return newStaff;
+    if (insertErr || !insertedRow) {
+      const msg = insertErr
+        ? `Staff Add Error: ${insertErr.message}${insertErr.code ? ` (${insertErr.code})` : ''}`
+        : 'Staff record could not be saved.';
+      console.error('[Edzy Cloud Web] addStaffMember error:', msg);
+      get().setSyncError(msg);
+      return { success: false, error: msg };
+    }
+
+    const confirmedStaff = mapSchoolStaffRow(insertedRow);
+
+    set((curr) => ({
+      staffList: curr.staffList.some((m) => m.id === confirmedStaff.id)
+        ? curr.staffList.map((m) => (m.id === confirmedStaff.id ? confirmedStaff : m))
+        : [...curr.staffList, confirmedStaff],
+      syncError: null,
+    }));
+
+    broadcastAdminSyncEvent('STAFF_UPDATED', schoolId, null, {
+      operation: 'ADDED',
+      staff: confirmedStaff,
+    });
+
+    return { success: true, staff: confirmedStaff };
   },
 
   removeStaffMember: (staffId) => {
@@ -1510,11 +1640,30 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           return { found: false, staff: null, needsPasswordSetup: false, isInactive: false };
         }
         const mapped = mapSchoolStaffRow(data);
-        set((state) => ({
-          staffList: state.staffList.some((m) => m.id === mapped.id)
-            ? state.staffList.map((m) => (m.id === mapped.id ? mapped : m))
-            : [...state.staffList, mapped],
-        }));
+        // Hydrate that school's metadata cleanly for StaffLoginPage preview without mixing staff rosters
+        const { data: schoolRow } = await supabase
+          .from('schools')
+          .select('*')
+          .eq('id', mapped.schoolId)
+          .maybeSingle();
+
+        if (schoolRow) {
+          const tenantRec: SchoolTenantRecord = {
+            id: schoolRow.id,
+            schoolSerial: Number(schoolRow.school_serial || 1),
+            schoolCode: schoolRow.school_code || schoolRow.id,
+            name: schoolRow.name,
+            board: cleanBoardCode(schoolRow.board),
+            principalName: schoolRow.principal_name || 'Principal',
+            academicSession: schoolRow.academic_session || '2026-27',
+          };
+          set((state) => ({
+            availableSchools: state.availableSchools.some((s) => s.id === tenantRec.id)
+              ? state.availableSchools.map((s) => (s.id === tenantRec.id ? tenantRec : s))
+              : [...state.availableSchools, tenantRec],
+          }));
+        }
+
         return {
           found: true,
           staff: mapped,
@@ -1568,27 +1717,47 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       };
     }
 
-    const matchedSchool = get().availableSchools.find(
-      (s) => s.id === lookup.staff!.schoolId || s.schoolCode === lookup.staff!.schoolId
+    const targetSchoolId = lookup.staff.schoolId;
+    let matchedSchool = get().availableSchools.find(
+      (s) => s.id === targetSchoolId || s.schoolCode === targetSchoolId
     );
+    if (isLiveSupabaseConfigured && !matchedSchool) {
+      const { data: schoolRow } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('id', targetSchoolId)
+        .maybeSingle();
+      if (schoolRow) {
+        matchedSchool = {
+          id: schoolRow.id,
+          schoolSerial: Number(schoolRow.school_serial || 1),
+          schoolCode: schoolRow.school_code || schoolRow.id,
+          name: schoolRow.name,
+          board: cleanBoardCode(schoolRow.board),
+          principalName: schoolRow.principal_name || 'Principal',
+          academicSession: schoolRow.academic_session || '2026-27',
+        };
+      }
+    }
 
-    set((state) => ({
+    const nextProfile = matchedSchool
+      ? buildDefaultProfileForSchool(targetSchoolId, [matchedSchool])
+      : buildDefaultProfileForSchool(targetSchoolId, get().availableSchools);
+
+    set(() => ({
       currentStaff: lookup.staff,
-      activeSchoolId: lookup.staff!.schoolId,
+      activeSchoolId: targetSchoolId,
       syncError: null,
-      schoolProfile: matchedSchool
-        ? {
-            ...state.schoolProfile,
-            name: matchedSchool.name,
-            code: matchedSchool.schoolCode,
-            board: cleanBoardCode(matchedSchool.board),
-            principalName: matchedSchool.principalName,
-            session: matchedSchool.academicSession,
-          }
-        : state.schoolProfile,
+      schoolProfile: nextProfile,
+      staffList: [lookup.staff!],
+      ...(isLiveSupabaseConfigured
+        ? EMPTY_TENANT_DATA
+        : targetSchoolId === 'SCH-01'
+        ? {}
+        : EMPTY_TENANT_DATA),
     }));
     saveStaffSession(lookup.staff);
-    get().initializeRealtimeSync(lookup.staff.schoolId);
+    await get().initializeRealtimeSync(targetSchoolId);
 
     return {
       success: true,
@@ -1646,32 +1815,51 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       isPasswordSet: true,
     };
 
-    const matchedSchool = get().availableSchools.find(
-      (s) => s.id === updatedStaff.schoolId || s.schoolCode === updatedStaff.schoolId
+    const targetSchoolId = updatedStaff.schoolId;
+    let matchedSchool = get().availableSchools.find(
+      (s) => s.id === targetSchoolId || s.schoolCode === targetSchoolId
     );
+    if (isLiveSupabaseConfigured && !matchedSchool) {
+      const { data: schoolRow } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('id', targetSchoolId)
+        .maybeSingle();
+      if (schoolRow) {
+        matchedSchool = {
+          id: schoolRow.id,
+          schoolSerial: Number(schoolRow.school_serial || 1),
+          schoolCode: schoolRow.school_code || schoolRow.id,
+          name: schoolRow.name,
+          board: cleanBoardCode(schoolRow.board),
+          principalName: schoolRow.principal_name || 'Principal',
+          academicSession: schoolRow.academic_session || '2026-27',
+        };
+      }
+    }
 
-    set((state) => ({
-      staffList: state.staffList.map((m) => (m.id === updatedStaff.id ? updatedStaff : m)),
+    const nextProfile = matchedSchool
+      ? buildDefaultProfileForSchool(targetSchoolId, [matchedSchool])
+      : buildDefaultProfileForSchool(targetSchoolId, get().availableSchools);
+
+    set(() => ({
+      staffList: [updatedStaff],
       currentStaff: updatedStaff,
-      activeSchoolId: updatedStaff.schoolId,
+      activeSchoolId: targetSchoolId,
       syncError: null,
-      schoolProfile: matchedSchool
-        ? {
-            ...state.schoolProfile,
-            name: matchedSchool.name,
-            code: matchedSchool.schoolCode,
-            board: cleanBoardCode(matchedSchool.board),
-            principalName: matchedSchool.principalName,
-            session: matchedSchool.academicSession,
-          }
-        : state.schoolProfile,
+      schoolProfile: nextProfile,
+      ...(isLiveSupabaseConfigured
+        ? EMPTY_TENANT_DATA
+        : targetSchoolId === 'SCH-01'
+        ? {}
+        : EMPTY_TENANT_DATA),
     }));
     saveStaffSession(updatedStaff);
     broadcastAdminSyncEvent('STAFF_UPDATED', updatedStaff.schoolId, null, {
       operation: 'PASSWORD_SET',
       staffId: updatedStaff.id,
     });
-    get().initializeRealtimeSync(updatedStaff.schoolId);
+    await get().initializeRealtimeSync(targetSchoolId);
 
     return {
       success: true,
@@ -1685,6 +1873,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set({
       currentStaff: null,
       syncError: null,
+      ...(isLiveSupabaseConfigured ? { staffList: [], ...EMPTY_TENANT_DATA } : {}),
     });
   },
 
@@ -1720,6 +1909,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         get().activeSchoolId ||
         get().schoolProfile.code ||
         'SCH-01';
+
+      if (activeSchoolId !== get().activeSchoolId) {
+        set({
+          activeSchoolId,
+          ...EMPTY_TENANT_DATA,
+          staffList: get().currentStaff?.schoolId === activeSchoolId ? [get().currentStaff!] : [],
+        });
+      }
 
       // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
       adminBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolId}`, {
@@ -1846,6 +2043,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
       const [
         schoolsRes,
+        activeSchoolRes,
         staffRes,
         studentsRes,
         feeRes,
@@ -1854,14 +2052,20 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         circularsRes,
         progressRes,
       ] = await Promise.all([
-        supabase.from('schools').select('*').then((r) => r, () => ({ data: null })),
+        supabase.from('schools').select('*').then((r) => r, () => ({ data: null, error: null })),
+        supabase
+          .from('schools')
+          .select('*')
+          .eq('id', activeSchoolId)
+          .maybeSingle()
+          .then((r) => r, () => ({ data: null, error: null })),
         supabase
           .from('school_staff')
           .select('*')
           .eq('school_id', activeSchoolId)
           .order('department', { ascending: true })
           .order('employee_serial', { ascending: true })
-          .then((r) => r, () => ({ data: null })),
+          .then((r) => r, () => ({ data: null, error: null })),
         supabase
           .from('students')
           .select('*')
@@ -1884,16 +2088,16 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           .select('*')
           .eq('school_id', activeSchoolId)
           .order('published_at', { ascending: false })
-          .then((r) => r, () => ({ data: null })),
+          .then((r) => r, () => ({ data: null, error: null })),
         supabase
           .from('student_roadmap_progress')
           .select('*')
           .eq('school_id', activeSchoolId)
-          .then((r) => r, () => ({ data: null })),
+          .then((r) => r, () => ({ data: null, error: null })),
       ]);
 
-      const updates: Partial<AdminState> = {};
-      let loadedStudents: StudentRecord[] = get().students;
+      const updates: Partial<AdminState> = { activeSchoolId };
+      let loadedStudents: StudentRecord[] = [];
 
       if (schoolsRes.data && schoolsRes.data.length > 0) {
         const mappedSchools: SchoolTenantRecord[] = schoolsRes.data.map((s: any, idx: number) => ({
@@ -1906,22 +2110,27 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           academicSession: s.academic_session || '2026-27',
         }));
         updates.availableSchools = mappedSchools;
-        const matchedActive = mappedSchools.find(
-          (s) => s.id === activeSchoolId || s.schoolCode === activeSchoolId
-        );
-        if (matchedActive) {
-          updates.schoolProfile = {
-            ...get().schoolProfile,
-            name: matchedActive.name,
-            code: matchedActive.schoolCode,
-            board: matchedActive.board,
-            principalName: matchedActive.principalName,
-            session: matchedActive.academicSession,
-          };
-        }
       }
 
-      if (staffRes.data && staffRes.data.length > 0) {
+      const activeSchoolRow: any =
+        activeSchoolRes.data ||
+        schoolsRes.data?.find((s: any) => s.id === activeSchoolId || s.school_code === activeSchoolId);
+
+      if (activeSchoolRow) {
+        const tenantMeta: SchoolTenantRecord = {
+          id: activeSchoolRow.id,
+          schoolSerial: Number(activeSchoolRow.school_serial || 1),
+          schoolCode: activeSchoolRow.school_code || activeSchoolRow.id,
+          name: activeSchoolRow.name,
+          board: cleanBoardCode(activeSchoolRow.board),
+          principalName: activeSchoolRow.principal_name || 'Principal',
+          academicSession: activeSchoolRow.academic_session || '2026-27',
+        };
+        updates.schoolProfile = buildDefaultProfileForSchool(activeSchoolId, [tenantMeta]);
+      }
+
+      // Strictly hydrate EVERY table for activeSchoolId (including 0-row [] states for newly onboarded schools!)
+      if (staffRes.data) {
         const mappedStaff = staffRes.data.map((row: any) => mapSchoolStaffRow(row));
         updates.staffList = mappedStaff;
 
@@ -1938,31 +2147,50 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         }
       }
 
-      if (studentsRes.data && studentsRes.data.length > 0) {
+      if (!studentsRes.error && studentsRes.data) {
         loadedStudents = studentsRes.data.map((row: any) => mapStudentRow(row));
         updates.students = loadedStudents;
+        const nextAttendance: Record<string, 'PRESENT' | 'ABSENT'> = {};
+        const prevAttendance = get().attendanceRegister;
+        for (const stu of loadedStudents) {
+          nextAttendance[stu.id] = prevAttendance[stu.id] || 'PRESENT';
+        }
+        updates.attendanceRegister = nextAttendance;
+      } else if (activeSchoolId !== 'SCH-01') {
+        updates.students = [];
+        updates.attendanceRegister = {};
       }
 
-      if (feeRes.data && feeRes.data.length > 0) {
+      if (!feeRes.error && feeRes.data) {
         updates.feeInstallments = feeRes.data.map((row: any) => mapFeeRow(row, loadedStudents));
+      } else if (activeSchoolId !== 'SCH-01') {
+        updates.feeInstallments = [];
       }
 
-      if (marksRes.data && marksRes.data.length > 0) {
+      if (!marksRes.error && marksRes.data) {
         updates.examMarks = marksRes.data.map((row: any) => mapMarkRow(row, loadedStudents));
+      } else if (activeSchoolId !== 'SCH-01') {
+        updates.examMarks = [];
       }
 
-      if (syllabusRes.data && syllabusRes.data.length > 0) {
+      if (!syllabusRes.error && syllabusRes.data) {
         updates.syllabusVault = syllabusRes.data.map((row: any) => mapSyllabusRow(row));
+      } else if (activeSchoolId !== 'SCH-01') {
+        updates.syllabusVault = [];
       }
 
-      if (circularsRes.data && circularsRes.data.length > 0) {
+      if (circularsRes.data) {
         updates.circulars = circularsRes.data.map((row: any) => mapCircularRow(row));
+      } else if (activeSchoolId !== 'SCH-01') {
+        updates.circulars = [];
       }
 
-      if (progressRes.data && progressRes.data.length > 0) {
+      if (progressRes.data) {
         updates.studentProgressList = progressRes.data.map((row: any) =>
           mapStudentRoadmapProgressRow(row)
         );
+      } else if (activeSchoolId !== 'SCH-01') {
+        updates.studentProgressList = [];
       }
 
       set({

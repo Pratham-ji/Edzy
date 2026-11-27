@@ -30,7 +30,7 @@ import {
   Area,
 } from 'recharts';
 import { useAdminStore } from '../store/useAdminStore';
-import { computeFeeReconciliationSummary } from '../lib/feeMetrics';
+import { computeFeeReconciliationSummary, normalizePaidInstrument } from '../lib/feeMetrics';
 
 interface DashboardPageProps {
   onNavigate?: (tab: any) => void;
@@ -38,21 +38,6 @@ interface DashboardPageProps {
   onOpenCsvModal?: () => void;
   onOpenSyllabusModal?: () => void;
 }
-
-const MONTHLY_FEE_DATA = [
-  { month: 'Apr 26 (Q1)', onlineUpi: 120000, offlineCashCheque: 90000 },
-  { month: 'Jul 26 (Q2)', onlineUpi: 110000, offlineCashCheque: 50000 },
-  { month: 'Oct 26 (Q3)', onlineUpi: 110000, offlineCashCheque: 45000 },
-  { month: 'Nov 26 (Q4)', onlineUpi: 52000, offlineCashCheque: 0 },
-];
-
-const SYLLABUS_ENGAGEMENT_DATA = [
-  { subject: 'Biology (Ch 6)', class10Mastery: 75, atHomeArHours: 42 },
-  { subject: 'Physics (Ch 10)', class10Mastery: 50, atHomeArHours: 35 },
-  { subject: 'Maths (Ch 4)', class10Mastery: 33, atHomeArHours: 28 },
-  { subject: 'Chemistry (Ch 1)', class10Mastery: 85, atHomeArHours: 38 },
-  { subject: 'English Lit', class10Mastery: 90, atHomeArHours: 18 },
-];
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
@@ -63,17 +48,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const { students, feeInstallments, syllabusVault, schoolProfile, studentProgressList } = useAdminStore();
   const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
 
-  const liveEngagementData = syllabusVault.slice(0, 5).map((ch, idx) => {
+  const liveEngagementData = syllabusVault.slice(0, 5).map((ch) => {
     const progRows = studentProgressList.filter((p) => p.roadmapId === ch.id);
     const avgMastery =
       progRows.length > 0
         ? Math.round(progRows.reduce((s, r) => s + r.completionPct, 0) / progRows.length)
-        : [75, 50, 33, 85, 68][idx % 5];
+        : 0;
 
     return {
       subject: `${ch.subject.split(' ')[0]} (Ch ${ch.chapterNumber})`,
       class10Mastery: avgMastery,
-      atHomeArHours: Math.max(12, Math.round(avgMastery * 0.55)),
+      atHomeArHours: progRows.length > 0 ? Math.max(4, Math.round(avgMastery * 0.5)) : 0,
+    };
+  });
+
+  const quarterlyFeeData = ['Q1', 'Q2', 'Q3', 'Q4'].map((qPrefix) => {
+    let onlineUpi = 0;
+    let offlineCashCheque = 0;
+    for (const inst of feeInstallments) {
+      if (inst.status === 'PAID' && inst.quarter.toUpperCase().startsWith(qPrefix)) {
+        if (normalizePaidInstrument(inst) === 'ONLINE_UPI') {
+          onlineUpi += inst.amount;
+        } else {
+          offlineCashCheque += inst.amount;
+        }
+      }
+    }
+    return {
+      month: qPrefix,
+      onlineUpi,
+      offlineCashCheque,
     };
   });
 
@@ -91,6 +95,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   // Recent fee receipts
   const recentPayments = paidInstallments.slice(-5).reverse();
+  const isNewEmptyCampus = students.length === 0 && feeInstallments.length === 0;
 
   return (
     <div className="space-y-6">
@@ -140,6 +145,37 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
+      {/* New Campus Quick-Start Banner when freshly onboarded (0 students) */}
+      {isNewEmptyCampus && (
+        <div className="rounded-2xl bg-[#EEF2FF] dark:bg-[#1B2440]/80 border border-[#C7D2FE] dark:border-[#3730A3] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
+              Welcome to {schoolProfile.name} ({schoolProfile.code})!
+            </h3>
+            <p className="text-xs text-[#475569] dark:text-[#94A3B8]">
+              Your isolated campus workspace is ready. Register your Class Teachers in{' '}
+              <button
+                type="button"
+                onClick={() => onNavigate?.('staff')}
+                className="font-bold text-[#4F46E5] dark:text-[#6366F1] underline cursor-pointer"
+              >
+                Staff & Hierarchy
+              </button>{' '}
+              or import your first student roster via CSV to populate live analytics.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onOpenCsvModal}
+              className="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold cursor-pointer"
+            >
+              Import First CSV
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 4 CORE EXECUTIVE KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Total Expected Revenue */}
@@ -157,7 +193,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </p>
           <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-[#94A3B8] mt-2">
             <span className="font-semibold text-slate-800 dark:text-[#F8FAFC]">{students.length} Enrolled Students</span>
-            <span>across Class 9 & 10</span>
+            <span>{students.length > 0 ? 'across active sections' : '• Ready to enroll'}</span>
           </div>
         </div>
 
@@ -245,29 +281,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={MONTHLY_FEE_DATA} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#64748B' }}
-                  tickFormatter={(val) => `₹${val / 1000}k`}
-                />
-                <Tooltip
-                  formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
-                  contentStyle={{
-                    backgroundColor: '#0F172A',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    border: 'none',
-                    fontSize: '11px',
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Bar dataKey="onlineUpi" name="Edzy App UPI" fill="#4F46E5" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="offlineCashCheque" name="Offline Cash/Cheque" fill="#10B981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {totalCollectedFees === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center text-xs text-[#475569] dark:text-[#94A3B8] border border-dashed border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-6">
+                <p className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">No Fee Collections Yet</p>
+                <p className="mt-1">Quarterly UPI and Counter Cash/Cheque bars appear as soon as fees are recorded.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={quarterlyFeeData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#64748B' }}
+                    tickFormatter={(val) => `₹${val / 1000}k`}
+                  />
+                  <Tooltip
+                    formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
+                    contentStyle={{
+                      backgroundColor: '#0F172A',
+                      borderRadius: '12px',
+                      color: '#fff',
+                      border: 'none',
+                      fontSize: '11px',
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                  <Bar dataKey="onlineUpi" name="Edzy App UPI" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="offlineCashCheque" name="Offline Cash/Cheque" fill="#10B981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -288,8 +331,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={liveEngagementData.length > 0 ? liveEngagementData : SYLLABUS_ENGAGEMENT_DATA} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            {liveEngagementData.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center text-xs text-[#475569] dark:text-[#94A3B8] border border-dashed border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-6">
+                <p className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">No Syllabus Chapters Published Yet</p>
+                <p className="mt-1">Publish a chapter via Curriculum & 3D Labs to track student mastery and AR hours.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={liveEngagementData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorMastery" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.4} />
@@ -331,6 +380,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
@@ -367,7 +417,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-[#232E44]">
-              {recentPayments.map((inst) => {
+              {recentPayments.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+                    No fee transactions recorded for {schoolProfile.name} yet.
+                  </td>
+                </tr>
+              ) : (
+                recentPayments.map((inst) => {
                 const st = students.find((s) => s.id === inst.studentId);
                 const isOnline = inst.paymentMethod === 'ONLINE_UPI';
 
@@ -428,7 +485,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>

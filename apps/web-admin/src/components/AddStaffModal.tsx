@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, UserPlus, Sparkles, CheckCircle2, Briefcase } from 'lucide-react';
+import { X, UserPlus, Sparkles, CheckCircle2, Briefcase, AlertTriangle } from 'lucide-react';
 import { useAdminStore, SchoolStaff } from '../store/useAdminStore';
 import { generateNextEmployeeId, StaffDepartment } from '../lib/idGenerator';
 import { CLASS_PICKER_OPTIONS, STAFF_DEPARTMENT_META } from '../lib/classScope';
@@ -23,6 +23,8 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onCreated
   const [customClass, setCustomClass] = useState('');
   const [subject, setSubject] = useState('');
   const [phone, setPhone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdStaff, setCreatedStaff] = useState<SchoolStaff | null>(null);
 
   useEffect(() => {
@@ -41,14 +43,15 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onCreated
 
   const handleSelectDepartment = (dept: StaffDepartment) => {
     setDepartment(dept);
+    setSubmitError(null);
     if (!designationTouched) {
       setDesignation(STAFF_DEPARTMENT_META[dept].defaultDesignation);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim()) return;
+    if (!fullName.trim() || isSubmitting) return;
 
     const resolvedClass =
       department === 'TCH'
@@ -57,17 +60,31 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onCreated
           : assignedClass
         : null;
 
-    const created = addStaffMember({
-      fullName: fullName.trim(),
-      department,
-      designation: designation.trim() || STAFF_DEPARTMENT_META[department].defaultDesignation,
-      assignedClass: resolvedClass,
-      subject: department === 'TCH' ? subject.trim() || null : null,
-      phone: phone.trim() || null,
-    });
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    setCreatedStaff(created);
-    onCreated?.(created);
+    try {
+      const result = await addStaffMember({
+        fullName: fullName.trim(),
+        department,
+        designation: designation.trim() || STAFF_DEPARTMENT_META[department].defaultDesignation,
+        assignedClass: resolvedClass,
+        subject: department === 'TCH' ? subject.trim() || null : null,
+        phone: phone.trim() || null,
+      });
+
+      if (!result.success || !result.staff) {
+        setSubmitError(result.error || 'Could not save staff account. Please retry.');
+        return;
+      }
+
+      setCreatedStaff(result.staff);
+      onCreated?.(result.staff);
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Unexpected error creating staff account.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -274,6 +291,13 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onCreated
                 />
               </div>
 
+              {submitError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{submitError}</span>
+                </div>
+              )}
+
               <div className="pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-end gap-2.5">
                 <button
                   type="button"
@@ -284,10 +308,15 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onCreated
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] disabled:opacity-60 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
                 >
                   <UserPlus className="w-4 h-4" />
-                  <span>Create Staff Account ({previewId.id})</span>
+                  <span>
+                    {isSubmitting
+                      ? 'Saving Staff Account...'
+                      : `Create Staff Account (${previewId.id})`}
+                  </span>
                 </button>
               </div>
             </form>

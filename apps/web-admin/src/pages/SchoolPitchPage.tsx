@@ -95,7 +95,7 @@ export default function SchoolPitchPage({
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-semibold text-cyan-300">
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Built for Indian K-12 Boarding & Day Schools (CBSE / ICSE / State Boards)</span>
+            <span>EDZY: Education Made Easy • Built for CBSE, ICSE & State Board Schools</span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-tight sm:leading-none">
