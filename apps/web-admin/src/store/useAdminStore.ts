@@ -10,6 +10,12 @@ import {
   cleanBoardCode,
 } from '../lib/syllabusGenerator';
 import { getModelSpecByIdOrName } from '../lib/default3dModels';
+import {
+  StaffDepartment,
+  generateNextEmployeeId,
+  generateNextStudentId,
+  sortStudentsAlphabetically,
+} from '../lib/idGenerator';
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
@@ -24,7 +30,29 @@ export type ARModelType =
   | 'Electric Circuit 3D'
   | 'None';
 
-export type { FlowchartSpineMilestone, RevisionNoteItem, PracticeSheetData, RelatedChapterRef };
+export type {
+  FlowchartSpineMilestone,
+  RevisionNoteItem,
+  PracticeSheetData,
+  RelatedChapterRef,
+  StaffDepartment,
+};
+
+export interface SchoolStaff {
+  id: string;
+  schoolId: string;
+  employeeSerial: number;
+  fullName: string;
+  department: StaffDepartment;
+  designation: string;
+  assignedClass: string | null;
+  subject: string | null;
+  phone: string | null;
+  passwordHash: string | null;
+  isPasswordSet: boolean;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: string;
+}
 
 export interface StudentRoadmapProgressSummary {
   id: string;
@@ -51,6 +79,7 @@ export interface StudentRoadmapProgressSummary {
 
 export interface SchoolTenantRecord {
   id: string;
+  schoolSerial: number;
   schoolCode: string;
   name: string;
   board: string;
@@ -59,10 +88,10 @@ export interface SchoolTenantRecord {
 }
 
 export interface StudentRecord {
-  id: string; // e.g. SCH-2026-0104
+  id: string; // e.g. SCH-01-1001, SCH-01-205
   rollNo: string;
   name: string;
-  classGrade: string; // e.g. Class 10-A, Class 9-B
+  classGrade: string; // e.g. Class 10-A, Class 9-B, Class 2-A
   section: string;
   parentName: string;
   parentPhone: string;
@@ -80,7 +109,7 @@ export interface FeeInstallmentRecord {
   studentId: string;
   studentName: string;
   classGrade: string;
-  quarter: string; // e.g. Q1 (Apr-Jun 2026)
+  quarter: string; // e.g. Q1 (Apr - Jun 2026)
   amount: number;
   status: PaymentStatus;
   paymentMethod?: PaymentMethod;
@@ -175,25 +204,44 @@ export function normalizeExamTerm(raw: string): ExamTerm {
   return 'UNIT_TEST_1';
 }
 
+export function mapSchoolStaffRow(row: any): SchoolStaff {
+  return {
+    id: row.id,
+    schoolId: row.school_id || 'SCH-01',
+    employeeSerial: Number(row.employee_serial || 1),
+    fullName: row.full_name || 'Staff Member',
+    department: (row.department as StaffDepartment) || 'TCH',
+    designation: row.designation || 'Faculty',
+    assignedClass: row.assigned_class || null,
+    subject: row.subject || null,
+    phone: row.phone || null,
+    passwordHash: row.password_hash || null,
+    isPasswordSet: Boolean(row.is_password_set),
+    status: row.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
 export function mapStudentRow(row: any): StudentRecord {
   return {
     id: row.id,
-    rollNo: String(row.roll_no || row.roll_number || '01').padStart(2, '0'),
-    name: row.name || row.full_name || 'Student',
+    rollNo: String(row.roll_number || row.roll_no || '01').padStart(2, '0'),
+    name: row.full_name || row.name || 'Student',
     classGrade: row.class_grade || 'Class 10-A',
     section: row.section || (row.class_grade?.includes('-') ? row.class_grade.split('-')[1] : 'A'),
     parentName: row.parent_name || 'Parent',
     parentPhone: row.parent_phone || '',
     parentPin: row.parent_pin || '1234',
-    annualFee: Number(row.annual_fee || row.total_fee || 48000),
-    totalPaid: Number(row.total_paid || row.paid_fee || 0),
+    annualFee: Number(row.total_fee ?? row.annual_fee ?? 48000),
+    totalPaid: Number(row.paid_fee ?? row.total_paid ?? 0),
     totalPending: Number(
-      row.total_pending ??
-        (row.balance_due ?? (Number(row.annual_fee || row.total_fee || 48000) - Number(row.total_paid || row.paid_fee || 0)))
+      row.balance_due ??
+        row.total_pending ??
+        Number(row.total_fee ?? row.annual_fee ?? 48000) - Number(row.paid_fee ?? row.total_paid ?? 0)
     ),
-    atHomeHoursThisWeek: Number(row.at_home_hours || row.weekly_study_hours || 0),
+    atHomeHoursThisWeek: Number(row.weekly_study_hours ?? row.at_home_hours ?? 0),
     streakDays: Number(row.streak_days || 0),
-    attendancePercent: Number(row.attendance_percent || row.attendance_pct || 95),
+    attendancePercent: Number(row.attendance_pct ?? row.attendance_percent ?? 95),
   };
 }
 
@@ -204,7 +252,7 @@ export function mapFeeRow(row: any, students?: StudentRecord[]): FeeInstallmentR
     studentId: row.student_id,
     studentName: row.student_name || matchedStudent?.name || 'Aarav Sharma',
     classGrade: row.class_grade || matchedStudent?.classGrade || 'Class 10-A',
-    quarter: row.quarter || row.installment_title || 'Q1 (Apr - Jun 2026)',
+    quarter: row.installment_title || row.quarter || 'Q1 (Apr - Jun 2026)',
     amount: Number(row.amount || 12000),
     status: (row.status as PaymentStatus) || 'PENDING',
     paymentMethod: (row.payment_mode as PaymentMethod) || undefined,
@@ -217,7 +265,7 @@ export function mapFeeRow(row: any, students?: StudentRecord[]): FeeInstallmentR
           year: 'numeric',
         })
       : undefined,
-    dueDate: row.due_date ? String(row.due_date).split('T')[0] : '30 Nov 2026',
+    dueDate: row.due_date ? String(row.due_date).split('T')[0] : '2026-11-30',
     clerkNote: row.reference_note || undefined,
   };
 }
@@ -255,7 +303,7 @@ export function mapMarkRow(row: any, students?: StudentRecord[]): StudentExamRec
     studentId: row.student_id,
     studentName: row.student_name || matchedStudent?.name || 'Aarav Sharma',
     classGrade: row.class_grade || matchedStudent?.classGrade || 'Class 10-A',
-    rollNo: row.roll_no ? String(row.roll_no).padStart(2, '0') : matchedStudent?.rollNo || '24',
+    rollNo: row.roll_number || row.roll_no ? String(row.roll_number || row.roll_no).padStart(2, '0') : matchedStudent?.rollNo || '01',
     term,
     scores,
     aggregatePercentage,
@@ -318,7 +366,7 @@ export function mapStudentRoadmapProgressRow(row: any): StudentRoadmapProgressSu
 
   return {
     id: row.id || `${row.student_id}-${row.roadmap_id}`,
-    schoolId: row.school_id || 'DVPS01',
+    schoolId: row.school_id || 'SCH-01',
     studentId: row.student_id,
     roadmapId: row.roadmap_id,
     targetDeadline: row.target_deadline || null,
@@ -351,9 +399,440 @@ export function mapCircularRow(row: any): AdminCircular {
   };
 }
 
+function buildQuarterInstallmentsForStudent(
+  student: StudentRecord,
+  paidQuarters: number,
+  feePrefix = 'inst'
+): FeeInstallmentRecord[] {
+  const shortCode = student.id.replace(/^[A-Z]+-\d+-/i, '').toLowerCase();
+  const quarterDefs = [
+    { q: 'Q1 (Apr - Jun 2026)', due: '2026-04-30', paidDate: '12 Apr 2026', mode: 'OFFLINE_CASH' as PaymentMethod, receipt: `#SCH-1${shortCode}`, note: 'Accounts Desk Counter #1' },
+    { q: 'Q2 (Jul - Sep 2026)', due: '2026-07-31', paidDate: '14 Jul 2026', mode: 'OFFLINE_CHEQUE' as PaymentMethod, receipt: `#SCH-2${shortCode}`, note: 'Cleared Cheque Payment' },
+    { q: 'Q3 (Oct - Dec 2026)', due: '2026-10-31', paidDate: '05 Oct 2026', mode: 'ONLINE_UPI' as PaymentMethod, receipt: `#EDZ-3${shortCode}`, note: 'Edzy Instant UPI Gateway' },
+    { q: 'Q4 (Jan - Mar 2027)', due: '2026-11-30', paidDate: '02 Nov 2026', mode: 'ONLINE_UPI' as PaymentMethod, receipt: `#EDZ-4${shortCode}`, note: 'Quarter 4 Installment Due' },
+  ];
+  const quarterAmount = Math.round(student.annualFee / 4);
+
+  return quarterDefs.map((qDef, idx) => {
+    const isPaid = idx < paidQuarters;
+    return {
+      id: `${feePrefix}-${shortCode}-q${idx + 1}`,
+      studentId: student.id,
+      studentName: student.name,
+      classGrade: student.classGrade,
+      quarter: qDef.q,
+      amount: quarterAmount,
+      status: isPaid ? 'PAID' : 'PENDING',
+      paymentMethod: isPaid ? qDef.mode : undefined,
+      paymentRef: isPaid ? qDef.note : undefined,
+      receiptNumber: isPaid ? qDef.receipt.toUpperCase() : undefined,
+      paidDate: isPaid ? qDef.paidDate : undefined,
+      dueDate: qDef.due,
+      clerkNote: isPaid ? qDef.note : undefined,
+    };
+  });
+}
+
+// ====================================================================
+// SEED DATA MATCHING supabase/edzy_complete_setup.sql 1:1
+// ====================================================================
+const SEED_STAFF_PASSWORD_HASH =
+  'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542'; // edzy-salt-v1:edzy123
+
+const INITIAL_SCHOOLS: SchoolTenantRecord[] = [
+  {
+    id: 'SCH-01',
+    schoolSerial: 1,
+    schoolCode: 'SCH-01',
+    name: 'Doon Valley Public School',
+    board: 'CBSE',
+    principalName: 'Dr. Meenakshi Sharma',
+    academicSession: '2026-27',
+  },
+  {
+    id: 'SCH-02',
+    schoolSerial: 2,
+    schoolCode: 'SCH-02',
+    name: "St. Joseph's Academy",
+    board: 'ICSE',
+    principalName: 'Fr. Joseph Thomas',
+    academicSession: '2026-27',
+  },
+];
+
+const INITIAL_STAFF: SchoolStaff[] = [
+  {
+    id: 'SCH-01-ADM-001',
+    schoolId: 'SCH-01',
+    employeeSerial: 1,
+    fullName: 'Dr. Meenakshi Sharma',
+    department: 'ADM',
+    designation: 'Principal & ERP Admin',
+    assignedClass: null,
+    subject: null,
+    phone: '9811000001',
+    passwordHash: SEED_STAFF_PASSWORD_HASH,
+    isPasswordSet: true,
+    status: 'ACTIVE',
+    createdAt: '2026-04-01T08:00:00Z',
+  },
+  {
+    id: 'SCH-01-TCH-001',
+    schoolId: 'SCH-01',
+    employeeSerial: 1,
+    fullName: 'Mrs. Sunita Rawat',
+    department: 'TCH',
+    designation: 'Class Teacher',
+    assignedClass: 'Class 10-A',
+    subject: 'Science',
+    phone: '9811000002',
+    passwordHash: SEED_STAFF_PASSWORD_HASH,
+    isPasswordSet: true,
+    status: 'ACTIVE',
+    createdAt: '2026-04-01T08:05:00Z',
+  },
+  {
+    id: 'SCH-01-TCH-002',
+    schoolId: 'SCH-01',
+    employeeSerial: 2,
+    fullName: 'Mr. Vikram Negi',
+    department: 'TCH',
+    designation: 'Class Teacher',
+    assignedClass: 'Class 9-B',
+    subject: 'Mathematics',
+    phone: '9811000003',
+    passwordHash: SEED_STAFF_PASSWORD_HASH,
+    isPasswordSet: true,
+    status: 'ACTIVE',
+    createdAt: '2026-04-01T08:10:00Z',
+  },
+  {
+    id: 'SCH-01-TCH-003',
+    schoolId: 'SCH-01',
+    employeeSerial: 3,
+    fullName: 'Ms. Kavita Joshi',
+    department: 'TCH',
+    designation: 'Class Teacher',
+    assignedClass: 'Class 2-A',
+    subject: 'All Subjects',
+    phone: '9811000004',
+    passwordHash: null,
+    isPasswordSet: false,
+    status: 'ACTIVE',
+    createdAt: '2026-04-01T08:15:00Z',
+  },
+  {
+    id: 'SCH-01-ACT-001',
+    schoolId: 'SCH-01',
+    employeeSerial: 1,
+    fullName: 'Mr. Harish Pant',
+    department: 'ACT',
+    designation: 'Senior Accounts Officer',
+    assignedClass: null,
+    subject: null,
+    phone: '9811000005',
+    passwordHash: SEED_STAFF_PASSWORD_HASH,
+    isPasswordSet: true,
+    status: 'ACTIVE',
+    createdAt: '2026-04-01T08:20:00Z',
+  },
+];
+
+type SeedStudentTuple = [
+  id: string,
+  rollNo: string,
+  name: string,
+  classGrade: string,
+  section: string,
+  parentName: string,
+  parentPhone: string,
+  annualFee: number,
+  paidQuarters: number,
+  hours: number,
+  streak: number,
+  attendance: number
+];
+
+const RAW_SEED_STUDENTS: SeedStudentTuple[] = [
+  // Class 10-A (Strict A -> Z)
+  ['SCH-01-1001', '01', 'Aarav Sharma', 'Class 10-A', 'A', 'Rajesh Sharma', '9811234567', 48000, 3, 6.5, 12, 96.8],
+  ['SCH-01-1002', '02', 'Ananya Verma', 'Class 10-A', 'A', 'Amit Verma', '9811234502', 48000, 4, 8.2, 19, 98.5],
+  ['SCH-01-1003', '03', 'Diya Nair', 'Class 10-A', 'A', 'Suresh Nair', '9811234503', 48000, 2, 5.1, 8, 93.4],
+  ['SCH-01-1004', '04', 'Kabir Mehta', 'Class 10-A', 'A', 'Vivek Mehta', '9811234504', 48000, 4, 7.4, 15, 97.2],
+  ['SCH-01-1005', '05', 'Priya Patel', 'Class 10-A', 'A', 'Rakesh Patel', '9811234505', 48000, 4, 6.9, 16, 99.1],
+  ['SCH-01-1006', '06', 'Rohan Gupta', 'Class 10-A', 'A', 'Sunil Gupta', '9811234506', 48000, 3, 4.5, 7, 92.0],
+  ['SCH-01-1007', '07', 'Tanvi Rawat', 'Class 10-A', 'A', 'Harish Rawat', '9811234507', 48000, 4, 7.9, 18, 96.5],
+  ['SCH-01-1008', '08', 'Yash Chauhan', 'Class 10-A', 'A', 'Manoj Chauhan', '9811234508', 48000, 3, 5.6, 9, 94.6],
+
+  // Class 9-B (Strict A -> Z)
+  ['SCH-01-901', '01', 'Aditya Kulkarni', 'Class 9-B', 'B', 'Pravin Kulkarni', '9811234511', 44000, 4, 8.5, 21, 98.9],
+  ['SCH-01-902', '02', 'Meera Deshmukh', 'Class 9-B', 'B', 'Anand Deshmukh', '9811234512', 44000, 3, 4.8, 8, 91.2],
+  ['SCH-01-903', '03', 'Nikhil Bisht', 'Class 9-B', 'B', 'Mohan Bisht', '9811234513', 44000, 4, 7.2, 15, 97.8],
+  ['SCH-01-904', '04', 'Riya Sengupta', 'Class 9-B', 'B', 'Subhash Sengupta', '9811234514', 44000, 2, 3.5, 5, 88.5],
+  ['SCH-01-905', '05', 'Siddharth Rao', 'Class 9-B', 'B', 'Prakash Rao', '9811234515', 44000, 4, 6.9, 13, 96.0],
+  ['SCH-01-906', '06', 'Sneha Reddy', 'Class 9-B', 'B', 'Venkat Reddy', '9811234516', 44000, 2, 4.1, 6, 90.4],
+
+  // Class 2-A (Strict A -> Z)
+  ['SCH-01-201', '01', 'Aadhya Negi', 'Class 2-A', 'A', 'Dinesh Negi', '9811234521', 32000, 4, 3.8, 14, 98.0],
+  ['SCH-01-202', '02', 'Aarush Rawat', 'Class 2-A', 'A', 'Mahesh Rawat', '9811234522', 32000, 4, 4.0, 11, 97.5],
+  ['SCH-01-203', '03', 'Ishaan Verma', 'Class 2-A', 'A', 'Sanjay Verma', '9811234523', 32000, 3, 3.2, 7, 94.2],
+  ['SCH-01-204', '04', 'Myra Pant', 'Class 2-A', 'A', 'Alok Pant', '9811234524', 32000, 4, 4.5, 17, 99.0],
+  ['SCH-01-205', '05', 'Vedant Joshi', 'Class 2-A', 'A', 'Sanjay Joshi', '9811234525', 32000, 3, 3.6, 9, 95.5],
+];
+
+const INITIAL_STUDENTS: StudentRecord[] = RAW_SEED_STUDENTS.map(
+  ([id, rollNo, name, classGrade, section, parentName, parentPhone, annualFee, paidQuarters, hours, streak, attendance]) => {
+    const qAmt = Math.round(annualFee / 4);
+    const totalPaid = paidQuarters * qAmt;
+    return {
+      id,
+      rollNo,
+      name,
+      classGrade,
+      section,
+      parentName,
+      parentPhone,
+      parentPin: '1234',
+      annualFee,
+      totalPaid,
+      totalPending: annualFee - totalPaid,
+      atHomeHoursThisWeek: hours,
+      streakDays: streak,
+      attendancePercent: attendance,
+    };
+  }
+);
+
+const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = RAW_SEED_STUDENTS.flatMap((tuple, idx) =>
+  buildQuarterInstallmentsForStudent(INITIAL_STUDENTS[idx], tuple[8])
+);
+
+const INITIAL_ATTENDANCE: Record<string, 'PRESENT' | 'ABSENT'> = Object.fromEntries(
+  INITIAL_STUDENTS.map((s) => [s.id, s.id === 'SCH-01-904' ? 'ABSENT' : 'PRESENT'])
+);
+
+const INITIAL_CIRCULARS: AdminCircular[] = [
+  {
+    id: 'circ-001',
+    title: 'Class 10 Pre-Board Examination Schedule & Guidelines',
+    targetClass: 'Class 10-A',
+    category: 'EXAM',
+    date: '20 Nov 2026',
+    author: 'Examination Controller',
+    message: 'Pre-Board practical submissions and theory examination commences from 15th December 2026. Hall tickets and admit cards are available for verification.',
+    attachmentName: 'PreBoard_Schedule_2026-27.pdf',
+  },
+  {
+    id: 'circ-002',
+    title: 'Winter Timings Notice & School Uniform Advisory',
+    targetClass: 'All',
+    category: 'GENERAL',
+    date: '22 Nov 2026',
+    author: 'Principal Office',
+    message: 'Effective Monday 1st December, school timings will be 8:30 AM to 2:30 PM due to seasonal morning fog. Winter navy blazers and woollen caps are mandatory for all students.',
+    attachmentName: 'Winter_Advisory_2026-27.pdf',
+  },
+];
+
+const RAW_INITIAL_SYLLABUS: Array<{
+  id: string;
+  fileName: string;
+  chapterNumber: number;
+  title: string;
+  classGrade: string;
+  subject: string;
+  fileSizeBytes: string;
+  uploadedAt: string;
+  arModelMapped: ARModelType;
+  milestones: Array<{ nodeId: string; title: string; ncertPageRange: string; ragStatus: 'GROUNDED' }>;
+}> = [
+  {
+    id: 'syl-01',
+    fileName: 'Class10_Bio_Ch6_LifeProcesses.pdf',
+    chapterNumber: 6,
+    title: 'Life Processes: Cardiac Anatomy & Systemic Circulation',
+    classGrade: 'Class 10',
+    subject: 'Biology (Science)',
+    fileSizeBytes: '4.2 MB',
+    uploadedAt: '15 Oct 2026',
+    arModelMapped: 'Human Heart 3D',
+    milestones: [
+      { nodeId: 'm-1', title: '6.1 Nutrition & Stomata Exchange', ncertPageRange: 'Pages 93-98', ragStatus: 'GROUNDED' },
+      { nodeId: 'm-2', title: '6.2 Human Digestive Tract & Enzymes', ncertPageRange: 'Pages 99-105', ragStatus: 'GROUNDED' },
+      { nodeId: 'm-3', title: '6.3 Human Heart & Double Circulation', ncertPageRange: 'Pages 106-110', ragStatus: 'GROUNDED' },
+      { nodeId: 'm-4', title: '6.4 Excretion & Nephron Filtration', ncertPageRange: 'Pages 111-115', ragStatus: 'GROUNDED' },
+    ],
+  },
+  {
+    id: 'syl-02',
+    fileName: 'Class10_Phy_Ch10_Optics.pdf',
+    chapterNumber: 10,
+    title: 'Light: Reflection & Refraction (Ray Optics & Lenses)',
+    classGrade: 'Class 10',
+    subject: 'Physics (Science)',
+    fileSizeBytes: '5.8 MB',
+    uploadedAt: '22 Oct 2026',
+    arModelMapped: 'Optics Ray Bench 3D',
+    milestones: [
+      { nodeId: 'p-1', title: '10.1 Spherical Mirrors & Sign Convention', ncertPageRange: 'Pages 160-168', ragStatus: 'GROUNDED' },
+      { nodeId: 'p-2', title: '10.2 Mirror Formula & Refraction', ncertPageRange: 'Pages 169-180', ragStatus: 'GROUNDED' },
+      { nodeId: 'p-3', title: '10.3 Lenses, Power (Dioptre) & Ray Diagrams', ncertPageRange: 'Pages 181-191', ragStatus: 'GROUNDED' },
+    ],
+  },
+  {
+    id: 'syl-03',
+    fileName: 'Class10_Math_Ch4_Quadratic.pdf',
+    chapterNumber: 4,
+    title: 'Quadratic Equations & Discriminant Analysis',
+    classGrade: 'Class 10',
+    subject: 'Mathematics',
+    fileSizeBytes: '3.9 MB',
+    uploadedAt: '01 Nov 2026',
+    arModelMapped: 'Quadratic Graph 3D',
+    milestones: [
+      { nodeId: 'q-1', title: '4.1 Standard Form & Middle-Term Splitting', ncertPageRange: 'Pages 70-76', ragStatus: 'GROUNDED' },
+      { nodeId: 'q-2', title: '4.2 Quadratic Formula & Nature of Roots', ncertPageRange: 'Pages 77-91', ragStatus: 'GROUNDED' },
+      { nodeId: 'q-3', title: '4.3 Applied Speed-Time & Area Word Problems', ncertPageRange: 'Pages 92-97', ragStatus: 'GROUNDED' },
+    ],
+  },
+];
+
+const INITIAL_SYLLABUS: SyllabusChapterRecord[] = RAW_INITIAL_SYLLABUS.map((item) => {
+  const norm = normalizeMilestonesJson(item.milestones, {
+    id: item.id,
+    title: item.title,
+    subject: item.subject,
+    chapterNumber: item.chapterNumber,
+    board: 'CBSE',
+    arModelName: item.arModelMapped,
+  });
+  return {
+    id: item.id,
+    fileName: item.fileName,
+    chapterNumber: item.chapterNumber,
+    title: item.title,
+    classGrade: item.classGrade,
+    subject: item.subject,
+    board: norm.board,
+    default3dModelId: norm.default3dModelId,
+    fileSizeBytes: item.fileSizeBytes,
+    uploadedAt: item.uploadedAt,
+    status: 'READY',
+    arModelMapped: item.arModelMapped,
+    generatedMilestones: norm.generatedMilestones,
+    revisionNotes: norm.revisionNotes,
+    practiceSheet: norm.practiceSheet,
+    relatedChapters: RAW_INITIAL_SYLLABUS.filter((other) => other.id !== item.id)
+      .slice(0, 2)
+      .map((other) => ({
+        id: other.id,
+        chapterNumber: other.chapterNumber,
+        title: other.title,
+        subject: other.subject,
+      })),
+  };
+});
+
+const INITIAL_PROGRESS_LIST: StudentRoadmapProgressSummary[] = [
+  {
+    id: 'SCH-01-1001-syl-01',
+    schoolId: 'SCH-01',
+    studentId: 'SCH-01-1001',
+    roadmapId: 'syl-01',
+    targetDeadline: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+    totalDays: 7,
+    skippedDaysCount: 0,
+    paceStatus: 'ON_TRACK',
+    completionPct: 50,
+    lastMasteredTopicTitle: 'Intestinal Villi Surface Area',
+    completedTodayCount: 2,
+    nodeStates: {
+      'm-1-b1': { status: 'done' },
+      'm-1-b2': { status: 'done' },
+      'm-2-b1': { status: 'done' },
+      'm-2-b2': { status: 'done' },
+      'm-3-b1': { status: 'learning' },
+    },
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
+  {
+    studentId: 'SCH-01-1001',
+    studentName: 'Aarav Sharma',
+    classGrade: 'Class 10-A',
+    rollNo: '01',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 92.6,
+    overallGrade: 'A1',
+    needsRemediation: false,
+    scores: [
+      { subject: 'Science & Lab', marksObtained: 94, maxMarks: 100, grade: 'A1', remarks: 'Exceptional diagrammatic clarity in Biology & ray optics.' },
+      { subject: 'Mathematics', marksObtained: 91, maxMarks: 100, grade: 'A1', remarks: 'Very strong algebraic manipulation.' },
+      { subject: 'English Communicative', marksObtained: 88, maxMarks: 100, grade: 'A2', remarks: 'High comprehension, vocabulary is strong.' },
+      { subject: 'Social Science', marksObtained: 92, maxMarks: 100, grade: 'A1', remarks: 'Detailed historical chronology and accurate map work.' },
+      { subject: 'Computer Applications', marksObtained: 98, maxMarks: 100, grade: 'A1', remarks: 'Top scorer in Python and data structures!' },
+    ],
+  },
+  {
+    studentId: 'SCH-01-1002',
+    studentName: 'Ananya Verma',
+    classGrade: 'Class 10-A',
+    rollNo: '02',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 96.2,
+    overallGrade: 'A1',
+    needsRemediation: false,
+    scores: [
+      { subject: 'Science & Lab', marksObtained: 98, maxMarks: 100, grade: 'A1', remarks: 'Batch topper in Science experiments.' },
+      { subject: 'Mathematics', marksObtained: 96, maxMarks: 100, grade: 'A1', remarks: 'Flawless trigonometry and circle theorems.' },
+      { subject: 'English Communicative', marksObtained: 94, maxMarks: 100, grade: 'A1', remarks: 'Exceptional essay and creative expression.' },
+      { subject: 'Social Science', marksObtained: 95, maxMarks: 100, grade: 'A1', remarks: 'High analytical precision in economics.' },
+      { subject: 'Computer Applications', marksObtained: 98, maxMarks: 100, grade: 'A1', remarks: 'Perfect score on logic practicals.' },
+    ],
+  },
+  {
+    studentId: 'SCH-01-1003',
+    studentName: 'Diya Nair',
+    classGrade: 'Class 10-A',
+    rollNo: '03',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 79.0,
+    overallGrade: 'B1',
+    needsRemediation: false,
+    scores: [
+      { subject: 'Science & Lab', marksObtained: 76, maxMarks: 100, grade: 'B1', remarks: 'Needs revision on human nephron diagram labels.' },
+      { subject: 'Mathematics', marksObtained: 74, maxMarks: 100, grade: 'B1', remarks: 'Practice quadratic word problems daily.' },
+      { subject: 'English Communicative', marksObtained: 84, maxMarks: 100, grade: 'A2', remarks: 'Strong literature commentary.' },
+      { subject: 'Social Science', marksObtained: 79, maxMarks: 100, grade: 'B1', remarks: 'Consistent performance.' },
+      { subject: 'Computer Applications', marksObtained: 82, maxMarks: 100, grade: 'A2', remarks: 'Good logic flowcharts.' },
+    ],
+  },
+  {
+    studentId: 'SCH-01-1006',
+    studentName: 'Rohan Gupta',
+    classGrade: 'Class 10-A',
+    rollNo: '06',
+    term: 'PRE_BOARD',
+    aggregatePercentage: 86.2,
+    overallGrade: 'A2',
+    needsRemediation: false,
+    scores: [
+      { subject: 'Science & Lab', marksObtained: 82, maxMarks: 100, grade: 'A2', remarks: 'Good lab technique, practice lens numericals.' },
+      { subject: 'Mathematics', marksObtained: 88, maxMarks: 100, grade: 'A2', remarks: 'Consistent problem-solving in algebra.' },
+      { subject: 'English Communicative', marksObtained: 85, maxMarks: 100, grade: 'A2', remarks: 'Clear prose and good handwriting.' },
+      { subject: 'Social Science', marksObtained: 84, maxMarks: 100, grade: 'A2', remarks: 'Good coverage of democratic politics.' },
+      { subject: 'Computer Applications', marksObtained: 92, maxMarks: 100, grade: 'A1', remarks: 'Solid understanding of loops.' },
+    ],
+  },
+];
+
 interface AdminState {
+  activeSchoolId: string;
   schoolProfile: SchoolProfile;
   availableSchools: SchoolTenantRecord[];
+  staffList: SchoolStaff[];
   students: StudentRecord[];
   feeInstallments: FeeInstallmentRecord[];
   syllabusVault: SyllabusChapterRecord[];
@@ -367,7 +846,6 @@ interface AdminState {
   themeMode: 'light' | 'dark';
   syncError: string | null;
 
-  // Actions
   setSyncError: (error: string | null) => void;
   toggleThemeMode: () => void;
   setThemeMode: (mode: 'light' | 'dark') => void;
@@ -376,6 +854,31 @@ interface AdminState {
   toggleStudentAttendance: (studentId: string, status: 'PRESENT' | 'ABSENT') => void;
   markAllAttendance: (classGrade: string, status: 'PRESENT' | 'ABSENT') => void;
   initializeRealtimeSync: () => Promise<() => void>;
+
+  // Staff Directory & Auth CRUD
+  fetchStaffList: (schoolId?: string) => Promise<void>;
+  addStaffMember: (payload: {
+    fullName: string;
+    department: StaffDepartment;
+    designation: string;
+    assignedClass?: string | null;
+    subject?: string | null;
+    phone?: string | null;
+  }) => SchoolStaff;
+  removeStaffMember: (staffId: string) => void;
+  setStaffPassword: (staffId: string, passwordHash: string) => void;
+
+  // Student CRUD
+  addSingleStudent: (payload: {
+    fullName: string;
+    classGrade: string;
+    parentName: string;
+    parentPhone: string;
+    parentPin?: string;
+    annualFee?: number;
+  }) => StudentRecord;
+  removeStudent: (studentId: string) => void;
+
   collectOfflineFee: (
     installmentId: string,
     mode: 'OFFLINE_CASH' | 'OFFLINE_CHEQUE',
@@ -426,1509 +929,63 @@ interface AdminState {
   updateSchoolProfile: (profilePartial: Partial<SchoolProfile>) => void;
 }
 
-// 15 realistic Indian students across Class 10-A and Class 9-B
-const INITIAL_STUDENTS: StudentRecord[] = [
-  {
-    id: 'SCH-2026-0104',
-    rollNo: '24',
-    name: 'Aarav Sharma',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Rajesh Sharma',
-    parentPhone: '9811234567',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 36000,
-    totalPending: 12000,
-    atHomeHoursThisWeek: 6.5,
-    streakDays: 12,
-    attendancePercent: 96.8,
-  },
-  {
-    id: 'SCH-2026-0101',
-    rollNo: '01',
-    name: 'Ananya Gupta',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Amit Gupta',
-    parentPhone: '9811234501',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 48000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 8.2,
-    streakDays: 19,
-    attendancePercent: 98.5,
-  },
-  {
-    id: 'SCH-2026-0102',
-    rollNo: '12',
-    name: 'Rohan Mehra',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Sunil Mehra',
-    parentPhone: '9811234502',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 36000,
-    totalPending: 12000,
-    atHomeHoursThisWeek: 4.5,
-    streakDays: 7,
-    attendancePercent: 92.0,
-  },
-  {
-    id: 'SCH-2026-0103',
-    rollNo: '15',
-    name: 'Diya Verma',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Vivek Verma',
-    parentPhone: '9811234503',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 48000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 7.0,
-    streakDays: 14,
-    attendancePercent: 97.2,
-  },
-  {
-    id: 'SCH-2026-0105',
-    rollNo: '27',
-    name: 'Kabir Sen',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Debashis Sen',
-    parentPhone: '9811234505',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 24000,
-    totalPending: 24000,
-    atHomeHoursThisWeek: 3.2,
-    streakDays: 4,
-    attendancePercent: 88.4,
-  },
-  {
-    id: 'SCH-2026-0106',
-    rollNo: '31',
-    name: 'Sanjana Nair',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Unnikrishnan Nair',
-    parentPhone: '9811234506',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 48000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 6.8,
-    streakDays: 16,
-    attendancePercent: 99.1,
-  },
-  {
-    id: 'SCH-2026-0107',
-    rollNo: '38',
-    name: 'Vivaan Joshi',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Harish Joshi',
-    parentPhone: '9811234507',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 36000,
-    totalPending: 12000,
-    atHomeHoursThisWeek: 5.1,
-    streakDays: 9,
-    attendancePercent: 94.6,
-  },
-  {
-    id: 'SCH-2026-0108',
-    rollNo: '40',
-    name: 'Meera Pillai',
-    classGrade: 'Class 10-A',
-    section: 'A',
-    parentName: 'Suresh Pillai',
-    parentPhone: '9811234508',
-    parentPin: '1234',
-    annualFee: 48000,
-    totalPaid: 48000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 7.9,
-    streakDays: 18,
-    attendancePercent: 96.5,
-  },
-  {
-    id: 'SCH-2026-0201',
-    rollNo: '04',
-    name: 'Ishaan Agarwal',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'Sanjay Agarwal',
-    parentPhone: '9811234509',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 44000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 7.2,
-    streakDays: 15,
-    attendancePercent: 97.8,
-  },
-  {
-    id: 'SCH-2026-0202',
-    rollNo: '09',
-    name: 'Tanvi Deshmukh',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'Anand Deshmukh',
-    parentPhone: '9811234510',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 33000,
-    totalPending: 11000,
-    atHomeHoursThisWeek: 4.8,
-    streakDays: 8,
-    attendancePercent: 91.2,
-  },
-  {
-    id: 'SCH-2026-0203',
-    rollNo: '14',
-    name: 'Aditya Kulkarni',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'Pravin Kulkarni',
-    parentPhone: '9811234511',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 44000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 8.5,
-    streakDays: 21,
-    attendancePercent: 98.9,
-  },
-  {
-    id: 'SCH-2026-0204',
-    rollNo: '21',
-    name: 'Riya Sengupta',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'Subhash Sengupta',
-    parentPhone: '9811234512',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 22000,
-    totalPending: 22000,
-    atHomeHoursThisWeek: 3.5,
-    streakDays: 5,
-    attendancePercent: 86.5,
-  },
-  {
-    id: 'SCH-2026-0205',
-    rollNo: '25',
-    name: 'Aryan Kapoor',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'Gaurav Kapoor',
-    parentPhone: '9811234513',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 33000,
-    totalPending: 11000,
-    atHomeHoursThisWeek: 5.4,
-    streakDays: 10,
-    attendancePercent: 93.4,
-  },
-  {
-    id: 'SCH-2026-0206',
-    rollNo: '33',
-    name: 'Sneha Reddy',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'K. V. Reddy',
-    parentPhone: '9811234514',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 44000,
-    totalPending: 0,
-    atHomeHoursThisWeek: 6.9,
-    streakDays: 13,
-    attendancePercent: 96.0,
-  },
-  {
-    id: 'SCH-2026-0207',
-    rollNo: '37',
-    name: 'Shlok Bhatia',
-    classGrade: 'Class 9-B',
-    section: 'B',
-    parentName: 'Rajiv Bhatia',
-    parentPhone: '9811234515',
-    parentPin: '1234',
-    annualFee: 44000,
-    totalPaid: 33000,
-    totalPending: 11000,
-    atHomeHoursThisWeek: 4.1,
-    streakDays: 6,
-    attendancePercent: 89.7,
-  },
-];
-
-// Pre-seeded fee installments matching mobile app (60 installments across 15 students)
-const INITIAL_INSTALLMENTS: FeeInstallmentRecord[] = [
-  // 1. Aarav Sharma (Class 10-A, Roll 24)
-  {
-    id: 'inst-0104-q1',
-    studentId: 'SCH-2026-0104',
-    studentName: 'Aarav Sharma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Reception Counter #2',
-    receiptNumber: '#SCH-1042',
-    paidDate: '12 Apr 2026',
-    dueDate: '30 Apr 2026',
-    clerkNote: 'Paid in cash at main administration reception desk.',
-  },
-  {
-    id: 'inst-0104-q2',
-    studentId: 'SCH-2026-0104',
-    studentName: 'Aarav Sharma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'HDFC Cheque #902188',
-    receiptNumber: '#SCH-2190',
-    paidDate: '14 Jul 2026',
-    dueDate: '31 Jul 2026',
-    clerkNote: 'Cleared via HDFC Bank Connaught Place branch.',
-  },
-  {
-    id: 'inst-0104-q3',
-    studentId: 'SCH-2026-0104',
-    studentName: 'Aarav Sharma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ904812',
-    receiptNumber: '#EDZ-5581',
-    paidDate: '05 Oct 2026',
-    dueDate: '31 Oct 2026',
-    clerkNote: 'Settled through Edzy Parent Mobile App via Razorpay UPI.',
-  },
-  {
-    id: 'inst-0104-q4',
-    studentId: 'SCH-2026-0104',
-    studentName: 'Aarav Sharma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 2. Ananya Gupta (Class 10-A, Roll 01)
-  {
-    id: 'inst-0101-q1',
-    studentId: 'SCH-2026-0101',
-    studentName: 'Ananya Gupta',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP918233',
-    receiptNumber: '#EDZ-1011',
-    paidDate: '10 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0101-q2',
-    studentId: 'SCH-2026-0101',
-    studentName: 'Ananya Gupta',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP938211',
-    receiptNumber: '#EDZ-2114',
-    paidDate: '11 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0101-q3',
-    studentId: 'SCH-2026-0101',
-    studentName: 'Ananya Gupta',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT772911',
-    receiptNumber: '#EDZ-3921',
-    paidDate: '02 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0101-q4',
-    studentId: 'SCH-2026-0101',
-    studentName: 'Ananya Gupta',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ99120',
-    receiptNumber: '#EDZ-4890',
-    paidDate: '01 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 3. Rohan Mehra (Class 10-A, Roll 12)
-  {
-    id: 'inst-0102-q1',
-    studentId: 'SCH-2026-0102',
-    studentName: 'Rohan Mehra',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ1021',
-    receiptNumber: '#EDZ-1021',
-    paidDate: '14 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0102-q2',
-    studentId: 'SCH-2026-0102',
-    studentName: 'Rohan Mehra',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Desk #1 Receipt Book',
-    receiptNumber: '#SCH-2041',
-    paidDate: '18 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0102-q3',
-    studentId: 'SCH-2026-0102',
-    studentName: 'Rohan Mehra',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP88219',
-    receiptNumber: '#EDZ-3042',
-    paidDate: '12 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0102-q4',
-    studentId: 'SCH-2026-0102',
-    studentName: 'Rohan Mehra',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 4. Diya Verma (Class 10-A, Roll 15)
-  {
-    id: 'inst-0103-q1',
-    studentId: 'SCH-2026-0103',
-    studentName: 'Diya Verma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'SBI Cheque #118290',
-    receiptNumber: '#SCH-1103',
-    paidDate: '15 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0103-q2',
-    studentId: 'SCH-2026-0103',
-    studentName: 'Diya Verma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT81920',
-    receiptNumber: '#EDZ-2103',
-    paidDate: '16 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0103-q3',
-    studentId: 'SCH-2026-0103',
-    studentName: 'Diya Verma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ3103',
-    receiptNumber: '#EDZ-3103',
-    paidDate: '08 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0103-q4',
-    studentId: 'SCH-2026-0103',
-    studentName: 'Diya Verma',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP4103',
-    receiptNumber: '#EDZ-4103',
-    paidDate: '05 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 5. Kabir Sen (Class 10-A, Roll 27)
-  {
-    id: 'inst-0105-q1',
-    studentId: 'SCH-2026-0105',
-    studentName: 'Kabir Sen',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Counter #2',
-    receiptNumber: '#SCH-1055',
-    paidDate: '28 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0105-q2',
-    studentId: 'SCH-2026-0105',
-    studentName: 'Kabir Sen',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'SBI Chq #441029',
-    receiptNumber: '#SCH-2201',
-    paidDate: '29 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0105-q3',
-    studentId: 'SCH-2026-0105',
-    studentName: 'Kabir Sen',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'OVERDUE',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0105-q4',
-    studentId: 'SCH-2026-0105',
-    studentName: 'Kabir Sen',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 6. Sanjana Nair (Class 10-A, Roll 31)
-  {
-    id: 'inst-0106-q1',
-    studentId: 'SCH-2026-0106',
-    studentName: 'Sanjana Nair',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP1106',
-    receiptNumber: '#EDZ-1106',
-    paidDate: '09 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0106-q2',
-    studentId: 'SCH-2026-0106',
-    studentName: 'Sanjana Nair',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ2106',
-    receiptNumber: '#EDZ-2106',
-    paidDate: '12 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0106-q3',
-    studentId: 'SCH-2026-0106',
-    studentName: 'Sanjana Nair',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT3106',
-    receiptNumber: '#EDZ-3106',
-    paidDate: '04 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0106-q4',
-    studentId: 'SCH-2026-0106',
-    studentName: 'Sanjana Nair',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP4106',
-    receiptNumber: '#EDZ-4106',
-    paidDate: '02 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 7. Vivaan Joshi (Class 10-A, Roll 38)
-  {
-    id: 'inst-0107-q1',
-    studentId: 'SCH-2026-0107',
-    studentName: 'Vivaan Joshi',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'ICICI Chq #881290',
-    receiptNumber: '#SCH-1107',
-    paidDate: '18 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0107-q2',
-    studentId: 'SCH-2026-0107',
-    studentName: 'Vivaan Joshi',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ2107',
-    receiptNumber: '#EDZ-2107',
-    paidDate: '19 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0107-q3',
-    studentId: 'SCH-2026-0107',
-    studentName: 'Vivaan Joshi',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Counter #1',
-    receiptNumber: '#SCH-3107',
-    paidDate: '15 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0107-q4',
-    studentId: 'SCH-2026-0107',
-    studentName: 'Vivaan Joshi',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 8. Meera Pillai (Class 10-A, Roll 40)
-  {
-    id: 'inst-0108-q1',
-    studentId: 'SCH-2026-0108',
-    studentName: 'Meera Pillai',
-    classGrade: 'Class 10-A',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP1108',
-    receiptNumber: '#EDZ-1108',
-    paidDate: '08 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0108-q2',
-    studentId: 'SCH-2026-0108',
-    studentName: 'Meera Pillai',
-    classGrade: 'Class 10-A',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'Axis Chq #662190',
-    receiptNumber: '#SCH-2108',
-    paidDate: '10 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0108-q3',
-    studentId: 'SCH-2026-0108',
-    studentName: 'Meera Pillai',
-    classGrade: 'Class 10-A',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ3108',
-    receiptNumber: '#EDZ-3108',
-    paidDate: '03 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0108-q4',
-    studentId: 'SCH-2026-0108',
-    studentName: 'Meera Pillai',
-    classGrade: 'Class 10-A',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 12000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT4108',
-    receiptNumber: '#EDZ-4108',
-    paidDate: '04 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 9. Ishaan Agarwal (Class 9-B, Roll 04)
-  {
-    id: 'inst-0201-q1',
-    studentId: 'SCH-2026-0201',
-    studentName: 'Ishaan Agarwal',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP1201',
-    receiptNumber: '#EDZ-1201',
-    paidDate: '07 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0201-q2',
-    studentId: 'SCH-2026-0201',
-    studentName: 'Ishaan Agarwal',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ2201',
-    receiptNumber: '#EDZ-2201',
-    paidDate: '10 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0201-q3',
-    studentId: 'SCH-2026-0201',
-    studentName: 'Ishaan Agarwal',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'PNB Chq #332190',
-    receiptNumber: '#SCH-3201',
-    paidDate: '09 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0201-q4',
-    studentId: 'SCH-2026-0201',
-    studentName: 'Ishaan Agarwal',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP4201',
-    receiptNumber: '#EDZ-4201',
-    paidDate: '02 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 10. Tanvi Deshmukh (Class 9-B, Roll 09)
-  {
-    id: 'inst-0202-q1',
-    studentId: 'SCH-2026-0202',
-    studentName: 'Tanvi Deshmukh',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT1202',
-    receiptNumber: '#EDZ-1202',
-    paidDate: '11 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0202-q2',
-    studentId: 'SCH-2026-0202',
-    studentName: 'Tanvi Deshmukh',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Desk #2',
-    receiptNumber: '#SCH-2202',
-    paidDate: '15 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0202-q3',
-    studentId: 'SCH-2026-0202',
-    studentName: 'Tanvi Deshmukh',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ3202',
-    receiptNumber: '#EDZ-3202',
-    paidDate: '10 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0202-q4',
-    studentId: 'SCH-2026-0202',
-    studentName: 'Tanvi Deshmukh',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 11. Aditya Kulkarni (Class 9-B, Roll 14)
-  {
-    id: 'inst-0203-q1',
-    studentId: 'SCH-2026-0203',
-    studentName: 'Aditya Kulkarni',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP1203',
-    receiptNumber: '#EDZ-1203',
-    paidDate: '06 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0203-q2',
-    studentId: 'SCH-2026-0203',
-    studentName: 'Aditya Kulkarni',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ2203',
-    receiptNumber: '#EDZ-2203',
-    paidDate: '08 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0203-q3',
-    studentId: 'SCH-2026-0203',
-    studentName: 'Aditya Kulkarni',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT3203',
-    receiptNumber: '#EDZ-3203',
-    paidDate: '02 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0203-q4',
-    studentId: 'SCH-2026-0203',
-    studentName: 'Aditya Kulkarni',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP4203',
-    receiptNumber: '#EDZ-4203',
-    paidDate: '01 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 12. Riya Sengupta (Class 9-B, Roll 21)
-  {
-    id: 'inst-0204-q1',
-    studentId: 'SCH-2026-0204',
-    studentName: 'Riya Sengupta',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Counter #1',
-    receiptNumber: '#SCH-1204',
-    paidDate: '25 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0204-q2',
-    studentId: 'SCH-2026-0204',
-    studentName: 'Riya Sengupta',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'HDFC Chq #771290',
-    receiptNumber: '#SCH-2204',
-    paidDate: '26 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0204-q3',
-    studentId: 'SCH-2026-0204',
-    studentName: 'Riya Sengupta',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'OVERDUE',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0204-q4',
-    studentId: 'SCH-2026-0204',
-    studentName: 'Riya Sengupta',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 13. Aryan Kapoor (Class 9-B, Roll 25)
-  {
-    id: 'inst-0205-q1',
-    studentId: 'SCH-2026-0205',
-    studentName: 'Aryan Kapoor',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'Canara Chq #551290',
-    receiptNumber: '#SCH-1205',
-    paidDate: '16 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0205-q2',
-    studentId: 'SCH-2026-0205',
-    studentName: 'Aryan Kapoor',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ2205',
-    receiptNumber: '#EDZ-2205',
-    paidDate: '17 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0205-q3',
-    studentId: 'SCH-2026-0205',
-    studentName: 'Aryan Kapoor',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP3205',
-    receiptNumber: '#EDZ-3205',
-    paidDate: '11 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0205-q4',
-    studentId: 'SCH-2026-0205',
-    studentName: 'Aryan Kapoor',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 14. Sneha Reddy (Class 9-B, Roll 33)
-  {
-    id: 'inst-0206-q1',
-    studentId: 'SCH-2026-0206',
-    studentName: 'Sneha Reddy',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'GPay GP1206',
-    receiptNumber: '#EDZ-1206',
-    paidDate: '05 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0206-q2',
-    studentId: 'SCH-2026-0206',
-    studentName: 'Sneha Reddy',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CHEQUE',
-    paymentRef: 'SBI Chq #991209',
-    receiptNumber: '#SCH-2206',
-    paidDate: '08 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0206-q3',
-    studentId: 'SCH-2026-0206',
-    studentName: 'Sneha Reddy',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ3206',
-    receiptNumber: '#EDZ-3206',
-    paidDate: '04 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0206-q4',
-    studentId: 'SCH-2026-0206',
-    studentName: 'Sneha Reddy',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT4206',
-    receiptNumber: '#EDZ-4206',
-    paidDate: '03 Nov 2026',
-    dueDate: '30 Nov 2026',
-  },
-
-  // 15. Shlok Bhatia (Class 9-B, Roll 37)
-  {
-    id: 'inst-0207-q1',
-    studentId: 'SCH-2026-0207',
-    studentName: 'Shlok Bhatia',
-    classGrade: 'Class 9-B',
-    quarter: 'Q1 (Apr - Jun 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'Paytm PT1207',
-    receiptNumber: '#EDZ-1207',
-    paidDate: '12 Apr 2026',
-    dueDate: '30 Apr 2026',
-  },
-  {
-    id: 'inst-0207-q2',
-    studentId: 'SCH-2026-0207',
-    studentName: 'Shlok Bhatia',
-    classGrade: 'Class 9-B',
-    quarter: 'Q2 (Jul - Sep 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'OFFLINE_CASH',
-    paymentRef: 'Desk #1',
-    receiptNumber: '#SCH-2207',
-    paidDate: '14 Jul 2026',
-    dueDate: '31 Jul 2026',
-  },
-  {
-    id: 'inst-0207-q3',
-    studentId: 'SCH-2026-0207',
-    studentName: 'Shlok Bhatia',
-    classGrade: 'Class 9-B',
-    quarter: 'Q3 (Oct - Dec 2026)',
-    amount: 11000,
-    status: 'PAID',
-    paymentMethod: 'ONLINE_UPI',
-    paymentRef: 'PhonePe EDZ3207',
-    receiptNumber: '#EDZ-3207',
-    paidDate: '09 Oct 2026',
-    dueDate: '31 Oct 2026',
-  },
-  {
-    id: 'inst-0207-q4',
-    studentId: 'SCH-2026-0207',
-    studentName: 'Shlok Bhatia',
-    classGrade: 'Class 9-B',
-    quarter: 'Q4 (Jan - Mar 2027)',
-    amount: 11000,
-    status: 'PENDING',
-    dueDate: '30 Nov 2026',
-  },
-];
-
-const INITIAL_CIRCULARS: AdminCircular[] = [
-  {
-    id: 'circ-001',
-    title: 'Class 10 Pre-Board Examination Schedule & Guidelines',
-    targetClass: 'Class 10-A',
-    category: 'EXAM',
-    date: '20 Nov 2026',
-    author: 'Examination Controller',
-    message: 'Pre-Board practical submissions and theory examination commences from 15th December 2026. Hall tickets and admit cards are available for verification.',
-    attachmentName: 'PreBoard_Schedule_2026-27.pdf',
-  },
-  {
-    id: 'circ-002',
-    title: 'Annual Athletic Meet & Sports Day Participation Consent',
-    targetClass: 'All Classes',
-    category: 'SPORTS',
-    date: '18 Nov 2026',
-    author: 'Physical Education Dept',
-    message: 'Registration is now open for Track & Field events for the upcoming Annual Inter-House Sports Championship. Parents are requested to sign the digital consent slip.',
-    attachmentName: 'Sports_Day_Events_Consent.pdf',
-  },
-  {
-    id: 'circ-003',
-    title: 'Parent-Teacher Meeting (PTM) for Term-1 Academic Review',
-    targetClass: 'All Classes',
-    category: 'ACADEMIC',
-    date: '15 Nov 2026',
-    author: 'Principal Office',
-    message: 'Mandatory parent-teacher conference will be conducted on Saturday from 9:00 AM to 1:30 PM. Parents can check time slots directly in the Edzy Parent App.',
-    attachmentName: 'PTM_Schedule_Slot_Matrix.pdf',
-  },
-];
-
-const INITIAL_ATTENDANCE: Record<string, 'PRESENT' | 'ABSENT'> = {
-  'SCH-2026-0104': 'PRESENT',
-  'SCH-2026-0101': 'PRESENT',
-  'SCH-2026-0102': 'PRESENT',
-  'SCH-2026-0103': 'PRESENT',
-  'SCH-2026-0105': 'PRESENT',
-  'SCH-2026-0106': 'PRESENT',
-  'SCH-2026-0107': 'PRESENT',
-  'SCH-2026-0108': 'PRESENT',
-  'SCH-2026-0201': 'PRESENT',
-  'SCH-2026-0202': 'PRESENT',
-  'SCH-2026-0203': 'PRESENT',
-  'SCH-2026-0204': 'PRESENT',
-  'SCH-2026-0205': 'PRESENT',
-  'SCH-2026-0206': 'PRESENT',
-  'SCH-2026-0207': 'ABSENT',
-};
-
-const RAW_INITIAL_SYLLABUS: Array<{
-  id: string;
-  fileName: string;
-  chapterNumber: number;
-  title: string;
-  classGrade: string;
-  subject: string;
-  fileSizeBytes: string;
-  uploadedAt: string;
-  arModelMapped: ARModelType;
-  milestones: Array<{ nodeId: string; title: string; ncertPageRange: string; ragStatus: 'GROUNDED' }>;
-}> = [
-  {
-    id: 'syl-01',
-    fileName: 'Class10_Bio_Ch6_SchoolNotes.pdf',
-    chapterNumber: 6,
-    title: 'Life Processes & Human Circulatory System',
-    classGrade: 'Class 10',
-    subject: 'Biology (Science)',
-    fileSizeBytes: '4.2 MB',
-    uploadedAt: '15 Oct 2026',
-    arModelMapped: 'Human Heart 3D',
-    milestones: [
-      { nodeId: 'm-1', title: '6.1 Autotrophic Nutrition & Stomata Gas Exchange', ncertPageRange: 'Pages 93-98', ragStatus: 'GROUNDED' },
-      { nodeId: 'm-2', title: '6.2 Human Digestive System: Enzymes & Villi', ncertPageRange: 'Pages 99-105', ragStatus: 'GROUNDED' },
-      { nodeId: 'm-3', title: '6.3 Human Heart: Chambers, Double Circulation & Aorta', ncertPageRange: 'Pages 106-110', ragStatus: 'GROUNDED' },
-      { nodeId: 'm-4', title: '6.4 Excretion: Nephron Filtration Mechanism', ncertPageRange: 'Pages 111-115', ragStatus: 'GROUNDED' },
-    ],
-  },
-  {
-    id: 'syl-02',
-    fileName: 'Class10_Phy_Ch10_Optics.pdf',
-    chapterNumber: 10,
-    title: 'Light: Reflection & Refraction',
-    classGrade: 'Class 10',
-    subject: 'Physics (Science)',
-    fileSizeBytes: '5.8 MB',
-    uploadedAt: '22 Oct 2026',
-    arModelMapped: 'Optics Ray Bench 3D',
-    milestones: [
-      { nodeId: 'p-1', title: '10.1 Spherical Mirrors: Concave & Convex Ray Tracing', ncertPageRange: 'Pages 160-168', ragStatus: 'GROUNDED' },
-      { nodeId: 'p-2', title: '10.2 Mirror Formula & Magnification Ratio', ncertPageRange: 'Pages 169-173', ragStatus: 'GROUNDED' },
-      { nodeId: 'p-3', title: "10.3 Snell's Law & Refractive Index (Air-Glass)", ncertPageRange: 'Pages 174-180', ragStatus: 'GROUNDED' },
-      { nodeId: 'p-4', title: '10.4 Lenses & Dioptre Power Numericals', ncertPageRange: 'Pages 181-191', ragStatus: 'GROUNDED' },
-    ],
-  },
-  {
-    id: 'syl-03',
-    fileName: 'Class10_Math_Ch4_Quadratic.pdf',
-    chapterNumber: 4,
-    title: 'Quadratic Equations & Discriminant Analysis',
-    classGrade: 'Class 10',
-    subject: 'Mathematics',
-    fileSizeBytes: '3.6 MB',
-    uploadedAt: '01 Nov 2026',
-    arModelMapped: 'Quadratic Graph 3D',
-    milestones: [
-      { nodeId: 'q-1', title: '4.1 Standard Form ax² + bx + c = 0 & Factorisation', ncertPageRange: 'Pages 70-76', ragStatus: 'GROUNDED' },
-      { nodeId: 'q-2', title: '4.2 Quadratic Formula (Shreedharacharya Rule)', ncertPageRange: 'Pages 77-83', ragStatus: 'GROUNDED' },
-      { nodeId: 'q-3', title: '4.3 Discriminant D = b² - 4ac & Nature of Roots', ncertPageRange: 'Pages 84-91', ragStatus: 'GROUNDED' },
-      { nodeId: 'q-4', title: '4.4 Applied Speed-Time & Area Word Problems', ncertPageRange: 'Pages 92-97', ragStatus: 'GROUNDED' },
-    ],
-  },
-  {
-    id: 'syl-04',
-    fileName: 'Class9_Sci_Ch5_CellStructure.pdf',
-    chapterNumber: 5,
-    title: 'The Fundamental Unit of Life: Cell Organelles',
-    classGrade: 'Class 9',
-    subject: 'Science',
-    fileSizeBytes: '4.9 MB',
-    uploadedAt: '12 Nov 2026',
-    arModelMapped: 'Plant & Animal Cell 3D',
-    milestones: [
-      { nodeId: 'c-1', title: '5.1 Discovery of Cell & Plasma Membrane Diffusion', ncertPageRange: 'Pages 57-62', ragStatus: 'GROUNDED' },
-      { nodeId: 'c-2', title: '5.2 Nucleus, Chromosomes & DNA Structure', ncertPageRange: 'Pages 63-66', ragStatus: 'GROUNDED' },
-      { nodeId: 'c-3', title: '5.3 Cytoplasm, ER, Mitochondria & Golgi Apparatus', ncertPageRange: 'Pages 67-74', ragStatus: 'GROUNDED' },
-      { nodeId: 'c-4', title: '5.4 Plant vs Animal Cell 3D Comparison', ncertPageRange: 'Pages 75-78', ragStatus: 'GROUNDED' },
-    ],
-  },
-];
-
-const INITIAL_SYLLABUS: SyllabusChapterRecord[] = RAW_INITIAL_SYLLABUS.map((item) => {
-  const norm = normalizeMilestonesJson(item.milestones, {
-    id: item.id,
-    title: item.title,
-    subject: item.subject,
-    chapterNumber: item.chapterNumber,
-    board: 'CBSE',
-    arModelName: item.arModelMapped,
-  });
-  return {
-    id: item.id,
-    fileName: item.fileName,
-    chapterNumber: item.chapterNumber,
-    title: item.title,
-    classGrade: item.classGrade,
-    subject: item.subject,
-    board: norm.board,
-    default3dModelId: norm.default3dModelId,
-    fileSizeBytes: item.fileSizeBytes,
-    uploadedAt: item.uploadedAt,
-    status: 'READY',
-    arModelMapped: item.arModelMapped,
-    generatedMilestones: norm.generatedMilestones,
-    revisionNotes: norm.revisionNotes,
-    practiceSheet: norm.practiceSheet,
-    relatedChapters: RAW_INITIAL_SYLLABUS.filter((other) => other.id !== item.id)
-      .slice(0, 2)
-      .map((other) => ({
-        id: other.id,
-        chapterNumber: other.chapterNumber,
-        title: other.title,
-        subject: other.subject,
-      })),
-  };
-});
-
-const INITIAL_SCHOOLS: SchoolTenantRecord[] = [
-  {
-    id: 'DVPS01',
-    schoolCode: 'DVPS01',
-    name: 'Doon Valley Public School',
-    board: 'CBSE',
-    principalName: 'Dr. R. K. Mahapatra',
-    academicSession: '2026-2027',
-  },
-  {
-    id: 'STJ01',
-    schoolCode: 'STJ01',
-    name: "St. Joseph's Academy, Dehradun",
-    board: 'ICSE',
-    principalName: 'Bro. Joseph Mathew',
-    academicSession: '2026-2027',
-  },
-];
-
-const INITIAL_PROGRESS_LIST: StudentRoadmapProgressSummary[] = [
-  {
-    id: 'SCH-2026-0104-syl-01',
-    schoolId: 'DVPS01',
-    studentId: 'SCH-2026-0104',
-    roadmapId: 'syl-01',
-    targetDeadline: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
-    totalDays: 7,
-    skippedDaysCount: 0,
-    paceStatus: 'ON_TRACK',
-    completionPct: 50,
-    lastMasteredTopicTitle: 'Human Digestive Enzyme Pathway',
-    completedTodayCount: 2,
-    nodeStates: {
-      'm-1-b1': { status: 'done' },
-      'm-1-b2': { status: 'done' },
-      'm-2-b1': { status: 'done' },
-      'm-2-b2': { status: 'done' },
-      'm-3-b1': { status: 'learning' },
-    },
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
-  {
-    studentId: 'SCH-2026-0104',
-    studentName: 'Aarav Sharma',
-    classGrade: 'Class 10-A',
-    rollNo: '24',
-    term: 'PRE_BOARD',
-    aggregatePercentage: 92.6,
-    overallGrade: 'A1',
-    needsRemediation: false,
-    scores: [
-      {
-        subject: 'Science & Lab',
-        marksObtained: 94,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Exceptional diagrammatic clarity in Biology & ray optics.',
-      },
-      {
-        subject: 'Mathematics',
-        marksObtained: 91,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Very strong algebraic manipulation.',
-      },
-      {
-        subject: 'English Communicative',
-        marksObtained: 88,
-        maxMarks: 100,
-        grade: 'A2',
-        remarks: 'High comprehension, vocabulary is strong.',
-      },
-      {
-        subject: 'Social Science',
-        marksObtained: 92,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Detailed historical chronology and accurate map work.',
-      },
-      {
-        subject: 'Computer Applications',
-        marksObtained: 98,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Top scorer in Python and data structures!',
-      },
-    ],
-  },
-  {
-    studentId: 'SCH-2026-0101',
-    studentName: 'Ananya Gupta',
-    classGrade: 'Class 10-A',
-    rollNo: '01',
-    term: 'PRE_BOARD',
-    aggregatePercentage: 96.2,
-    overallGrade: 'A1',
-    needsRemediation: false,
-    scores: [
-      {
-        subject: 'Science & Lab',
-        marksObtained: 98,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Batch topper in Science experiments.',
-      },
-      {
-        subject: 'Mathematics',
-        marksObtained: 97,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Flawless quadratic proofs.',
-      },
-      {
-        subject: 'English Communicative',
-        marksObtained: 93,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Excellent analytical writing.',
-      },
-      {
-        subject: 'Social Science',
-        marksObtained: 96,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Thorough coverage of Economics & Civics.',
-      },
-      {
-        subject: 'Computer Applications',
-        marksObtained: 97,
-        maxMarks: 100,
-        grade: 'A1',
-        remarks: 'Creative coding test solutions.',
-      },
-    ],
-  },
-  {
-    studentId: 'SCH-2026-0105',
-    studentName: 'Kabir Sen',
-    classGrade: 'Class 10-A',
-    rollNo: '27',
-    term: 'PRE_BOARD',
-    aggregatePercentage: 54.4,
-    overallGrade: 'C1',
-    needsRemediation: true,
-    scores: [
-      {
-        subject: 'Science & Lab',
-        marksObtained: 48,
-        maxMarks: 100,
-        grade: 'C2',
-        remarks: 'Needs urgent remediation in Chemistry formulas & ray diagrams.',
-      },
-      {
-        subject: 'Mathematics',
-        marksObtained: 46,
-        maxMarks: 100,
-        grade: 'C2',
-        remarks: 'Struggles with word problems and quadratic equations.',
-      },
-      {
-        subject: 'English Communicative',
-        marksObtained: 64,
-        maxMarks: 100,
-        grade: 'B2',
-        remarks: 'Average performance.',
-      },
-      {
-        subject: 'Social Science',
-        marksObtained: 52,
-        maxMarks: 100,
-        grade: 'C1',
-        remarks: 'Incomplete answers in History section.',
-      },
-      {
-        subject: 'Computer Applications',
-        marksObtained: 62,
-        maxMarks: 100,
-        grade: 'B2',
-        remarks: 'Basic syntax understanding is okay.',
-      },
-    ],
-  },
-  {
-    studentId: 'SCH-2026-0204',
-    studentName: 'Riya Sengupta',
-    classGrade: 'Class 9-B',
-    rollNo: '21',
-    term: 'PRE_BOARD',
-    aggregatePercentage: 58.0,
-    overallGrade: 'C1',
-    needsRemediation: true,
-    scores: [
-      {
-        subject: 'Science & Lab',
-        marksObtained: 51,
-        maxMarks: 100,
-        grade: 'C1',
-        remarks: 'Requires practice with cell organelle diagrams.',
-      },
-      {
-        subject: 'Mathematics',
-        marksObtained: 49,
-        maxMarks: 100,
-        grade: 'C2',
-        remarks: 'Weak in polynomial factorisation.',
-      },
-      {
-        subject: 'English Communicative',
-        marksObtained: 70,
-        maxMarks: 100,
-        grade: 'B1',
-        remarks: 'Good spoken fluency.',
-      },
-      {
-        subject: 'Social Science',
-        marksObtained: 56,
-        maxMarks: 100,
-        grade: 'C1',
-        remarks: 'Needs review of Indian physical geography.',
-      },
-      {
-        subject: 'Computer Applications',
-        marksObtained: 64,
-        maxMarks: 100,
-        grade: 'B2',
-        remarks: 'Fair execution of HTML tables.',
-      },
-    ],
-  },
-];
-
-// Realtime channel references for cleanup and re-subscriptions
 let adminRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let adminBroadcastChannel: ReturnType<typeof supabase.channel> | null = null;
 
+function broadcastAdminSyncEvent(
+  action: string,
+  schoolId: string,
+  studentId: string | null,
+  data: Record<string, any>,
+  legacyFields: Record<string, any> = {}
+) {
+  if (!isLiveSupabaseConfigured || !adminBroadcastChannel) return;
+
+  adminBroadcastChannel.send({
+    type: 'broadcast',
+    event: 'EDZY_SYNC',
+    payload: {
+      action,
+      schoolId,
+      studentId,
+      data,
+      ts: Date.now(),
+      type: action,
+      ...legacyFields,
+    },
+  });
+
+  adminBroadcastChannel.send({
+    type: 'broadcast',
+    event: 'edzy-event',
+    payload: {
+      type: action,
+      schoolId,
+      studentId,
+      ...data,
+      ...legacyFields,
+    },
+  });
+}
+
 export const useAdminStore = create<AdminState>((set, get) => ({
+  activeSchoolId: 'SCH-01',
   schoolProfile: {
     name: 'Doon Valley Public School',
-    code: 'DVPS01',
+    code: 'SCH-01',
     affiliationNumber: '2130842',
     board: 'CBSE',
-    session: '2026-2027',
-    address: 'Sector 4, R.K. Puram, Outer Ring Road',
+    session: '2026-27',
+    address: 'Sector 4, Rajpur Road',
     city: 'Dehradun',
     state: 'Uttarakhand',
-    principalName: 'Dr. R. K. Mahapatra',
-    accountantName: 'Sunil Aggarwal (Chief Bursar)',
-    phone: '+91 11 2618 4021',
+    principalName: 'Dr. Meenakshi Sharma',
+    accountantName: 'Mr. Harish Pant (Senior Accounts Officer)',
+    phone: '+91 135 261 8402',
     email: 'admin@doonvalley.edu.in',
   },
   availableSchools: INITIAL_SCHOOLS,
+  staffList: INITIAL_STAFF,
   students: INITIAL_STUDENTS,
   feeInstallments: INITIAL_INSTALLMENTS,
   syllabusVault: INITIAL_SYLLABUS,
@@ -1939,14 +996,19 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   receiptCounter: 3240,
   connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
   isSyncing: false,
-  themeMode: (typeof window !== 'undefined' && (localStorage.getItem('edzy_admin_theme') as 'light' | 'dark')) || 'light',
+  themeMode:
+    (typeof window !== 'undefined' && (localStorage.getItem('edzy_admin_theme') as 'light' | 'dark')) ||
+    'light',
   syncError: null,
   setSyncError: (error) => set({ syncError: error }),
 
   switchActiveSchool: (schoolId) => {
-    const found = get().availableSchools.find((s) => s.id === schoolId || s.schoolCode === schoolId);
+    const found = get().availableSchools.find(
+      (s) => s.id === schoolId || s.schoolCode === schoolId
+    );
     if (!found) return;
     set((state) => ({
+      activeSchoolId: found.id,
       schoolProfile: {
         ...state.schoolProfile,
         name: found.name,
@@ -1956,6 +1018,308 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         session: found.academicSession,
       },
     }));
+    if (isLiveSupabaseConfigured) {
+      get().initializeRealtimeSync();
+    }
+  },
+
+  fetchStaffList: async (schoolIdParam) => {
+    if (!isLiveSupabaseConfigured) return;
+    const schoolId = schoolIdParam || get().activeSchoolId || 'SCH-01';
+    const { data, error } = await supabase
+      .from('school_staff')
+      .select('*')
+      .eq('school_id', schoolId)
+      .order('department', { ascending: true })
+      .order('employee_serial', { ascending: true });
+
+    if (error) {
+      console.warn('[Edzy Cloud Web] fetchStaffList note:', error.message);
+      return;
+    }
+    if (data) {
+      set({ staffList: data.map((row: any) => mapSchoolStaffRow(row)) });
+    }
+  },
+
+  addStaffMember: (payload) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const { id, serial } = generateNextEmployeeId(
+      schoolId,
+      payload.department,
+      state.staffList.map((m) => m.id)
+    );
+
+    const newStaff: SchoolStaff = {
+      id,
+      schoolId,
+      employeeSerial: serial,
+      fullName: payload.fullName.trim(),
+      department: payload.department,
+      designation: payload.designation.trim(),
+      assignedClass: payload.assignedClass?.trim() || null,
+      subject: payload.subject?.trim() || null,
+      phone: payload.phone?.trim() || null,
+      passwordHash: null,
+      isPasswordSet: false,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+    };
+
+    set((curr) => ({
+      staffList: [...curr.staffList, newStaff],
+    }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('school_staff')
+        .insert({
+          id: newStaff.id,
+          school_id: schoolId,
+          employee_serial: newStaff.employeeSerial,
+          full_name: newStaff.fullName,
+          department: newStaff.department,
+          designation: newStaff.designation,
+          assigned_class: newStaff.assignedClass,
+          subject: newStaff.subject,
+          phone: newStaff.phone,
+          password_hash: null,
+          is_password_set: false,
+          status: 'ACTIVE',
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] addStaffMember error:', error.code, error.message);
+            get().setSyncError(`Staff Add Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      broadcastAdminSyncEvent('STAFF_UPDATED', schoolId, null, {
+        operation: 'ADDED',
+        staff: newStaff,
+      });
+    }
+
+    return newStaff;
+  },
+
+  removeStaffMember: (staffId) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+
+    set((curr) => ({
+      staffList: curr.staffList.filter((m) => m.id !== staffId),
+    }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('school_staff')
+        .delete()
+        .eq('id', staffId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] removeStaffMember error:', error.code, error.message);
+            get().setSyncError(`Staff Removal Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      broadcastAdminSyncEvent('STAFF_UPDATED', schoolId, null, {
+        operation: 'REMOVED',
+        staffId,
+      });
+    }
+  },
+
+  setStaffPassword: (staffId, passwordHash) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+
+    set((curr) => ({
+      staffList: curr.staffList.map((m) =>
+        m.id === staffId ? { ...m, passwordHash, isPasswordSet: true } : m
+      ),
+    }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('school_staff')
+        .update({
+          password_hash: passwordHash,
+          is_password_set: true,
+        })
+        .eq('id', staffId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] setStaffPassword error:', error.code, error.message);
+            get().setSyncError(`Password Update Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      broadcastAdminSyncEvent('STAFF_UPDATED', schoolId, null, {
+        operation: 'PASSWORD_SET',
+        staffId,
+      });
+    }
+  },
+
+  addSingleStudent: (payload) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const cleanClass = payload.classGrade.trim();
+    const section = cleanClass.includes('-')
+      ? cleanClass.split('-')[1].trim().toUpperCase()
+      : 'A';
+
+    const { id: studentId, rollNumber } = generateNextStudentId(
+      schoolId,
+      cleanClass,
+      state.students.map((s) => s.id),
+      state.students
+    );
+
+    const annualFee =
+      payload.annualFee ||
+      (cleanClass.includes('10')
+        ? 48000
+        : cleanClass.includes('9')
+        ? 44000
+        : 32000);
+
+    const newStudent: StudentRecord = {
+      id: studentId,
+      rollNo: rollNumber,
+      name: payload.fullName.trim(),
+      classGrade: cleanClass,
+      section,
+      parentName: payload.parentName.trim(),
+      parentPhone: payload.parentPhone.trim(),
+      parentPin: (payload.parentPin || '1234').trim(),
+      annualFee,
+      totalPaid: 0,
+      totalPending: annualFee,
+      atHomeHoursThisWeek: 0,
+      streakDays: 0,
+      attendancePercent: 100,
+    };
+
+    const newInstallments = buildQuarterInstallmentsForStudent(newStudent, 0, 'inst');
+
+    set((curr) => {
+      const merged = [...curr.students, newStudent];
+      const byClass = new Map<string, StudentRecord[]>();
+      for (const st of merged) {
+        const list = byClass.get(st.classGrade) || [];
+        list.push(st);
+        byClass.set(st.classGrade, list);
+      }
+      const sortedStudents: StudentRecord[] = [];
+      for (const list of byClass.values()) {
+        sortedStudents.push(...sortStudentsAlphabetically(list));
+      }
+      return {
+        students: sortedStudents,
+        feeInstallments: [...curr.feeInstallments, ...newInstallments],
+        attendanceRegister: {
+          ...curr.attendanceRegister,
+          [newStudent.id]: 'PRESENT',
+        },
+      };
+    });
+
+    if (isLiveSupabaseConfigured) {
+      const nowIso = new Date().toISOString();
+      supabase
+        .from('students')
+        .insert({
+          id: newStudent.id,
+          school_id: schoolId,
+          school_code: schoolId,
+          roll_number: newStudent.rollNo,
+          full_name: newStudent.name,
+          class_grade: newStudent.classGrade,
+          section: newStudent.section,
+          parent_name: newStudent.parentName,
+          parent_phone: newStudent.parentPhone,
+          parent_pin: newStudent.parentPin,
+          total_fee: newStudent.annualFee,
+          paid_fee: 0,
+          balance_due: newStudent.annualFee,
+          weekly_study_hours: 0,
+          streak_days: 0,
+          attendance_pct: 100,
+          updated_at: nowIso,
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] addSingleStudent error:', error.code, error.message);
+            get().setSyncError(`Student Insert Error: ${error.message} (${error.code})`);
+            return;
+          }
+          const dbInstallments = newInstallments.map((inst) => ({
+            id: inst.id,
+            school_id: schoolId,
+            student_id: inst.studentId,
+            installment_title: inst.quarter,
+            due_date: inst.dueDate,
+            amount: inst.amount,
+            status: 'PENDING',
+            payment_mode: 'PENDING',
+            reference_note: `${inst.quarter} Installment Due`,
+          }));
+          supabase
+            .from('fee_ledger')
+            .insert(dbInstallments)
+            .then(({ error: feeErr }) => {
+              if (feeErr) {
+                console.error('[Edzy Cloud Web] Student fee_ledger insert error:', feeErr.message);
+              }
+            });
+        });
+
+      broadcastAdminSyncEvent('STUDENT_UPDATED', schoolId, newStudent.id, {
+        operation: 'ADDED',
+        student: newStudent,
+        installments: newInstallments,
+      });
+    }
+
+    return newStudent;
+  },
+
+  removeStudent: (studentId) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+
+    set((curr) => {
+      const nextAttendance = { ...curr.attendanceRegister };
+      delete nextAttendance[studentId];
+      return {
+        students: curr.students.filter((s) => s.id !== studentId),
+        feeInstallments: curr.feeInstallments.filter((f) => f.studentId !== studentId),
+        examMarks: curr.examMarks.filter((m) => m.studentId !== studentId),
+        studentProgressList: curr.studentProgressList.filter((p) => p.studentId !== studentId),
+        attendanceRegister: nextAttendance,
+      };
+    });
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('students')
+        .delete()
+        .eq('id', studentId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] removeStudent error:', error.code, error.message);
+            get().setSyncError(`Student Removal Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      broadcastAdminSyncEvent('STUDENT_UPDATED', schoolId, studentId, {
+        operation: 'REMOVED',
+        studentId,
+      });
+    }
   },
 
   initializeRealtimeSync: async () => {
@@ -1967,28 +1331,27 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     try {
       set({ isSyncing: true });
 
-      // Clean up previous channel if any
       if (adminRealtimeChannel) {
         try {
-          supabase.removeChannel(adminRealtimeChannel);
-        } catch (e) {
+          await supabase.removeChannel(adminRealtimeChannel);
+        } catch {
           // ignore
         }
         adminRealtimeChannel = null;
       }
       if (adminBroadcastChannel) {
         try {
-          supabase.removeChannel(adminBroadcastChannel);
-        } catch (e) {
+          await supabase.removeChannel(adminBroadcastChannel);
+        } catch {
           // ignore
         }
         adminBroadcastChannel = null;
       }
 
-      const activeSchoolCode = get().schoolProfile.code || 'DVPS01';
+      const activeSchoolId = get().activeSchoolId || get().schoolProfile.code || 'SCH-01';
 
       // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
-      adminBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolCode}`, {
+      adminBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolId}`, {
         config: { broadcast: { self: false, ack: true } },
       });
 
@@ -2004,11 +1367,13 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           set((state) => {
             const updated = state.feeInstallments.map((inst) =>
               inst.id === installmentId ||
-              (inst.studentId === studentId && (inst.quarter.includes('Q4') || String(installmentId || '').toLowerCase().includes('q4')))
+              (inst.studentId === studentId &&
+                (inst.quarter.includes('Q4') || String(installmentId || '').toLowerCase().includes('q4')))
                 ? {
                     ...inst,
                     status: 'PAID' as PaymentStatus,
-                    paymentMethod: (data.paymentMode || payload.paymentMode as PaymentMethod) || 'ONLINE_UPI',
+                    paymentMethod:
+                      ((data.paymentMode || payload.paymentMode) as PaymentMethod) || 'ONLINE_UPI',
                     paymentRef: data.referenceNote || payload.referenceNote || 'Instant UPI',
                     receiptNumber: data.receiptNumber || payload.receiptNumber,
                     paidDate: new Date().toLocaleDateString('en-IN', {
@@ -2023,8 +1388,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             const updatedStudents = state.students.map((st) => {
               if (st.id === studentId) {
                 const studentInsts = updated.filter((f) => f.studentId === st.id);
-                const totalPaid = studentInsts.filter((f) => f.status === 'PAID').reduce((sum, f) => sum + f.amount, 0);
-                const totalPending = studentInsts.filter((f) => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
+                const totalPaid = studentInsts
+                  .filter((f) => f.status === 'PAID')
+                  .reduce((sum, f) => sum + f.amount, 0);
+                const totalPending = studentInsts
+                  .filter((f) => f.status !== 'PAID')
+                  .reduce((sum, f) => sum + f.amount, 0);
                 return { ...st, totalPaid, totalPending };
               }
               return st;
@@ -2034,7 +1403,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         } else if (action === 'ROADMAP_PROGRESS_UPDATED') {
           const progressRecord: StudentRoadmapProgressSummary = {
             id: data.id || `${data.studentId}-${data.roadmapId}`,
-            schoolId: data.schoolId || activeSchoolCode,
+            schoolId: data.schoolId || activeSchoolId,
             studentId: data.studentId,
             roadmapId: data.roadmapId,
             targetDeadline: data.targetDeadline || null,
@@ -2055,6 +1424,38 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 : [progressRecord, ...state.studentProgressList],
             };
           });
+        } else if (action === 'STAFF_UPDATED') {
+          if (data.operation === 'ADDED' && data.staff) {
+            const incoming = data.staff as SchoolStaff;
+            set((state) => ({
+              staffList: state.staffList.some((m) => m.id === incoming.id)
+                ? state.staffList
+                : [...state.staffList, incoming],
+            }));
+          } else if (data.operation === 'REMOVED' && data.staffId) {
+            set((state) => ({
+              staffList: state.staffList.filter((m) => m.id !== data.staffId),
+            }));
+          }
+        } else if (action === 'STUDENT_UPDATED') {
+          if (data.operation === 'ADDED' && data.student) {
+            const incoming = data.student as StudentRecord;
+            const insts = (data.installments || []) as FeeInstallmentRecord[];
+            set((state) => ({
+              students: state.students.some((s) => s.id === incoming.id)
+                ? state.students
+                : sortStudentsAlphabetically([...state.students, incoming]),
+              feeInstallments: [
+                ...state.feeInstallments,
+                ...insts.filter((ni) => !state.feeInstallments.some((fi) => fi.id === ni.id)),
+              ],
+            }));
+          } else if (data.operation === 'REMOVED' && data.studentId) {
+            set((state) => ({
+              students: state.students.filter((s) => s.id !== data.studentId),
+              feeInstallments: state.feeInstallments.filter((f) => f.studentId !== data.studentId),
+            }));
+          }
         }
       };
 
@@ -2063,43 +1464,89 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         .on('broadcast', { event: 'edzy-event' }, ({ payload }) => handleAdminBroadcast(payload))
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log(`[Edzy Cloud Web] Broadcast channel SUBSCRIBED to edzy-live:${activeSchoolCode}`);
+            console.log(`[Edzy Cloud Web] Broadcast channel SUBSCRIBED to edzy-live:${activeSchoolId}`);
           }
         });
 
-      const [studentsRes, feeRes, marksRes, syllabusRes, circularsRes, schoolsRes, progressRes] = await Promise.all([
-        supabase.from('students').select('*').order('roll_number', { ascending: true }),
-        supabase.from('fee_ledger').select('*').order('due_date', { ascending: true }),
-        supabase.from('exam_marks').select('*'),
-        supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
-        supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
+      const [
+        schoolsRes,
+        staffRes,
+        studentsRes,
+        feeRes,
+        marksRes,
+        syllabusRes,
+        circularsRes,
+        progressRes,
+      ] = await Promise.all([
         supabase.from('schools').select('*').then((r) => r, () => ({ data: null })),
-        supabase.from('student_roadmap_progress').select('*').then((r) => r, () => ({ data: null })),
+        supabase
+          .from('school_staff')
+          .select('*')
+          .eq('school_id', activeSchoolId)
+          .order('department', { ascending: true })
+          .order('employee_serial', { ascending: true })
+          .then((r) => r, () => ({ data: null })),
+        supabase
+          .from('students')
+          .select('*')
+          .eq('school_id', activeSchoolId)
+          .order('class_grade', { ascending: true })
+          .order('full_name', { ascending: true }),
+        supabase
+          .from('fee_ledger')
+          .select('*')
+          .eq('school_id', activeSchoolId)
+          .order('due_date', { ascending: true }),
+        supabase.from('exam_marks').select('*').eq('school_id', activeSchoolId),
+        supabase
+          .from('syllabus_roadmaps')
+          .select('*')
+          .eq('school_id', activeSchoolId)
+          .order('chapter_number', { ascending: true }),
+        supabase
+          .from('school_circulars')
+          .select('*')
+          .eq('school_id', activeSchoolId)
+          .order('published_at', { ascending: false })
+          .then((r) => r, () => ({ data: null })),
+        supabase
+          .from('student_roadmap_progress')
+          .select('*')
+          .eq('school_id', activeSchoolId)
+          .then((r) => r, () => ({ data: null })),
       ]);
 
       const updates: Partial<AdminState> = {};
       let loadedStudents: StudentRecord[] = get().students;
 
       if (schoolsRes.data && schoolsRes.data.length > 0) {
-        const mappedSchools: SchoolTenantRecord[] = schoolsRes.data.map((s: any) => ({
+        const mappedSchools: SchoolTenantRecord[] = schoolsRes.data.map((s: any, idx: number) => ({
           id: s.id,
+          schoolSerial: Number(s.school_serial || idx + 1),
           schoolCode: s.school_code || s.id,
           name: s.name,
           board: cleanBoardCode(s.board),
           principalName: s.principal_name || 'Principal',
-          academicSession: s.academic_session || '2026-2027',
+          academicSession: s.academic_session || '2026-27',
         }));
         updates.availableSchools = mappedSchools;
-        const matchedActive = mappedSchools.find((s) => s.schoolCode === activeSchoolCode);
+        const matchedActive = mappedSchools.find(
+          (s) => s.id === activeSchoolId || s.schoolCode === activeSchoolId
+        );
         if (matchedActive) {
           updates.schoolProfile = {
             ...get().schoolProfile,
             name: matchedActive.name,
+            code: matchedActive.schoolCode,
             board: matchedActive.board,
             principalName: matchedActive.principalName,
             session: matchedActive.academicSession,
           };
         }
+      }
+
+      if (staffRes.data && staffRes.data.length > 0) {
+        updates.staffList = staffRes.data.map((row: any) => mapSchoolStaffRow(row));
       }
 
       if (studentsRes.data && studentsRes.data.length > 0) {
@@ -2135,13 +1582,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         isSyncing: false,
       });
 
-      // Subscribe to Realtime Postgres changes across all core tables
+      // Layer B: Tenant-scoped Realtime Postgres changes with O(1) patching (INSERT, UPDATE, DELETE)
       adminRealtimeChannel = supabase
-        .channel('edzy-web-admin-realtime')
+        .channel(`edzy-web-admin-${activeSchoolId}-${Date.now()}`)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'fee_ledger' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'fee_ledger',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
           (payload) => {
+            if (payload.eventType === 'DELETE') {
+              const delId = (payload.old as any)?.id;
+              if (!delId) return;
+              set((state) => ({
+                feeInstallments: state.feeInstallments.filter((f) => f.id !== delId),
+              }));
+              return;
+            }
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
@@ -2151,7 +1611,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 ? state.feeInstallments.map((f) => (f.id === mapped.id ? mapped : f))
                 : [mapped, ...state.feeInstallments];
 
-              // Recompute student totalPaid / totalPending
               const updatedStudents = state.students.map((st) => {
                 if (st.id === mapped.studentId) {
                   const studentInstallments = updated.filter((f) => f.studentId === st.id);
@@ -2172,24 +1631,72 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'students' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'students',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
           (payload) => {
+            if (payload.eventType === 'DELETE') {
+              const delId = (payload.old as any)?.id;
+              if (!delId) return;
+              set((state) => ({
+                students: state.students.filter((s) => s.id !== delId),
+                feeInstallments: state.feeInstallments.filter((f) => f.studentId !== delId),
+              }));
+              return;
+            }
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
               const mapped = mapStudentRow(row);
               const exists = state.students.some((s) => s.id === mapped.id);
+              const nextList = exists
+                ? state.students.map((s) => (s.id === mapped.id ? mapped : s))
+                : sortStudentsAlphabetically([...state.students, mapped]);
+              return { students: nextList };
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'school_staff',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
+          (payload) => {
+            if (payload.eventType === 'DELETE') {
+              const delId = (payload.old as any)?.id;
+              if (!delId) return;
+              set((state) => ({
+                staffList: state.staffList.filter((m) => m.id !== delId),
+              }));
+              return;
+            }
+            const row: any = payload.new;
+            if (!row || !row.id) return;
+            set((state) => {
+              const mapped = mapSchoolStaffRow(row);
+              const exists = state.staffList.some((m) => m.id === mapped.id);
               return {
-                students: exists
-                  ? state.students.map((s) => (s.id === mapped.id ? mapped : s))
-                  : [...state.students, mapped],
+                staffList: exists
+                  ? state.staffList.map((m) => (m.id === mapped.id ? mapped : m))
+                  : [...state.staffList, mapped],
               };
             });
           }
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'exam_marks' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'exam_marks',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
@@ -2204,7 +1711,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'syllabus_roadmaps' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'syllabus_roadmaps',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
@@ -2221,7 +1733,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'school_circulars' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'school_circulars',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
@@ -2238,7 +1755,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'student_roadmap_progress' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'student_roadmap_progress',
+            filter: `school_id=eq.${activeSchoolId}`,
+          },
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
@@ -2255,7 +1777,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[Edzy Cloud Web] Realtime SUBSCRIBED to all school tables including roadmap progress');
+            console.log(`[Edzy Cloud Web] Realtime SUBSCRIBED for ${activeSchoolId}`);
           }
         });
 
@@ -2270,18 +1792,18 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         }
       };
     } catch (err) {
-      console.warn('Supabase Realtime fell back note:', err);
-      if (!isLiveSupabaseConfigured) {
-        set({ connectionMode: 'DEMO_MODE', isSyncing: false });
-      } else {
-        set({ isSyncing: false });
-      }
+      console.warn('Supabase Realtime note:', err);
+      set({
+        connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
+        isSyncing: false,
+      });
       return () => {};
     }
   },
 
   collectOfflineFee: (installmentId, mode, referenceNo, clerkNote) => {
     const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
     const inst = state.feeInstallments.find((f) => f.id === installmentId);
     if (!inst) {
       throw new Error('Installment not found');
@@ -2296,7 +1818,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     const refNote = referenceNo
       ? `${referenceNo}${clerkNote ? ' • ' + clerkNote : ''}`
-      : (clerkNote || `Collected by Accounts Desk on ${todayStr}`);
+      : clerkNote || `Collected by Accounts Desk on ${todayStr}`;
 
     const updatedInstallments = state.feeInstallments.map((item) => {
       if (item.id === installmentId) {
@@ -2313,7 +1835,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       return item;
     });
 
-    // Update student totals
     const updatedStudents = state.students.map((st) => {
       if (st.id === inst.studentId) {
         return {
@@ -2368,47 +1889,27 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           }
         });
 
-      if (adminBroadcastChannel) {
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'EDZY_SYNC',
-          payload: {
-            action: 'FEE_UPDATED',
-            schoolId: 'DVPS01',
-            studentId: inst.studentId,
-            data: {
-              installmentId,
-              studentId: inst.studentId,
-              status: 'PAID',
-              paymentMode: mode,
-              receiptNumber: nextReceiptNum,
-              referenceNote: refNote,
-              amount: inst.amount,
-            },
-            ts: Date.now(),
-            type: 'FEE_UPDATED',
-            installmentId,
-            paymentMode: mode,
-            receiptNumber: nextReceiptNum,
-            referenceNote: refNote,
-            amount: inst.amount,
-          },
-        });
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'edzy-event',
-          payload: {
-            type: 'FEE_UPDATED',
-            installmentId,
-            studentId: inst.studentId,
-            status: 'PAID',
-            paymentMode: mode,
-            receiptNumber: nextReceiptNum,
-            referenceNote: refNote,
-            amount: inst.amount,
-          },
-        });
-      }
+      broadcastAdminSyncEvent(
+        'FEE_UPDATED',
+        schoolId,
+        inst.studentId,
+        {
+          installmentId,
+          studentId: inst.studentId,
+          status: 'PAID',
+          paymentMode: mode,
+          receiptNumber: nextReceiptNum,
+          referenceNote: refNote,
+          amount: inst.amount,
+        },
+        {
+          installmentId,
+          paymentMode: mode,
+          receiptNumber: nextReceiptNum,
+          referenceNote: refNote,
+          amount: inst.amount,
+        }
+      );
     }
 
     return {
@@ -2420,26 +1921,37 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   importStudentsFromCSV: (rows) => {
     const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
     const newStudents: StudentRecord[] = [];
     const newInstallments: FeeInstallmentRecord[] = [];
-
-    let count = state.students.length + 1;
+    let runningStudents = [...state.students];
 
     for (const row of rows) {
-      const paddedNum = count.toString().padStart(4, '0');
-      const studentId = `SCH-2026-${paddedNum}`;
+      const cleanClass = row.classGrade || 'Class 10-A';
+      const section = cleanClass.includes('-')
+        ? cleanClass.split('-')[1].trim().toUpperCase()
+        : 'A';
+
+      const { id: studentId, rollNumber } = generateNextStudentId(
+        schoolId,
+        cleanClass,
+        runningStudents.map((s) => s.id),
+        runningStudents
+      );
+
       const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
-      const annualFee = row.annualFee || (row.classGrade.includes('10') ? 48000 : 44000);
-      const quarterFee = annualFee / 4;
+      const annualFee =
+        row.annualFee ||
+        (cleanClass.includes('10') ? 48000 : cleanClass.includes('9') ? 44000 : 32000);
 
       const newStudent: StudentRecord = {
         id: studentId,
-        rollNo: row.rollNo || count.toString(),
-        name: row.name,
-        classGrade: row.classGrade,
-        section: row.classGrade.includes('-') ? row.classGrade.split('-')[1] : 'A',
-        parentName: row.parentName,
-        parentPhone: row.parentPhone,
+        rollNo: row.rollNo ? String(row.rollNo).padStart(2, '0') : rollNumber,
+        name: row.name.trim(),
+        classGrade: cleanClass,
+        section,
+        parentName: row.parentName.trim(),
+        parentPhone: row.parentPhone.trim(),
         parentPin: randomPin,
         annualFee,
         totalPaid: 0,
@@ -2450,71 +1962,64 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       };
 
       newStudents.push(newStudent);
-
-      // Auto-create 4 quarterly fee installments
-      const quarters = [
-        { q: 'Q1 (Apr - Jun 2026)', due: '30 Apr 2026' },
-        { q: 'Q2 (Jul - Sep 2026)', due: '31 Jul 2026' },
-        { q: 'Q3 (Oct - Dec 2026)', due: '31 Oct 2026' },
-        { q: 'Q4 (Jan - Mar 2027)', due: '30 Nov 2026' },
-      ];
-
-      quarters.forEach((qObj, qIdx) => {
-        newInstallments.push({
-          id: `inst-${paddedNum}-q${qIdx + 1}`,
-          studentId,
-          studentName: row.name,
-          classGrade: row.classGrade,
-          quarter: qObj.q,
-          amount: quarterFee,
-          status: 'PENDING',
-          dueDate: qObj.due,
-        });
-      });
-
-      count++;
+      runningStudents.push(newStudent);
+      newInstallments.push(...buildQuarterInstallmentsForStudent(newStudent, 0, 'inst'));
     }
 
     set({
-      students: [...state.students, ...newStudents],
+      students: sortStudentsAlphabetically([...state.students, ...newStudents]),
       feeInstallments: [...state.feeInstallments, ...newInstallments],
     });
 
-    if (isLiveSupabaseConfigured) {
+    if (isLiveSupabaseConfigured && newStudents.length > 0) {
+      const nowIso = new Date().toISOString();
       const dbStudents = newStudents.map((st) => ({
         id: st.id,
-        school_id: 'DVPS01',
-        school_code: 'DVPS01',
-        roll_no: st.rollNo,
-        name: st.name,
+        school_id: schoolId,
+        school_code: schoolId,
+        roll_number: st.rollNo,
+        full_name: st.name,
         class_grade: st.classGrade,
         section: st.section,
         parent_name: st.parentName,
         parent_phone: st.parentPhone,
         parent_pin: st.parentPin,
-        annual_fee: st.annualFee,
-        total_paid: st.totalPaid,
-        total_pending: st.totalPending,
-        at_home_hours: st.atHomeHoursThisWeek,
+        total_fee: st.annualFee,
+        paid_fee: st.totalPaid,
+        balance_due: st.totalPending,
+        weekly_study_hours: st.atHomeHoursThisWeek,
         streak_days: st.streakDays,
-        attendance_percent: st.attendancePercent,
+        attendance_pct: st.attendancePercent,
+        updated_at: nowIso,
       }));
 
       const dbInstallments = newInstallments.map((inst) => ({
         id: inst.id,
-        school_id: 'DVPS01',
-        school_code: 'DVPS01',
+        school_id: schoolId,
         student_id: inst.studentId,
-        student_name: inst.studentName,
-        class_grade: inst.classGrade,
-        quarter: inst.quarter,
+        installment_title: inst.quarter,
+        due_date: inst.dueDate,
         amount: inst.amount,
         status: inst.status,
-        due_date: '2026-11-30',
+        payment_mode: 'PENDING',
+        reference_note: `${inst.quarter} Installment Due`,
       }));
 
-      supabase.from('students').upsert(dbStudents).then(() => {});
-      supabase.from('fee_ledger').upsert(dbInstallments).then(() => {});
+      supabase
+        .from('students')
+        .upsert(dbStudents)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] CSV students upsert error:', error.message);
+            return;
+          }
+          supabase.from('fee_ledger').upsert(dbInstallments).then(() => {});
+        });
+
+      broadcastAdminSyncEvent('STUDENT_UPDATED', schoolId, null, {
+        operation: 'CSV_IMPORT',
+        count: newStudents.length,
+      });
     }
 
     return { importedCount: newStudents.length };
@@ -2522,6 +2027,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   uploadSyllabusChapter: (payload) => {
     const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
     const todayStr = new Date().toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
@@ -2614,7 +2120,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }));
 
     if (isLiveSupabaseConfigured) {
-      const schoolId = state.schoolProfile.code || 'DVPS01';
       supabase
         .from('syllabus_roadmaps')
         .insert({
@@ -2640,30 +2145,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         ...newRecord,
         milestones_json: milestonesJsonPayload,
       };
-
-      if (adminBroadcastChannel) {
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'EDZY_SYNC',
-          payload: {
-            action: 'SYLLABUS_ADDED',
-            schoolId,
-            studentId: null,
-            data: broadcastRecord,
-            ts: Date.now(),
-            type: 'SYLLABUS_ADDED',
-            record: broadcastRecord,
-          },
-        });
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'edzy-event',
-          payload: {
-            type: 'SYLLABUS_ADDED',
-            record: broadcastRecord,
-          },
-        });
-      }
+      broadcastAdminSyncEvent('SYLLABUS_ADDED', schoolId, null, broadcastRecord, {
+        record: broadcastRecord,
+      });
     }
 
     return newRecord;
@@ -2671,6 +2155,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   updateSyllabusChapter: (chapterId, updates) => {
     const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
     const existing = state.syllabusVault.find((c) => c.id === chapterId);
     if (!existing) return null;
 
@@ -2686,7 +2171,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }));
 
     if (isLiveSupabaseConfigured) {
-      const schoolId = state.schoolProfile.code || 'DVPS01';
       supabase
         .from('syllabus_roadmaps')
         .upsert(
@@ -2715,30 +2199,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         ...merged,
         milestones_json: milestonesJsonPayload,
       };
-
-      if (adminBroadcastChannel) {
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'EDZY_SYNC',
-          payload: {
-            action: 'SYLLABUS_UPDATED',
-            schoolId,
-            studentId: null,
-            data: broadcastRecord,
-            ts: Date.now(),
-            type: 'SYLLABUS_UPDATED',
-            record: broadcastRecord,
-          },
-        });
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'edzy-event',
-          payload: {
-            type: 'SYLLABUS_UPDATED',
-            record: broadcastRecord,
-          },
-        });
-      }
+      broadcastAdminSyncEvent('SYLLABUS_UPDATED', schoolId, null, broadcastRecord, {
+        record: broadcastRecord,
+      });
     }
 
     return merged;
@@ -2746,10 +2209,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   updateStudentMark: (studentId, term, subject, marksObtained, remarks) => {
     set((state) => {
+      const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
       const student = state.students.find((s) => s.id === studentId);
       const studentName = student ? student.name : 'Unknown';
       const classGrade = student ? student.classGrade : 'Class 10-A';
-      const rollNo = student ? student.rollNo : '0';
+      const rollNo = student ? student.rollNo : '01';
 
       const existingRecord = state.examMarks.find(
         (e) => e.studentId === studentId && e.term === term
@@ -2786,7 +2250,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             marksObtained: mark,
             maxMarks: 100,
             grade: calculateCbseGrade(mark),
-            remarks: isTarget ? (remarks || 'Good consistency.') : 'Good consistency.',
+            remarks: isTarget ? remarks || 'Good consistency.' : 'Good consistency.',
           };
         });
       }
@@ -2810,12 +2274,13 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       };
 
       if (isLiveSupabaseConfigured) {
-        const examType = term === 'PRE_BOARD' ? 'Pre-Board' : term === 'MIDTERM' ? 'Midterm' : 'Unit Test 1';
+        const examType =
+          term === 'PRE_BOARD' ? 'Pre-Board' : term === 'MIDTERM' ? 'Midterm' : 'Unit Test 1';
         const markRowId = `${studentId}-${examType}-${subject}`;
         const grade = calculateCbseGrade(marksObtained);
         const dbMarkRow = {
           id: markRowId,
-          school_id: 'DVPS01',
+          school_id: schoolId,
           student_id: studentId,
           exam_type: examType,
           subject,
@@ -2837,48 +2302,29 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             }
           });
 
-        if (adminBroadcastChannel) {
-          adminBroadcastChannel.send({
-            type: 'broadcast',
-            event: 'EDZY_SYNC',
-            payload: {
-              action: 'MARK_UPDATED',
-              schoolId: 'DVPS01',
-              studentId,
-              data: {
-                studentId,
-                term,
-                examType,
-                subject,
-                marksObtained,
-                grade,
-                remarks: remarks || 'Good performance.',
-                scores: updatedRecord.scores,
-                aggregatePercentage: updatedRecord.aggregatePercentage,
-                overallGrade: updatedRecord.overallGrade,
-              },
-              ts: Date.now(),
-              type: 'MARK_UPDATED',
-              scores: updatedRecord.scores,
-              aggregatePercentage: updatedRecord.aggregatePercentage,
-              overallGrade: updatedRecord.overallGrade,
-              needsRemediation: updatedRecord.needsRemediation,
-            },
-          });
-          adminBroadcastChannel.send({
-            type: 'broadcast',
-            event: 'edzy-event',
-            payload: {
-              type: 'MARK_UPDATED',
-              studentId,
-              term,
-              scores: updatedRecord.scores,
-              aggregatePercentage: updatedRecord.aggregatePercentage,
-              overallGrade: updatedRecord.overallGrade,
-              needsRemediation: updatedRecord.needsRemediation,
-            },
-          });
-        }
+        broadcastAdminSyncEvent(
+          'MARK_UPDATED',
+          schoolId,
+          studentId,
+          {
+            studentId,
+            term,
+            examType,
+            subject,
+            marksObtained,
+            grade,
+            remarks: remarks || 'Good performance.',
+            scores: updatedRecord.scores,
+            aggregatePercentage: updatedRecord.aggregatePercentage,
+            overallGrade: updatedRecord.overallGrade,
+          },
+          {
+            scores: updatedRecord.scores,
+            aggregatePercentage: updatedRecord.aggregatePercentage,
+            overallGrade: updatedRecord.overallGrade,
+            needsRemediation: updatedRecord.needsRemediation,
+          }
+        );
       }
 
       const filtered = state.examMarks.filter(
@@ -2932,6 +2378,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   addCircular: (payload) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
     const normalizedTargetClass =
       !payload.targetClass || payload.targetClass === 'All Classes' || payload.targetClass === 'All'
         ? 'All'
@@ -2941,10 +2389,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       ...payload,
       targetClass: normalizedTargetClass,
       id: `circ-${Date.now().toString(36)}`,
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      date: new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
     };
-    set((state) => ({
-      circulars: [newCircular, ...state.circulars],
+    set((curr) => ({
+      circulars: [newCircular, ...curr.circulars],
     }));
 
     if (isLiveSupabaseConfigured) {
@@ -2952,7 +2404,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         .from('school_circulars')
         .insert({
           id: newCircular.id,
-          school_id: 'DVPS01',
+          school_id: schoolId,
           title: newCircular.title,
           category: newCircular.category,
           target_class: normalizedTargetClass,
@@ -2967,33 +2419,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           }
         });
 
-      if (adminBroadcastChannel) {
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'EDZY_SYNC',
-          payload: {
-            action: 'CIRCULAR_ADDED',
-            schoolId: 'DVPS01',
-            studentId: null,
-            data: newCircular,
-            ts: Date.now(),
-            type: 'CIRCULAR_ADDED',
-            circular: newCircular,
-          },
-        });
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'edzy-event',
-          payload: {
-            type: 'CIRCULAR_ADDED',
-            circular: newCircular,
-          },
-        });
-      }
+      broadcastAdminSyncEvent('CIRCULAR_ADDED', schoolId, null, newCircular, {
+        circular: newCircular,
+      });
     }
   },
 
   toggleStudentAttendance: (studentId, status) => {
+    const schoolId = get().activeSchoolId || get().schoolProfile.code || 'SCH-01';
     let targetPct = 95;
     set((state) => {
       const newRegister = {
@@ -3030,34 +2463,18 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           }
         });
 
-      if (adminBroadcastChannel) {
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'EDZY_SYNC',
-          payload: {
-            action: 'ATTENDANCE_UPDATED',
-            schoolId: 'DVPS01',
-            studentId,
-            data: { studentId, attendancePct: targetPct },
-            ts: Date.now(),
-            type: 'ATTENDANCE_UPDATED',
-            attendancePct: targetPct,
-          },
-        });
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'edzy-event',
-          payload: {
-            type: 'ATTENDANCE_UPDATED',
-            studentId,
-            attendancePct: targetPct,
-          },
-        });
-      }
+      broadcastAdminSyncEvent(
+        'ATTENDANCE_UPDATED',
+        schoolId,
+        studentId,
+        { studentId, attendancePct: targetPct },
+        { attendancePct: targetPct }
+      );
     }
   },
 
   markAllAttendance: (classGrade, status) => {
+    const schoolId = get().activeSchoolId || get().schoolProfile.code || 'SCH-01';
     const updates: Array<{ id: string; pct: number }> = [];
     set((state) => {
       const newRegister = { ...state.attendanceRegister };
@@ -3098,29 +2515,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           get().setSyncError(`Batch Attendance Sync Error: ${String(err)}`);
         });
 
-      if (adminBroadcastChannel) {
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'EDZY_SYNC',
-          payload: {
-            action: 'ATTENDANCE_UPDATED',
-            schoolId: 'DVPS01',
-            studentId: null,
-            data: { classGrade, status, updates },
-            ts: Date.now(),
-            type: 'ATTENDANCE_UPDATED',
-          },
-        });
-        adminBroadcastChannel.send({
-          type: 'broadcast',
-          event: 'edzy-event',
-          payload: {
-            type: 'ATTENDANCE_UPDATED',
-            classGrade,
-            status,
-          },
-        });
-      }
+      broadcastAdminSyncEvent('ATTENDANCE_UPDATED', schoolId, null, {
+        classGrade,
+        status,
+        updates,
+      });
     }
   },
 }));

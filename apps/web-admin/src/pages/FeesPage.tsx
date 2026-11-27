@@ -108,7 +108,7 @@ export const FeesPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Student Name, Roll No (24), ID (SCH-2026-0104), or Receipt #..."
+              placeholder="Search by Student Name, Roll No (01), ID (SCH-01-1001), or Receipt #..."
               className="w-full h-10 pl-9 pr-3 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-xs font-medium text-slate-800 dark:text-[#F8FAFC] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>

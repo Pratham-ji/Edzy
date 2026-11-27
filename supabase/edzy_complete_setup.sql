@@ -1,12 +1,15 @@
 -- ====================================================================
--- EDZY K-12 SMART SCHOOL OS & SAAS COMMAND PLATFORM
+-- EDZY K-12 SMART SCHOOL OS & MULTI-SCHOOL SAAS PLATFORM
 -- MASTER DATABASE INITIALIZATION & SEED SCRIPT: supabase/edzy_complete_setup.sql
--- PURPOSE: 100% Idempotent, Single-Click Setup, TEXT Primary/Foreign Keys,
---          Realtime Replication, Composite Indexes, Permissive Pilot RLS,
---          and Mathematically Consistent Seed Data for Side-by-Side Laptop & Phone Demos.
+-- PURPOSE: 100% Idempotent, TEXT Primary/Foreign Keys (Zero UUID 22P02),
+--          Multi-School Tenants (SCH-01, SCH-02), Staff RBAC Directory,
+--          19 Alphabetically-Sorted Students Across 3 Classes (10-A, 9-B, 2-A),
+--          City-Scale Composite Indexes, Realtime Replication, Pilot RLS,
+--          and Mathematically Verified Fee/Marks/Roadmap Seed Data.
 -- ====================================================================
 
 -- 1. SAFE DROP OF EXISTING TABLES IN REVERSE DEPENDENCY ORDER
+DROP TABLE IF EXISTS public.school_staff CASCADE;
 DROP TABLE IF EXISTS public.student_roadmap_progress CASCADE;
 DROP TABLE IF EXISTS public.school_circulars CASCADE;
 DROP TABLE IF EXISTS public.student_progress CASCADE;
@@ -16,7 +19,7 @@ DROP TABLE IF EXISTS public.syllabus_roadmaps CASCADE;
 DROP TABLE IF EXISTS public.students CASCADE;
 DROP TABLE IF EXISTS public.schools CASCADE;
 
--- Also clean up legacy migration tables if present
+-- Clean up legacy migration tables if present
 DROP TABLE IF EXISTS public.school_notices CASCADE;
 DROP TABLE IF EXISTS public.ai_tutor_queries CASCADE;
 DROP TABLE IF EXISTS public.ar_classroom_sessions CASCADE;
@@ -35,66 +38,84 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ====================================================================
--- 3. CORE TABLE SCHEMAS (ALL USING TEXT KEYS - NEVER UUID 22P02 MISMATCH)
+-- 3. CORE TABLE SCHEMAS (ALL 8 TABLES USE TEXT KEYS - ZERO UUID 22P02)
 -- ====================================================================
 
 -- 3.1 SCHOOLS (Multi-School Multi-Tenant Core)
 CREATE TABLE public.schools (
-    id TEXT PRIMARY KEY DEFAULT 'DVPS01',
-    school_code TEXT UNIQUE NOT NULL DEFAULT 'DVPS01',
+    id TEXT PRIMARY KEY, -- e.g. 'SCH-01', 'SCH-02'
+    school_serial INTEGER NOT NULL,
+    school_code TEXT NOT NULL UNIQUE, -- e.g. 'SCH-01', 'SCH-02'
     name TEXT NOT NULL,
     board TEXT NOT NULL DEFAULT 'CBSE',
-    academic_session TEXT NOT NULL DEFAULT '2026-2027',
-    principal_name TEXT NOT NULL DEFAULT 'Dr. R. K. Mahapatra',
+    academic_session TEXT NOT NULL DEFAULT '2026-27',
+    principal_name TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.2 STUDENTS (Unified Student & Parent Directory)
-CREATE TABLE public.students (
-    id TEXT PRIMARY KEY, -- e.g. 'SCH-2026-0104'
-    school_id TEXT NOT NULL DEFAULT 'DVPS01' REFERENCES public.schools(id) ON DELETE CASCADE,
-    school_code TEXT NOT NULL DEFAULT 'DVPS01',
-    roll_number TEXT NOT NULL,
+-- 3.2 SCHOOL STAFF (Employee RBAC & Department Access Directory)
+CREATE TABLE public.school_staff (
+    id TEXT PRIMARY KEY, -- e.g. 'SCH-01-ADM-001', 'SCH-01-TCH-001', 'SCH-01-ACT-001'
+    school_id TEXT NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
+    employee_serial INTEGER NOT NULL,
     full_name TEXT NOT NULL,
-    class_grade TEXT NOT NULL, -- e.g. 'Class 10-A', 'Class 9-B'
+    department TEXT NOT NULL CHECK (department IN ('ADM', 'TCH', 'ACT')),
+    designation TEXT NOT NULL,
+    assigned_class TEXT, -- e.g. 'Class 10-A', 'Class 9-B', 'Class 2-A' or NULL for ADM/ACT
+    subject TEXT,
+    phone TEXT,
+    password_hash TEXT, -- NULL until employee sets self-password on first login
+    is_password_set BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3.3 STUDENTS (Unified Student & Parent Directory)
+CREATE TABLE public.students (
+    id TEXT PRIMARY KEY, -- e.g. 'SCH-01-1001', 'SCH-01-205'
+    school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
+    school_code TEXT NOT NULL DEFAULT 'SCH-01',
+    roll_number TEXT NOT NULL, -- '01', '02', ..., '08'
+    full_name TEXT NOT NULL,
+    class_grade TEXT NOT NULL, -- 'Class 10-A', 'Class 9-B', 'Class 2-A'
     section TEXT NOT NULL DEFAULT 'A',
     parent_name TEXT NOT NULL,
     parent_phone TEXT NOT NULL,
     parent_pin TEXT NOT NULL DEFAULT '1234',
-    total_fee NUMERIC(10, 2) NOT NULL DEFAULT 48000.00,
-    paid_fee NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    balance_due NUMERIC(10, 2) NOT NULL DEFAULT 48000.00,
-    weekly_study_hours NUMERIC(5, 2) DEFAULT 0.00,
+    total_fee INTEGER NOT NULL DEFAULT 48000,
+    paid_fee INTEGER NOT NULL DEFAULT 0,
+    balance_due INTEGER NOT NULL DEFAULT 48000,
+    weekly_study_hours NUMERIC DEFAULT 0,
     streak_days INTEGER DEFAULT 0,
-    attendance_pct NUMERIC(5, 2) DEFAULT 95.00,
+    attendance_pct NUMERIC DEFAULT 95.0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.3 FEE LEDGER (Quarterly Hybrid Fees: Cash, Cheque & UPI)
+-- 3.4 FEE LEDGER (Quarterly Hybrid Fees: Cash, Cheque & UPI)
 CREATE TABLE public.fee_ledger (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, -- e.g. 'inst-0104-q1'
-    school_id TEXT NOT NULL DEFAULT 'DVPS01' REFERENCES public.schools(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
     installment_title TEXT NOT NULL, -- e.g. 'Q1 (Apr - Jun 2026)'
     due_date DATE NOT NULL,
     amount NUMERIC(10, 2) NOT NULL DEFAULT 12000.00,
     status TEXT NOT NULL DEFAULT 'PENDING', -- 'PAID', 'PENDING'
     payment_mode TEXT NOT NULL DEFAULT 'PENDING', -- 'ONLINE_UPI', 'OFFLINE_CASH', 'OFFLINE_CHEQUE', 'PENDING'
-    receipt_number TEXT, -- e.g. '#SCH-1042', '#EDZ-5581'
+    receipt_number TEXT,
     reference_note TEXT,
     paid_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.4 EXAM MARKS (Granular Subject Marks with CBSE Grading)
+-- 3.5 EXAM MARKS (Granular Subject Marks with Dynamic Board Grading)
 CREATE TABLE public.exam_marks (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, -- e.g. 'SCH-2026-0104-Pre-Board-Science & Lab'
-    school_id TEXT NOT NULL DEFAULT 'DVPS01' REFERENCES public.schools(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
     exam_type TEXT NOT NULL, -- 'Pre-Board', 'Midterm', 'Unit Test 1'
-    subject TEXT NOT NULL, -- 'Science & Lab', 'Mathematics', etc.
+    subject TEXT NOT NULL,
     marks_obtained NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
     max_marks NUMERIC(5, 2) NOT NULL DEFAULT 100.00,
     class_average NUMERIC(5, 2) DEFAULT 75.00,
@@ -103,12 +124,12 @@ CREATE TABLE public.exam_marks (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.5 SYLLABUS ROADMAPS (NCERT Curricula & 3D Spatial Model Mappings)
+-- 3.6 SYLLABUS ROADMAPS (Multi-Board Curricula, Flowcharts & 3D Models)
 CREATE TABLE public.syllabus_roadmaps (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, -- e.g. 'syl-01'
-    school_id TEXT NOT NULL DEFAULT 'DVPS01' REFERENCES public.schools(id) ON DELETE CASCADE,
-    class_grade TEXT NOT NULL, -- 'Class 10'
-    subject TEXT NOT NULL, -- 'Biology (Science)'
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
+    class_grade TEXT NOT NULL,
+    subject TEXT NOT NULL,
     chapter_number INTEGER NOT NULL,
     chapter_title TEXT NOT NULL,
     pdf_filename TEXT,
@@ -118,61 +139,62 @@ CREATE TABLE public.syllabus_roadmaps (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.6 SCHOOL CIRCULARS & NOTICES (Web to Mobile Broadcast Channel)
+-- 3.7 SCHOOL CIRCULARS & NOTICES (Web to Mobile Broadcast Channel)
 CREATE TABLE public.school_circulars (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text, -- e.g. 'circ-001'
-    school_id TEXT NOT NULL DEFAULT 'DVPS01' REFERENCES public.schools(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
-    category TEXT NOT NULL DEFAULT 'General', -- 'Exam', 'Holiday', 'Fee', 'General'
-    target_class TEXT NOT NULL DEFAULT 'All', -- 'All', 'Class 10-A', 'Class 9-B'
+    category TEXT NOT NULL DEFAULT 'General',
+    target_class TEXT NOT NULL DEFAULT 'All',
     message TEXT NOT NULL,
     published_by TEXT NOT NULL DEFAULT 'Principal Office',
     published_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.7 STUDENT ROADMAP PROGRESS (Adaptive Goal, Flowchart Node States & Parent ERP Sync)
+-- 3.8 STUDENT ROADMAP PROGRESS (Adaptive Goal, Flowchart States & Parent ERP Sync)
 CREATE TABLE public.student_roadmap_progress (
-    id TEXT PRIMARY KEY, -- e.g. 'SCH-2026-0104-syl-01'
-    school_id TEXT NOT NULL DEFAULT 'DVPS01' REFERENCES public.schools(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
     roadmap_id TEXT NOT NULL REFERENCES public.syllabus_roadmaps(id) ON DELETE CASCADE,
     target_deadline DATE,
     total_days INTEGER DEFAULT 7,
     skipped_days_count INTEGER DEFAULT 0,
     node_states_json JSONB DEFAULT '{}'::jsonb,
-    pace_status TEXT DEFAULT 'ON_TRACK', -- 'ON_TRACK' | 'AUTO_ADJUSTED' | 'HIGH_PACE' | 'COMPLETED'
+    pace_status TEXT DEFAULT 'ON_TRACK',
     completion_pct INTEGER DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ====================================================================
--- 4. COMPOSITE PERFORMANCE INDEXES (MULTI-TENANT SCALE)
+-- 4. CITY-SCALE COMPOSITE MULTI-TENANT INDEXES
 -- ====================================================================
+CREATE INDEX IF NOT EXISTS idx_schools_tenant_lookup ON public.schools (school_code, id);
+
+CREATE INDEX IF NOT EXISTS idx_school_staff_school_id ON public.school_staff (school_id, id);
+CREATE INDEX IF NOT EXISTS idx_school_staff_dept_status ON public.school_staff (school_id, department, status);
+
 CREATE INDEX IF NOT EXISTS idx_students_school_student ON public.students (school_id, id);
-CREATE INDEX IF NOT EXISTS idx_students_school_class ON public.students (school_id, class_grade);
-CREATE INDEX IF NOT EXISTS idx_students_roll ON public.students (roll_number);
+CREATE INDEX IF NOT EXISTS idx_students_school_class_name ON public.students (school_id, class_grade, full_name);
+CREATE INDEX IF NOT EXISTS idx_students_roll ON public.students (school_id, roll_number);
 
 CREATE INDEX IF NOT EXISTS idx_fee_ledger_tenant ON public.fee_ledger (school_id, student_id, status);
-CREATE INDEX IF NOT EXISTS idx_fee_ledger_school_student ON public.fee_ledger (school_id, student_id);
-CREATE INDEX IF NOT EXISTS idx_fee_ledger_status ON public.fee_ledger (status);
 CREATE INDEX IF NOT EXISTS idx_fee_ledger_due ON public.fee_ledger (due_date);
 
 CREATE INDEX IF NOT EXISTS idx_exam_marks_tenant ON public.exam_marks (school_id, student_id, exam_type);
-CREATE INDEX IF NOT EXISTS idx_exam_marks_lookup ON public.exam_marks (school_id, student_id, exam_type);
 CREATE INDEX IF NOT EXISTS idx_exam_marks_subject ON public.exam_marks (subject);
 
-CREATE INDEX IF NOT EXISTS idx_syllabus_tenant ON public.syllabus_roadmaps (school_id, class_grade);
 CREATE INDEX IF NOT EXISTS idx_syllabus_lookup ON public.syllabus_roadmaps (school_id, class_grade, chapter_number);
 
 CREATE INDEX IF NOT EXISTS idx_circulars_tenant ON public.school_circulars (school_id, published_at DESC);
-CREATE INDEX IF NOT EXISTS idx_circulars_lookup ON public.school_circulars (school_id, published_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_roadmap_progress_lookup ON public.student_roadmap_progress (school_id, student_id, roadmap_id);
 
 -- ====================================================================
--- 5. REALTIME REPLICATION (FULL ROW REPLICA IDENTITY)
+-- 5. REALTIME REPLICATION (FULL ROW REPLICA IDENTITY ON ALL 8 TABLES)
 -- ====================================================================
 ALTER TABLE public.schools REPLICA IDENTITY FULL;
+ALTER TABLE public.school_staff REPLICA IDENTITY FULL;
 ALTER TABLE public.students REPLICA IDENTITY FULL;
 ALTER TABLE public.fee_ledger REPLICA IDENTITY FULL;
 ALTER TABLE public.exam_marks REPLICA IDENTITY FULL;
@@ -184,6 +206,11 @@ DO $$
 BEGIN
     BEGIN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.schools;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.school_staff;
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
 
@@ -219,9 +246,10 @@ BEGIN
 END $$;
 
 -- ====================================================================
--- 6. PERMISSIVE ROW LEVEL SECURITY (RLS) FOR SCHOOL PILOTS
+-- 6. PERMISSIVE ROW LEVEL SECURITY (RLS) POLICIES FOR PILOT LAUNCH
 -- ====================================================================
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fee_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_marks ENABLE ROW LEVEL SECURITY;
@@ -231,6 +259,9 @@ ALTER TABLE public.student_roadmap_progress ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Pilot open access on schools" ON public.schools;
 CREATE POLICY "Pilot open access on schools" ON public.schools FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Pilot open access on school_staff" ON public.school_staff;
+CREATE POLICY "Pilot open access on school_staff" ON public.school_staff FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Pilot open access on students" ON public.students;
 CREATE POLICY "Pilot open access on students" ON public.students FOR ALL USING (true) WITH CHECK (true);
@@ -251,59 +282,92 @@ DROP POLICY IF EXISTS "Pilot open access on student_roadmap_progress" ON public.
 CREATE POLICY "Pilot open access on student_roadmap_progress" ON public.student_roadmap_progress FOR ALL USING (true) WITH CHECK (true);
 
 -- ====================================================================
--- 7. COMPLETE, MATHEMATICALLY CONSISTENT SEED DATA
+-- 7. COMPLETE, MATHEMATICALLY CONSISTENT MULTI-SCHOOL SEED DATA
 -- ====================================================================
 
--- 7.1 SEED SCHOOLS (Multi-Board Demo: CBSE + ICSE)
-INSERT INTO public.schools (id, school_code, name, board, academic_session, principal_name)
+-- 7.1 SEED SCHOOLS (SCH-01 CBSE, SCH-02 ICSE)
+INSERT INTO public.schools (id, school_serial, school_code, name, board, academic_session, principal_name)
 VALUES
 (
-    'DVPS01',
-    'DVPS01',
+    'SCH-01',
+    1,
+    'SCH-01',
     'Doon Valley Public School',
     'CBSE',
-    '2026-2027',
-    'Dr. R. K. Mahapatra'
+    '2026-27',
+    'Dr. Meenakshi Sharma'
 ),
 (
-    'STJ01',
-    'STJ01',
-    'St. Joseph''s Academy, Dehradun',
+    'SCH-02',
+    2,
+    'SCH-02',
+    'St. Joseph''s Academy',
     'ICSE',
-    '2026-2027',
-    'Bro. Joseph Mathew'
+    '2026-27',
+    'Fr. Joseph Thomas'
 )
 ON CONFLICT (id) DO UPDATE SET
+    school_serial = EXCLUDED.school_serial,
+    school_code = EXCLUDED.school_code,
     name = EXCLUDED.name,
     board = EXCLUDED.board,
     academic_session = EXCLUDED.academic_session,
     principal_name = EXCLUDED.principal_name;
 
--- 7.2 SEED 15 STUDENTS (8 in Class 10-A, 7 in Class 9-B)
--- Notice Aarav Sharma is seeded with paid_fee = 36000 and balance_due = 12000 (Q4 Pending)
+-- 7.2 SEED 5 STAFF MEMBERS FOR SCH-01
+-- SHA-256('edzy-salt-v1:edzy123') = ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542
+-- Ms. Kavita Joshi (SCH-01-TCH-003) keeps is_password_set = FALSE for first-time setup testing.
+INSERT INTO public.school_staff (
+    id, school_id, employee_serial, full_name, department, designation,
+    assigned_class, subject, phone, password_hash, is_password_set, status
+) VALUES
+('SCH-01-ADM-001', 'SCH-01', 1, 'Dr. Meenakshi Sharma', 'ADM', 'Principal & ERP Admin',   NULL,         NULL,           '9811000001', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE'),
+('SCH-01-TCH-001', 'SCH-01', 1, 'Mrs. Sunita Rawat',    'TCH', 'Class Teacher',           'Class 10-A', 'Science',      '9811000002', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE'),
+('SCH-01-TCH-002', 'SCH-01', 2, 'Mr. Vikram Negi',      'TCH', 'Class Teacher',           'Class 9-B',  'Mathematics',  '9811000003', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE'),
+('SCH-01-TCH-003', 'SCH-01', 3, 'Ms. Kavita Joshi',     'TCH', 'Class Teacher',           'Class 2-A',  'All Subjects', '9811000004', NULL,                                                               FALSE, 'ACTIVE'),
+('SCH-01-ACT-001', 'SCH-01', 1, 'Mr. Harish Pant',      'ACT', 'Senior Accounts Officer', NULL,         NULL,           '9811000005', 'ef99c298f748f0479f1857e80755d1ef48450d74ebeed8caa267bd7aa1267542', TRUE,  'ACTIVE')
+ON CONFLICT (id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    department = EXCLUDED.department,
+    designation = EXCLUDED.designation,
+    assigned_class = EXCLUDED.assigned_class,
+    subject = EXCLUDED.subject,
+    phone = EXCLUDED.phone,
+    password_hash = EXCLUDED.password_hash,
+    is_password_set = EXCLUDED.is_password_set,
+    status = EXCLUDED.status;
+
+-- 7.3 SEED 19 ALPHABETICALLY SORTED STUDENTS IN SCH-01 ACROSS 3 CLASSES
+-- Class 10-A (8 students, ₹48,000 annual), Class 9-B (6 students, ₹44,000 annual), Class 2-A (5 students, ₹32,000 annual)
 INSERT INTO public.students (
     id, school_id, school_code, roll_number, full_name, class_grade, section,
     parent_name, parent_phone, parent_pin, total_fee, paid_fee, balance_due,
     weekly_study_hours, streak_days, attendance_pct
 ) VALUES
--- Class 10-A
-('SCH-2026-0104', 'DVPS01', 'DVPS01', '24', 'Aarav Sharma',   'Class 10-A', 'A', 'Rajesh Sharma',      '9811234567', '1234', 48000.00, 36000.00, 12000.00, 6.5, 12, 96.80),
-('SCH-2026-0101', 'DVPS01', 'DVPS01', '01', 'Ananya Gupta',   'Class 10-A', 'A', 'Amit Gupta',        '9811234501', '1234', 48000.00, 48000.00,     0.00, 8.2, 19, 98.50),
-('SCH-2026-0102', 'DVPS01', 'DVPS01', '12', 'Rohan Mehra',    'Class 10-A', 'A', 'Sunil Mehra',       '9811234502', '1234', 48000.00, 36000.00, 12000.00, 4.5,  7, 92.00),
-('SCH-2026-0103', 'DVPS01', 'DVPS01', '15', 'Diya Verma',     'Class 10-A', 'A', 'Vivek Verma',       '9811234503', '1234', 48000.00, 48000.00,     0.00, 7.0, 14, 97.20),
-('SCH-2026-0105', 'DVPS01', 'DVPS01', '27', 'Kabir Sen',      'Class 10-A', 'A', 'Debashis Sen',      '9811234505', '1234', 48000.00, 24000.00, 24000.00, 3.2,  4, 88.40),
-('SCH-2026-0106', 'DVPS01', 'DVPS01', '31', 'Sanjana Nair',   'Class 10-A', 'A', 'Unnikrishnan Nair', '9811234506', '1234', 48000.00, 48000.00,     0.00, 6.8, 16, 99.10),
-('SCH-2026-0107', 'DVPS01', 'DVPS01', '38', 'Vivaan Joshi',   'Class 10-A', 'A', 'Harish Joshi',      '9811234507', '1234', 48000.00, 36000.00, 12000.00, 5.1,  9, 94.60),
-('SCH-2026-0108', 'DVPS01', 'DVPS01', '40', 'Meera Pillai',   'Class 10-A', 'A', 'Suresh Pillai',     '9811234508', '1234', 48000.00, 48000.00,     0.00, 7.9, 18, 96.50),
+-- Class 10-A (Strict A -> Z)
+('SCH-01-1001', 'SCH-01', 'SCH-01', '01', 'Aarav Sharma',    'Class 10-A', 'A', 'Rajesh Sharma',    '9811234567', '1234', 48000, 36000, 12000, 6.5, 12, 96.8),
+('SCH-01-1002', 'SCH-01', 'SCH-01', '02', 'Ananya Verma',    'Class 10-A', 'A', 'Amit Verma',       '9811234502', '1234', 48000, 48000,     0, 8.2, 19, 98.5),
+('SCH-01-1003', 'SCH-01', 'SCH-01', '03', 'Diya Nair',       'Class 10-A', 'A', 'Suresh Nair',      '9811234503', '1234', 48000, 24000, 24000, 5.1,  8, 93.4),
+('SCH-01-1004', 'SCH-01', 'SCH-01', '04', 'Kabir Mehta',     'Class 10-A', 'A', 'Vivek Mehta',      '9811234504', '1234', 48000, 48000,     0, 7.4, 15, 97.2),
+('SCH-01-1005', 'SCH-01', 'SCH-01', '05', 'Priya Patel',     'Class 10-A', 'A', 'Rakesh Patel',     '9811234505', '1234', 48000, 48000,     0, 6.9, 16, 99.1),
+('SCH-01-1006', 'SCH-01', 'SCH-01', '06', 'Rohan Gupta',     'Class 10-A', 'A', 'Sunil Gupta',      '9811234506', '1234', 48000, 36000, 12000, 4.5,  7, 92.0),
+('SCH-01-1007', 'SCH-01', 'SCH-01', '07', 'Tanvi Rawat',     'Class 10-A', 'A', 'Harish Rawat',     '9811234507', '1234', 48000, 48000,     0, 7.9, 18, 96.5),
+('SCH-01-1008', 'SCH-01', 'SCH-01', '08', 'Yash Chauhan',    'Class 10-A', 'A', 'Manoj Chauhan',    '9811234508', '1234', 48000, 36000, 12000, 5.6,  9, 94.6),
 
--- Class 9-B
-('SCH-2026-0201', 'DVPS01', 'DVPS01', '04', 'Ishaan Agarwal', 'Class 9-B',  'B', 'Sanjay Agarwal',     '9811234509', '1234', 44000.00, 44000.00,     0.00, 7.2, 15, 97.80),
-('SCH-2026-0202', 'DVPS01', 'DVPS01', '09', 'Tanvi Deshmukh', 'Class 9-B',  'B', 'Anand Deshmukh',     '9811234510', '1234', 44000.00, 33000.00, 11000.00, 4.8,  8, 91.20),
-('SCH-2026-0203', 'DVPS01', 'DVPS01', '14', 'Aditya Kulkarni','Class 9-B',  'B', 'Pravin Kulkarni',    '9811234511', '1234', 44000.00, 44000.00,     0.00, 8.5, 21, 98.90),
-('SCH-2026-0204', 'DVPS01', 'DVPS01', '21', 'Riya Sengupta',  'Class 9-B',  'B', 'Subhash Sengupta',   '9811234512', '1234', 44000.00, 22000.00, 22000.00, 3.5,  5, 86.50),
-('SCH-2026-0205', 'DVPS01', 'DVPS01', '25', 'Aryan Kapoor',   'Class 9-B',  'B', 'Gaurav Kapoor',      '9811234513', '1234', 44000.00, 33000.00, 11000.00, 5.4, 10, 93.40),
-('SCH-2026-0206', 'DVPS01', 'DVPS01', '33', 'Sneha Reddy',    'Class 9-B',  'B', 'K. V. Reddy',        '9811234514', '1234', 44000.00, 44000.00,     0.00, 6.9, 13, 96.00),
-('SCH-2026-0207', 'DVPS01', 'DVPS01', '37', 'Shlok Bhatia',   'Class 9-B',  'B', 'Rajiv Bhatia',       '9811234515', '1234', 44000.00, 33000.00, 11000.00, 4.1,  6, 89.70)
+-- Class 9-B (Strict A -> Z)
+('SCH-01-901',  'SCH-01', 'SCH-01', '01', 'Aditya Kulkarni', 'Class 9-B',  'B', 'Pravin Kulkarni',  '9811234511', '1234', 44000, 44000,     0, 8.5, 21, 98.9),
+('SCH-01-902',  'SCH-01', 'SCH-01', '02', 'Meera Deshmukh',  'Class 9-B',  'B', 'Anand Deshmukh',   '9811234512', '1234', 44000, 33000, 11000, 4.8,  8, 91.2),
+('SCH-01-903',  'SCH-01', 'SCH-01', '03', 'Nikhil Bisht',    'Class 9-B',  'B', 'Mohan Bisht',      '9811234513', '1234', 44000, 44000,     0, 7.2, 15, 97.8),
+('SCH-01-904',  'SCH-01', 'SCH-01', '04', 'Riya Sengupta',   'Class 9-B',  'B', 'Subhash Sengupta', '9811234514', '1234', 44000, 22000, 22000, 3.5,  5, 88.5),
+('SCH-01-905',  'SCH-01', 'SCH-01', '05', 'Siddharth Rao',   'Class 9-B',  'B', 'Prakash Rao',      '9811234515', '1234', 44000, 44000,     0, 6.9, 13, 96.0),
+('SCH-01-906',  'SCH-01', 'SCH-01', '06', 'Sneha Reddy',     'Class 9-B',  'B', 'Venkat Reddy',     '9811234516', '1234', 44000, 22000, 22000, 4.1,  6, 90.4),
+
+-- Class 2-A (Strict A -> Z)
+('SCH-01-201',  'SCH-01', 'SCH-01', '01', 'Aadhya Negi',     'Class 2-A',  'A', 'Dinesh Negi',      '9811234521', '1234', 32000, 32000,     0, 3.8, 14, 98.0),
+('SCH-01-202',  'SCH-01', 'SCH-01', '02', 'Aarush Rawat',    'Class 2-A',  'A', 'Mahesh Rawat',     '9811234522', '1234', 32000, 32000,     0, 4.0, 11, 97.5),
+('SCH-01-203',  'SCH-01', 'SCH-01', '03', 'Ishaan Verma',    'Class 2-A',  'A', 'Sanjay Verma',     '9811234523', '1234', 32000, 24000,  8000, 3.2,  7, 94.2),
+('SCH-01-204',  'SCH-01', 'SCH-01', '04', 'Myra Pant',       'Class 2-A',  'A', 'Alok Pant',        '9811234524', '1234', 32000, 32000,     0, 4.5, 17, 99.0),
+('SCH-01-205',  'SCH-01', 'SCH-01', '05', 'Vedant Joshi',    'Class 2-A',  'A', 'Sanjay Joshi',     '9811234525', '1234', 32000, 24000,  8000, 3.6,  9, 95.5)
 ON CONFLICT (id) DO UPDATE SET
     roll_number = EXCLUDED.roll_number,
     full_name = EXCLUDED.full_name,
@@ -319,100 +383,126 @@ ON CONFLICT (id) DO UPDATE SET
     streak_days = EXCLUDED.streak_days,
     attendance_pct = EXCLUDED.attendance_pct;
 
--- 7.3 SEED ALL 60 QUARTERLY FEE LEDGER ROWS (4 Quarters across all 15 students)
--- Aarav Sharma's Q4 is explicitly PENDING (Due 30 Nov 2026) for demoing live fee collection!
+-- 7.4 SEED ALL 76 QUARTERLY FEE LEDGER ROWS (4 Quarters x 19 Students, 100% matching student totals)
 INSERT INTO public.fee_ledger (
     id, school_id, student_id, installment_title, due_date, amount, status, payment_mode, receipt_number, reference_note, paid_at
 ) VALUES
--- 1. Aarav Sharma (SCH-2026-0104)
-('inst-0104-q1', 'DVPS01', 'SCH-2026-0104', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1042', 'School Accounts Desk Cash Counter #2', '2026-04-12 10:30:00+05:30'),
-('inst-0104-q2', 'DVPS01', 'SCH-2026-0104', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2190', 'HDFC Bank Cheque #902188 Cleared',     '2026-07-14 11:15:00+05:30'),
-('inst-0104-q3', 'DVPS01', 'SCH-2026-0104', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-5581', 'Edzy App PhonePe UPI Txn EDZ904812',    '2026-10-05 16:45:00+05:30'),
-('inst-0104-q4', 'DVPS01', 'SCH-2026-0104', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due',             NULL),
+-- Class 10-A (₹12,000/qtr)
+-- 1. SCH-01-1001 Aarav Sharma (Q1-Q3 PAID = 36000, Q4 PENDING = 12000)
+('inst-1001-q1', 'SCH-01', 'SCH-01-1001', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1001', 'Accounts Desk Counter #1',            '2026-04-12 10:30:00+05:30'),
+('inst-1001-q2', 'SCH-01', 'SCH-01-1001', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2001', 'HDFC Cheque #902188 Cleared',         '2026-07-14 11:15:00+05:30'),
+('inst-1001-q3', 'SCH-01', 'SCH-01-1001', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3001', 'Edzy UPI PhonePe Txn EDZ904812',      '2026-10-05 16:45:00+05:30'),
+('inst-1001-q4', 'SCH-01', 'SCH-01-1001', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due',           NULL),
 
--- 2. Ananya Gupta (SCH-2026-0101) - All Paid
-('inst-0101-q1', 'DVPS01', 'SCH-2026-0101', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1011', 'GPay GP918233', '2026-04-10 09:12:00+05:30'),
-('inst-0101-q2', 'DVPS01', 'SCH-2026-0101', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2114', 'GPay GP938211', '2026-07-11 14:20:00+05:30'),
-('inst-0101-q3', 'DVPS01', 'SCH-2026-0101', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3921', 'Paytm PT772911', '2026-10-02 18:30:00+05:30'),
-('inst-0101-q4', 'DVPS01', 'SCH-2026-0101', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4890', 'PhonePe EDZ99120', '2026-11-01 12:15:00+05:30'),
+-- 2. SCH-01-1002 Ananya Verma (All Paid = 48000)
+('inst-1002-q1', 'SCH-01', 'SCH-01-1002', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1002', 'GPay GP918233',    '2026-04-10 09:12:00+05:30'),
+('inst-1002-q2', 'SCH-01', 'SCH-01-1002', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2002', 'GPay GP938211',    '2026-07-11 14:20:00+05:30'),
+('inst-1002-q3', 'SCH-01', 'SCH-01-1002', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3002', 'Paytm PT772911',   '2026-10-02 18:30:00+05:30'),
+('inst-1002-q4', 'SCH-01', 'SCH-01-1002', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4002', 'PhonePe EDZ99120', '2026-11-01 12:15:00+05:30'),
 
--- 3. Rohan Mehra (SCH-2026-0102) - Q1-Q3 Paid, Q4 Pending
-('inst-0102-q1', 'DVPS01', 'SCH-2026-0102', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1021', 'PhonePe EDZ1021', '2026-04-14 11:00:00+05:30'),
-('inst-0102-q2', 'DVPS01', 'SCH-2026-0102', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-2021', 'Cash Counter #1', '2026-07-16 10:45:00+05:30'),
-('inst-0102-q3', 'DVPS01', 'SCH-2026-0102', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3021', 'GPay GP1023', '2026-10-10 14:15:00+05:30'),
-('inst-0102-q4', 'DVPS01', 'SCH-2026-0102', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL),
+-- 3. SCH-01-1003 Diya Nair (Q1-Q2 PAID = 24000, Q3-Q4 PENDING = 24000)
+('inst-1003-q1', 'SCH-01', 'SCH-01-1003', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1003', 'Accounts Desk Cash',         '2026-04-18 12:00:00+05:30'),
+('inst-1003-q2', 'SCH-01', 'SCH-01-1003', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2003', 'ICICI Cheque #441092',       '2026-07-20 14:10:00+05:30'),
+('inst-1003-q3', 'SCH-01', 'SCH-01-1003', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 3 Installment Due',  NULL),
+('inst-1003-q4', 'SCH-01', 'SCH-01-1003', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due',  NULL),
 
--- 4. Diya Verma (SCH-2026-0103) - All Paid
-('inst-0103-q1', 'DVPS01', 'SCH-2026-0103', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1031', 'GPay GP1031', '2026-04-12 10:00:00+05:30'),
-('inst-0103-q2', 'DVPS01', 'SCH-2026-0103', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2031', 'GPay GP2031', '2026-07-15 15:30:00+05:30'),
-('inst-0103-q3', 'DVPS01', 'SCH-2026-0103', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3031', 'PhonePe EDZ3031', '2026-10-08 11:20:00+05:30'),
-('inst-0103-q4', 'DVPS01', 'SCH-2026-0103', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4031', 'GPay GP4031', '2026-11-04 16:40:00+05:30'),
+-- 4. SCH-01-1004 Kabir Mehta (All Paid = 48000)
+('inst-1004-q1', 'SCH-01', 'SCH-01-1004', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1004', 'GPay GP1004',    '2026-04-12 10:00:00+05:30'),
+('inst-1004-q2', 'SCH-01', 'SCH-01-1004', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2004', 'GPay GP2004',    '2026-07-15 15:30:00+05:30'),
+('inst-1004-q3', 'SCH-01', 'SCH-01-1004', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3004', 'PhonePe EDZ3004','2026-10-08 11:20:00+05:30'),
+('inst-1004-q4', 'SCH-01', 'SCH-01-1004', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4004', 'GPay GP4004',    '2026-11-04 16:40:00+05:30'),
 
--- 5. Kabir Sen (SCH-2026-0105) - Q1-Q2 Paid, Q3-Q4 Pending
-('inst-0105-q1', 'DVPS01', 'SCH-2026-0105', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1051', 'Cash Counter #1', '2026-04-18 12:00:00+05:30'),
-('inst-0105-q2', 'DVPS01', 'SCH-2026-0105', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2051', 'ICICI Cheque #441092', '2026-07-20 14:10:00+05:30'),
-('inst-0105-q3', 'DVPS01', 'SCH-2026-0105', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 3 Due', NULL),
-('inst-0105-q4', 'DVPS01', 'SCH-2026-0105', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL),
+-- 5. SCH-01-1005 Priya Patel (All Paid = 48000)
+('inst-1005-q1', 'SCH-01', 'SCH-01-1005', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1005', 'GPay GP1005',    '2026-04-11 09:30:00+05:30'),
+('inst-1005-q2', 'SCH-01', 'SCH-01-1005', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2005', 'PhonePe EDZ2005','2026-07-12 11:45:00+05:30'),
+('inst-1005-q3', 'SCH-01', 'SCH-01-1005', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3005', 'GPay GP3005',    '2026-10-06 17:15:00+05:30'),
+('inst-1005-q4', 'SCH-01', 'SCH-01-1005', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4005', 'Paytm PT4005',   '2026-11-02 10:20:00+05:30'),
 
--- 6. Sanjana Nair (SCH-2026-0106) - All Paid
-('inst-0106-q1', 'DVPS01', 'SCH-2026-0106', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1061', 'GPay GP1061', '2026-04-11 09:30:00+05:30'),
-('inst-0106-q2', 'DVPS01', 'SCH-2026-0106', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2061', 'PhonePe EDZ2061', '2026-07-12 11:45:00+05:30'),
-('inst-0106-q3', 'DVPS01', 'SCH-2026-0106', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3061', 'GPay GP3061', '2026-10-06 17:15:00+05:30'),
-('inst-0106-q4', 'DVPS01', 'SCH-2026-0106', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4061', 'Paytm PT4061', '2026-11-02 10:20:00+05:30'),
+-- 6. SCH-01-1006 Rohan Gupta (Q1-Q3 PAID = 36000, Q4 PENDING = 12000)
+('inst-1006-q1', 'SCH-01', 'SCH-01-1006', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-1006', 'PhonePe EDZ1006',           '2026-04-14 11:00:00+05:30'),
+('inst-1006-q2', 'SCH-01', 'SCH-01-1006', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'OFFLINE_CASH', '#SCH-2006', 'Accounts Desk Counter #1',  '2026-07-16 10:45:00+05:30'),
+('inst-1006-q3', 'SCH-01', 'SCH-01-1006', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-3006', 'GPay GP1006',               '2026-10-10 14:15:00+05:30'),
+('inst-1006-q4', 'SCH-01', 'SCH-01-1006', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',      NULL,        'Quarter 4 Installment Due', NULL),
 
--- 7. Vivaan Joshi (SCH-2026-0107) - Q1-Q3 Paid, Q4 Pending
-('inst-0107-q1', 'DVPS01', 'SCH-2026-0107', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1071', 'Desk #2', '2026-04-15 11:30:00+05:30'),
-('inst-0107-q2', 'DVPS01', 'SCH-2026-0107', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2071', 'PhonePe EDZ2071', '2026-07-18 16:00:00+05:30'),
-('inst-0107-q3', 'DVPS01', 'SCH-2026-0107', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3071', 'GPay GP3071', '2026-10-09 13:45:00+05:30'),
-('inst-0107-q4', 'DVPS01', 'SCH-2026-0107', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL),
+-- 7. SCH-01-1007 Tanvi Rawat (All Paid = 48000)
+('inst-1007-q1', 'SCH-01', 'SCH-01-1007', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1007', 'GPay GP1007',    '2026-04-10 10:15:00+05:30'),
+('inst-1007-q2', 'SCH-01', 'SCH-01-1007', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2007', 'Paytm PT2007',   '2026-07-14 12:00:00+05:30'),
+('inst-1007-q3', 'SCH-01', 'SCH-01-1007', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3007', 'PhonePe EDZ3007','2026-10-04 18:20:00+05:30'),
+('inst-1007-q4', 'SCH-01', 'SCH-01-1007', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4007', 'GPay GP4007',    '2026-11-03 14:10:00+05:30'),
 
--- 8. Meera Pillai (SCH-2026-0108) - All Paid
-('inst-0108-q1', 'DVPS01', 'SCH-2026-0108', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1081', 'GPay GP1081', '2026-04-10 10:15:00+05:30'),
-('inst-0108-q2', 'DVPS01', 'SCH-2026-0108', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2081', 'Paytm PT2081', '2026-07-14 12:00:00+05:30'),
-('inst-0108-q3', 'DVPS01', 'SCH-2026-0108', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3081', 'PhonePe EDZ3081', '2026-10-04 18:20:00+05:30'),
-('inst-0108-q4', 'DVPS01', 'SCH-2026-0108', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4081', 'GPay GP4081', '2026-11-03 14:10:00+05:30'),
+-- 8. SCH-01-1008 Yash Chauhan (Q1-Q3 PAID = 36000, Q4 PENDING = 12000)
+('inst-1008-q1', 'SCH-01', 'SCH-01-1008', 'Q1 (Apr - Jun 2026)', '2026-04-30', 12000.00, 'PAID',    'OFFLINE_CASH', '#SCH-1008', 'Accounts Desk Counter #2',  '2026-04-15 11:30:00+05:30'),
+('inst-1008-q2', 'SCH-01', 'SCH-01-1008', 'Q2 (Jul - Sep 2026)', '2026-07-31', 12000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-2008', 'PhonePe EDZ2008',           '2026-07-18 16:00:00+05:30'),
+('inst-1008-q3', 'SCH-01', 'SCH-01-1008', 'Q3 (Oct - Dec 2026)', '2026-10-31', 12000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-3008', 'GPay GP3008',               '2026-10-09 13:45:00+05:30'),
+('inst-1008-q4', 'SCH-01', 'SCH-01-1008', 'Q4 (Jan - Mar 2027)', '2026-11-30', 12000.00, 'PENDING', 'PENDING',      NULL,        'Quarter 4 Installment Due', NULL),
 
--- 9. Ishaan Agarwal (SCH-2026-0201) - Class 9-B (₹11,000/qtr, All Paid)
-('inst-0201-q1', 'DVPS01', 'SCH-2026-0201', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1201', 'GPay GP1201', '2026-04-11 10:00:00+05:30'),
-('inst-0201-q2', 'DVPS01', 'SCH-2026-0201', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2201', 'PhonePe EDZ2201', '2026-07-13 14:30:00+05:30'),
-('inst-0201-q3', 'DVPS01', 'SCH-2026-0201', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3201', 'Paytm PT3201', '2026-10-05 16:00:00+05:30'),
-('inst-0201-q4', 'DVPS01', 'SCH-2026-0201', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4201', 'GPay GP4201', '2026-11-02 11:20:00+05:30'),
+-- Class 9-B (₹11,000/qtr)
+-- 9. SCH-01-901 Aditya Kulkarni (All Paid = 44000)
+('inst-901-q1', 'SCH-01', 'SCH-01-901', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1901', 'GPay GP1901',    '2026-04-11 10:00:00+05:30'),
+('inst-901-q2', 'SCH-01', 'SCH-01-901', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2901', 'PhonePe EDZ2901','2026-07-13 14:30:00+05:30'),
+('inst-901-q3', 'SCH-01', 'SCH-01-901', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3901', 'Paytm PT3901',   '2026-10-05 16:00:00+05:30'),
+('inst-901-q4', 'SCH-01', 'SCH-01-901', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4901', 'GPay GP4901',    '2026-11-02 11:20:00+05:30'),
 
--- 10. Tanvi Deshmukh (SCH-2026-0202) - Q1-Q3 Paid, Q4 Pending
-('inst-0202-q1', 'DVPS01', 'SCH-2026-0202', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1202', 'Desk #1', '2026-04-14 11:20:00+05:30'),
-('inst-0202-q2', 'DVPS01', 'SCH-2026-0202', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2202', 'SBI Cheque #192019', '2026-07-17 12:45:00+05:30'),
-('inst-0202-q3', 'DVPS01', 'SCH-2026-0202', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3202', 'GPay GP3202', '2026-10-09 15:10:00+05:30'),
-('inst-0202-q4', 'DVPS01', 'SCH-2026-0202', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL),
+-- 10. SCH-01-902 Meera Deshmukh (Q1-Q3 PAID = 33000, Q4 PENDING = 11000)
+('inst-902-q1', 'SCH-01', 'SCH-01-902', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1902', 'Accounts Desk Counter #1',  '2026-04-14 11:20:00+05:30'),
+('inst-902-q2', 'SCH-01', 'SCH-01-902', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2902', 'SBI Cheque #192019',        '2026-07-17 12:45:00+05:30'),
+('inst-902-q3', 'SCH-01', 'SCH-01-902', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3902', 'GPay GP3902',               '2026-10-09 15:10:00+05:30'),
+('inst-902-q4', 'SCH-01', 'SCH-01-902', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due', NULL),
 
--- 11. Aditya Kulkarni (SCH-2026-0203) - All Paid
-('inst-0203-q1', 'DVPS01', 'SCH-2026-0203', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1203', 'PhonePe EDZ1203', '2026-04-12 09:40:00+05:30'),
-('inst-0203-q2', 'DVPS01', 'SCH-2026-0203', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2203', 'GPay GP2203', '2026-07-15 11:20:00+05:30'),
-('inst-0203-q3', 'DVPS01', 'SCH-2026-0203', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3203', 'Paytm PT3203', '2026-10-07 14:00:00+05:30'),
-('inst-0203-q4', 'DVPS01', 'SCH-2026-0203', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4203', 'GPay GP4203', '2026-11-01 10:15:00+05:30'),
+-- 11. SCH-01-903 Nikhil Bisht (All Paid = 44000)
+('inst-903-q1', 'SCH-01', 'SCH-01-903', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1903', 'PhonePe EDZ1903','2026-04-12 09:40:00+05:30'),
+('inst-903-q2', 'SCH-01', 'SCH-01-903', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2903', 'GPay GP2903',    '2026-07-15 11:20:00+05:30'),
+('inst-903-q3', 'SCH-01', 'SCH-01-903', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3903', 'Paytm PT3903',   '2026-10-07 14:00:00+05:30'),
+('inst-903-q4', 'SCH-01', 'SCH-01-903', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4903', 'GPay GP4903',    '2026-11-01 10:15:00+05:30'),
 
--- 12. Riya Sengupta (SCH-2026-0204) - Q1-Q2 Paid, Q3-Q4 Pending
-('inst-0204-q1', 'DVPS01', 'SCH-2026-0204', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1204', 'Desk #2', '2026-04-16 12:30:00+05:30'),
-('inst-0204-q2', 'DVPS01', 'SCH-2026-0204', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2204', 'Axis Cheque #772810', '2026-07-19 14:00:00+05:30'),
-('inst-0204-q3', 'DVPS01', 'SCH-2026-0204', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 3 Due', NULL),
-('inst-0204-q4', 'DVPS01', 'SCH-2026-0204', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL),
+-- 12. SCH-01-904 Riya Sengupta (Q1-Q2 PAID = 22000, Q3-Q4 PENDING = 22000)
+('inst-904-q1', 'SCH-01', 'SCH-01-904', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1904', 'Accounts Desk Counter #2',  '2026-04-16 12:30:00+05:30'),
+('inst-904-q2', 'SCH-01', 'SCH-01-904', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2904', 'Axis Cheque #772810',       '2026-07-19 14:00:00+05:30'),
+('inst-904-q3', 'SCH-01', 'SCH-01-904', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 3 Installment Due', NULL),
+('inst-904-q4', 'SCH-01', 'SCH-01-904', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due', NULL),
 
--- 13. Aryan Kapoor (SCH-2026-0205) - Q1-Q3 Paid, Q4 Pending
-('inst-0205-q1', 'DVPS01', 'SCH-2026-0205', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1205', 'PhonePe EDZ1205', '2026-04-13 11:10:00+05:30'),
-('inst-0205-q2', 'DVPS01', 'SCH-2026-0205', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2205', 'GPay GP2205', '2026-07-16 16:30:00+05:30'),
-('inst-0205-q3', 'DVPS01', 'SCH-2026-0205', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-3205', 'Desk #1', '2026-10-10 10:15:00+05:30'),
-('inst-0205-q4', 'DVPS01', 'SCH-2026-0205', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL),
+-- 13. SCH-01-905 Siddharth Rao (All Paid = 44000)
+('inst-905-q1', 'SCH-01', 'SCH-01-905', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1905', 'GPay GP1905',    '2026-04-11 10:45:00+05:30'),
+('inst-905-q2', 'SCH-01', 'SCH-01-905', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2905', 'Paytm PT2905',   '2026-07-14 13:20:00+05:30'),
+('inst-905-q3', 'SCH-01', 'SCH-01-905', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3905', 'PhonePe EDZ3905','2026-10-06 17:00:00+05:30'),
+('inst-905-q4', 'SCH-01', 'SCH-01-905', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4905', 'GPay GP4905',    '2026-11-03 15:40:00+05:30'),
 
--- 14. Sneha Reddy (SCH-2026-0206) - All Paid
-('inst-0206-q1', 'DVPS01', 'SCH-2026-0206', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1206', 'GPay GP1206', '2026-04-11 10:45:00+05:30'),
-('inst-0206-q2', 'DVPS01', 'SCH-2026-0206', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-2206', 'Paytm PT2206', '2026-07-14 13:20:00+05:30'),
-('inst-0206-q3', 'DVPS01', 'SCH-2026-0206', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3206', 'PhonePe EDZ3206', '2026-10-06 17:00:00+05:30'),
-('inst-0206-q4', 'DVPS01', 'SCH-2026-0206', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-4206', 'GPay GP4206', '2026-11-03 15:40:00+05:30'),
+-- 14. SCH-01-906 Sneha Reddy (Q1-Q2 PAID = 22000, Q3-Q4 PENDING = 22000)
+('inst-906-q1', 'SCH-01', 'SCH-01-906', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-1906', 'Paytm PT1906',              '2026-04-12 11:30:00+05:30'),
+('inst-906-q2', 'SCH-01', 'SCH-01-906', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'OFFLINE_CASH', '#SCH-2906', 'Accounts Desk Counter #1',  '2026-07-14 14:15:00+05:30'),
+('inst-906-q3', 'SCH-01', 'SCH-01-906', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PENDING', 'PENDING',      NULL,        'Quarter 3 Installment Due', NULL),
+('inst-906-q4', 'SCH-01', 'SCH-01-906', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',      NULL,        'Quarter 4 Installment Due', NULL),
 
--- 15. Shlok Bhatia (SCH-2026-0207) - Q1-Q3 Paid, Q4 Pending
-('inst-0207-q1', 'DVPS01', 'SCH-2026-0207', 'Q1 (Apr - Jun 2026)', '2026-04-30', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-1207', 'Paytm PT1207', '2026-04-12 11:30:00+05:30'),
-('inst-0207-q2', 'DVPS01', 'SCH-2026-0207', 'Q2 (Jul - Sep 2026)', '2026-07-31', 11000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-2207', 'Desk #1', '2026-07-14 14:15:00+05:30'),
-('inst-0207-q3', 'DVPS01', 'SCH-2026-0207', 'Q3 (Oct - Dec 2026)', '2026-10-31', 11000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3207', 'PhonePe EDZ3207', '2026-10-09 16:45:00+05:30'),
-('inst-0207-q4', 'DVPS01', 'SCH-2026-0207', 'Q4 (Jan - Mar 2027)', '2026-11-30', 11000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Due', NULL)
+-- Class 2-A (₹8,000/qtr)
+-- 15. SCH-01-201 Aadhya Negi (All Paid = 32000)
+('inst-201-q1', 'SCH-01', 'SCH-01-201', 'Q1 (Apr - Jun 2026)', '2026-04-30', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1201', 'GPay GP1201',     '2026-04-10 09:30:00+05:30'),
+('inst-201-q2', 'SCH-01', 'SCH-01-201', 'Q2 (Jul - Sep 2026)', '2026-07-31', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2201', 'PhonePe EDZ2201', '2026-07-12 11:00:00+05:30'),
+('inst-201-q3', 'SCH-01', 'SCH-01-201', 'Q3 (Oct - Dec 2026)', '2026-10-31', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3201', 'GPay GP3201',     '2026-10-08 13:15:00+05:30'),
+('inst-201-q4', 'SCH-01', 'SCH-01-201', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4201', 'Paytm PT4201',    '2026-11-02 10:45:00+05:30'),
+
+-- 16. SCH-01-202 Aarush Rawat (All Paid = 32000)
+('inst-202-q1', 'SCH-01', 'SCH-01-202', 'Q1 (Apr - Jun 2026)', '2026-04-30', 8000.00, 'PAID', 'OFFLINE_CASH', '#SCH-1202', 'Accounts Desk Cash', '2026-04-11 10:20:00+05:30'),
+('inst-202-q2', 'SCH-01', 'SCH-01-202', 'Q2 (Jul - Sep 2026)', '2026-07-31', 8000.00, 'PAID', 'ONLINE_UPI',   '#EDZ-2202', 'GPay GP2202',        '2026-07-14 14:00:00+05:30'),
+('inst-202-q3', 'SCH-01', 'SCH-01-202', 'Q3 (Oct - Dec 2026)', '2026-10-31', 8000.00, 'PAID', 'ONLINE_UPI',   '#EDZ-3202', 'PhonePe EDZ3202',    '2026-10-05 15:30:00+05:30'),
+('inst-202-q4', 'SCH-01', 'SCH-01-202', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PAID', 'ONLINE_UPI',   '#EDZ-4202', 'GPay GP4202',        '2026-11-01 11:40:00+05:30'),
+
+-- 17. SCH-01-203 Ishaan Verma (Q1-Q3 PAID = 24000, Q4 PENDING = 8000)
+('inst-203-q1', 'SCH-01', 'SCH-01-203', 'Q1 (Apr - Jun 2026)', '2026-04-30', 8000.00, 'PAID',    'OFFLINE_CASH', '#SCH-1203', 'Accounts Desk Counter #1',  '2026-04-15 11:10:00+05:30'),
+('inst-203-q2', 'SCH-01', 'SCH-01-203', 'Q2 (Jul - Sep 2026)', '2026-07-31', 8000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-2203', 'Paytm PT2203',              '2026-07-16 12:30:00+05:30'),
+('inst-203-q3', 'SCH-01', 'SCH-01-203', 'Q3 (Oct - Dec 2026)', '2026-10-31', 8000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-3203', 'PhonePe EDZ3203',           '2026-10-09 16:20:00+05:30'),
+('inst-203-q4', 'SCH-01', 'SCH-01-203', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PENDING', 'PENDING',      NULL,        'Quarter 4 Installment Due', NULL),
+
+-- 18. SCH-01-204 Myra Pant (All Paid = 32000)
+('inst-204-q1', 'SCH-01', 'SCH-01-204', 'Q1 (Apr - Jun 2026)', '2026-04-30', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-1204', 'GPay GP1204',     '2026-04-12 10:15:00+05:30'),
+('inst-204-q2', 'SCH-01', 'SCH-01-204', 'Q2 (Jul - Sep 2026)', '2026-07-31', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-2204', 'PhonePe EDZ2204', '2026-07-14 11:30:00+05:30'),
+('inst-204-q3', 'SCH-01', 'SCH-01-204', 'Q3 (Oct - Dec 2026)', '2026-10-31', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-3204', 'Paytm PT3204',    '2026-10-07 15:00:00+05:30'),
+('inst-204-q4', 'SCH-01', 'SCH-01-204', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PAID', 'ONLINE_UPI', '#EDZ-4204', 'GPay GP4204',     '2026-11-03 14:20:00+05:30'),
+
+-- 19. SCH-01-205 Vedant Joshi (Q1-Q3 PAID = 24000, Q4 PENDING = 8000)
+('inst-205-q1', 'SCH-01', 'SCH-01-205', 'Q1 (Apr - Jun 2026)', '2026-04-30', 8000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1205', 'Accounts Desk Counter #2',  '2026-04-13 10:40:00+05:30'),
+('inst-205-q2', 'SCH-01', 'SCH-01-205', 'Q2 (Jul - Sep 2026)', '2026-07-31', 8000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2205', 'SBI Cheque #812093',        '2026-07-15 13:00:00+05:30'),
+('inst-205-q3', 'SCH-01', 'SCH-01-205', 'Q3 (Oct - Dec 2026)', '2026-10-31', 8000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3205', 'GPay GP3205',               '2026-10-08 17:10:00+05:30'),
+('inst-205-q4', 'SCH-01', 'SCH-01-205', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due', NULL)
 ON CONFLICT (id) DO UPDATE SET
     status = EXCLUDED.status,
     payment_mode = EXCLUDED.payment_mode,
@@ -420,46 +510,51 @@ ON CONFLICT (id) DO UPDATE SET
     reference_note = EXCLUDED.reference_note,
     paid_at = EXCLUDED.paid_at;
 
--- 7.4 SEED ACADEMIC EXAM MARKS (Granular Subject Marks with CBSE Grading)
--- Seed for Aarav Sharma (SCH-2026-0104) across Pre-Board (92.6%), Midterm (90.2%), and Unit Test 1 (90.8%)
--- Plus Classmates in Class 10-A
+-- 7.5 SEED ACADEMIC EXAM MARKS FOR CLASS 10-A STUDENTS (Aarav SCH-01-1001 & Rohan SCH-01-1006 + classmates)
 INSERT INTO public.exam_marks (
     id, school_id, student_id, exam_type, subject, marks_obtained, max_marks, class_average, grade, teacher_remarks
 ) VALUES
--- Aarav Sharma - Pre-Board
-('SCH-2026-0104-Pre-Board-Science & Lab',          'DVPS01', 'SCH-2026-0104', 'Pre-Board',   'Science & Lab',          94, 100, 78, 'A1', 'Exceptional diagrammatic clarity in Biology & ray optics.'),
-('SCH-2026-0104-Pre-Board-Mathematics',            'DVPS01', 'SCH-2026-0104', 'Pre-Board',   'Mathematics',            91, 100, 72, 'A1', 'Very strong algebraic manipulation.'),
-('SCH-2026-0104-Pre-Board-English Communicative',  'DVPS01', 'SCH-2026-0104', 'Pre-Board',   'English Communicative',  88, 100, 76, 'A2', 'High comprehension, vocabulary is strong.'),
-('SCH-2026-0104-Pre-Board-Social Science',        'DVPS01', 'SCH-2026-0104', 'Pre-Board',   'Social Science',        92, 100, 71, 'A1', 'Detailed historical chronology and accurate map work.'),
-('SCH-2026-0104-Pre-Board-Computer Applications', 'DVPS01', 'SCH-2026-0104', 'Pre-Board',   'Computer Applications', 98, 100, 82, 'A1', 'Top scorer in Python and data structures!'),
+-- Aarav Sharma (SCH-01-1001) - Pre-Board
+('SCH-01-1001-Pre-Board-Science & Lab',          'SCH-01', 'SCH-01-1001', 'Pre-Board',   'Science & Lab',          94, 100, 78, 'A1', 'Exceptional diagrammatic clarity in Biology & ray optics.'),
+('SCH-01-1001-Pre-Board-Mathematics',            'SCH-01', 'SCH-01-1001', 'Pre-Board',   'Mathematics',            91, 100, 72, 'A1', 'Very strong algebraic manipulation.'),
+('SCH-01-1001-Pre-Board-English Communicative',  'SCH-01', 'SCH-01-1001', 'Pre-Board',   'English Communicative',  88, 100, 76, 'A2', 'High comprehension, vocabulary is strong.'),
+('SCH-01-1001-Pre-Board-Social Science',         'SCH-01', 'SCH-01-1001', 'Pre-Board',   'Social Science',         92, 100, 71, 'A1', 'Detailed historical chronology and accurate map work.'),
+('SCH-01-1001-Pre-Board-Computer Applications',  'SCH-01', 'SCH-01-1001', 'Pre-Board',   'Computer Applications',  98, 100, 82, 'A1', 'Top scorer in Python and data structures!'),
 
--- Aarav Sharma - Midterm
-('SCH-2026-0104-Midterm-Science & Lab',            'DVPS01', 'SCH-2026-0104', 'Midterm',     'Science & Lab',          90, 100, 71, 'A1', 'Solid understanding of chemical reactions.'),
-('SCH-2026-0104-Midterm-Mathematics',              'DVPS01', 'SCH-2026-0104', 'Midterm',     'Mathematics',            89, 100, 68, 'A2', 'Clean proofs in geometry.'),
-('SCH-2026-0104-Midterm-English Communicative',    'DVPS01', 'SCH-2026-0104', 'Midterm',     'English Communicative',  86, 100, 74, 'A2', 'Good writing clarity.'),
-('SCH-2026-0104-Midterm-Social Science',          'DVPS01', 'SCH-2026-0104', 'Midterm',     'Social Science',        90, 100, 69, 'A1', 'Accurate geographical reasoning.'),
-('SCH-2026-0104-Midterm-Computer Applications',   'DVPS01', 'SCH-2026-0104', 'Midterm',     'Computer Applications', 96, 100, 79, 'A1', 'Clean syntax and loops logic.'),
+-- Aarav Sharma (SCH-01-1001) - Midterm
+('SCH-01-1001-Midterm-Science & Lab',            'SCH-01', 'SCH-01-1001', 'Midterm',     'Science & Lab',          90, 100, 71, 'A1', 'Solid understanding of chemical reactions.'),
+('SCH-01-1001-Midterm-Mathematics',              'SCH-01', 'SCH-01-1001', 'Midterm',     'Mathematics',            89, 100, 68, 'A2', 'Clean proofs in geometry.'),
+('SCH-01-1001-Midterm-English Communicative',    'SCH-01', 'SCH-01-1001', 'Midterm',     'English Communicative',  86, 100, 74, 'A2', 'Good writing clarity.'),
+('SCH-01-1001-Midterm-Social Science',           'SCH-01', 'SCH-01-1001', 'Midterm',     'Social Science',         90, 100, 69, 'A1', 'Accurate geographical reasoning.'),
+('SCH-01-1001-Midterm-Computer Applications',    'SCH-01', 'SCH-01-1001', 'Midterm',     'Computer Applications',  96, 100, 79, 'A1', 'Clean syntax and loops logic.'),
 
--- Aarav Sharma - Unit Test 1
-('SCH-2026-0104-Unit Test 1-Science & Lab',        'DVPS01', 'SCH-2026-0104', 'Unit Test 1', 'Science & Lab',          46,  50, 36, 'A1', 'Strong start in Life Processes.'),
-('SCH-2026-0104-Unit Test 1-Mathematics',          'DVPS01', 'SCH-2026-0104', 'Unit Test 1', 'Mathematics',            44,  50, 33, 'A2', 'Accurate Real Numbers proofs.'),
-('SCH-2026-0104-Unit Test 1-English Communicative','DVPS01', 'SCH-2026-0104', 'Unit Test 1', 'English Communicative',  43,  50, 37, 'A2', 'Very good grammar accuracy.'),
-('SCH-2026-0104-Unit Test 1-Social Science',      'DVPS01', 'SCH-2026-0104', 'Unit Test 1', 'Social Science',        46,  50, 35, 'A1', 'Well structured answers in Nationalism.'),
-('SCH-2026-0104-Unit Test 1-Computer Applications','DVPS01', 'SCH-2026-0104', 'Unit Test 1', 'Computer Applications', 48,  50, 40, 'A1', 'Superb grasp of basic algorithms.'),
+-- Aarav Sharma (SCH-01-1001) - Unit Test 1
+('SCH-01-1001-Unit Test 1-Science & Lab',        'SCH-01', 'SCH-01-1001', 'Unit Test 1', 'Science & Lab',          46,  50, 36, 'A1', 'Strong start in Life Processes.'),
+('SCH-01-1001-Unit Test 1-Mathematics',          'SCH-01', 'SCH-01-1001', 'Unit Test 1', 'Mathematics',            44,  50, 33, 'A2', 'Accurate Real Numbers proofs.'),
+('SCH-01-1001-Unit Test 1-English Communicative', 'SCH-01','SCH-01-1001', 'Unit Test 1', 'English Communicative',  43,  50, 37, 'A2', 'Very good grammar accuracy.'),
+('SCH-01-1001-Unit Test 1-Social Science',       'SCH-01', 'SCH-01-1001', 'Unit Test 1', 'Social Science',         46,  50, 35, 'A1', 'Well structured answers in Nationalism.'),
+('SCH-01-1001-Unit Test 1-Computer Applications','SCH-01', 'SCH-01-1001', 'Unit Test 1', 'Computer Applications',  48,  50, 40, 'A1', 'Superb grasp of basic algorithms.'),
 
--- Ananya Gupta - Pre-Board (Topper)
-('SCH-2026-0101-Pre-Board-Science & Lab',          'DVPS01', 'SCH-2026-0101', 'Pre-Board',   'Science & Lab',          98, 100, 78, 'A1', 'Batch topper in Science experiments.'),
-('SCH-2026-0101-Pre-Board-Mathematics',            'DVPS01', 'SCH-2026-0101', 'Pre-Board',   'Mathematics',            96, 100, 72, 'A1', 'Flawless trigonometry and circle theorems.'),
-('SCH-2026-0101-Pre-Board-English Communicative',  'DVPS01', 'SCH-2026-0101', 'Pre-Board',   'English Communicative',  94, 100, 76, 'A1', 'Exceptional essay and creative expression.'),
-('SCH-2026-0101-Pre-Board-Social Science',        'DVPS01', 'SCH-2026-0101', 'Pre-Board',   'Social Science',        95, 100, 71, 'A1', 'High analytical precision in economics.'),
-('SCH-2026-0101-Pre-Board-Computer Applications', 'DVPS01', 'SCH-2026-0101', 'Pre-Board',   'Computer Applications', 98, 100, 82, 'A1', 'Perfect score on logic practicals.'),
+-- Ananya Verma (SCH-01-1002) - Pre-Board (Topper)
+('SCH-01-1002-Pre-Board-Science & Lab',          'SCH-01', 'SCH-01-1002', 'Pre-Board',   'Science & Lab',          98, 100, 78, 'A1', 'Batch topper in Science experiments.'),
+('SCH-01-1002-Pre-Board-Mathematics',            'SCH-01', 'SCH-01-1002', 'Pre-Board',   'Mathematics',            96, 100, 72, 'A1', 'Flawless trigonometry and circle theorems.'),
+('SCH-01-1002-Pre-Board-English Communicative',  'SCH-01', 'SCH-01-1002', 'Pre-Board',   'English Communicative',  94, 100, 76, 'A1', 'Exceptional essay and creative expression.'),
+('SCH-01-1002-Pre-Board-Social Science',         'SCH-01', 'SCH-01-1002', 'Pre-Board',   'Social Science',         95, 100, 71, 'A1', 'High analytical precision in economics.'),
+('SCH-01-1002-Pre-Board-Computer Applications',  'SCH-01', 'SCH-01-1002', 'Pre-Board',   'Computer Applications',  98, 100, 82, 'A1', 'Perfect score on logic practicals.'),
 
--- Rohan Mehra - Pre-Board
-('SCH-2026-0102-Pre-Board-Science & Lab',          'DVPS01', 'SCH-2026-0102', 'Pre-Board',   'Science & Lab',          82, 100, 78, 'A2', 'Good lab technique, needs chemistry formula practice.'),
-('SCH-2026-0102-Pre-Board-Mathematics',            'DVPS01', 'SCH-2026-0102', 'Pre-Board',   'Mathematics',            88, 100, 72, 'A2', 'Consistent problem-solving in calculus.'),
-('SCH-2026-0102-Pre-Board-English Communicative',  'DVPS01', 'SCH-2026-0102', 'Pre-Board',   'English Communicative',  85, 100, 76, 'A2', 'Clear prose and good handwriting.'),
-('SCH-2026-0102-Pre-Board-Social Science',        'DVPS01', 'SCH-2026-0102', 'Pre-Board',   'Social Science',        84, 100, 71, 'A2', 'Good coverage of Indian political parties.'),
-('SCH-2026-0102-Pre-Board-Computer Applications', 'DVPS01', 'SCH-2026-0102', 'Pre-Board',   'Computer Applications', 92, 100, 82, 'A1', 'Solid understanding of loops.')
+-- Diya Nair (SCH-01-1003) - Pre-Board
+('SCH-01-1003-Pre-Board-Science & Lab',          'SCH-01', 'SCH-01-1003', 'Pre-Board',   'Science & Lab',          76, 100, 78, 'B1', 'Needs revision on human nephron diagram labels.'),
+('SCH-01-1003-Pre-Board-Mathematics',            'SCH-01', 'SCH-01-1003', 'Pre-Board',   'Mathematics',            74, 100, 72, 'B1', 'Practice quadratic word problems daily.'),
+('SCH-01-1003-Pre-Board-English Communicative',  'SCH-01', 'SCH-01-1003', 'Pre-Board',   'English Communicative',  84, 100, 76, 'A2', 'Strong literature commentary.'),
+('SCH-01-1003-Pre-Board-Social Science',         'SCH-01', 'SCH-01-1003', 'Pre-Board',   'Social Science',         79, 100, 71, 'B1', 'Consistent performance.'),
+('SCH-01-1003-Pre-Board-Computer Applications',  'SCH-01', 'SCH-01-1003', 'Pre-Board',   'Computer Applications',  82, 100, 82, 'A2', 'Good logic flowcharts.'),
+
+-- Rohan Gupta (SCH-01-1006) - Pre-Board (Multi-Student Verification Target)
+('SCH-01-1006-Pre-Board-Science & Lab',          'SCH-01', 'SCH-01-1006', 'Pre-Board',   'Science & Lab',          82, 100, 78, 'A2', 'Good lab technique, practice lens numericals.'),
+('SCH-01-1006-Pre-Board-Mathematics',            'SCH-01', 'SCH-01-1006', 'Pre-Board',   'Mathematics',            88, 100, 72, 'A2', 'Consistent problem-solving in algebra.'),
+('SCH-01-1006-Pre-Board-English Communicative',  'SCH-01', 'SCH-01-1006', 'Pre-Board',   'English Communicative',  85, 100, 76, 'A2', 'Clear prose and good handwriting.'),
+('SCH-01-1006-Pre-Board-Social Science',         'SCH-01', 'SCH-01-1006', 'Pre-Board',   'Social Science',         84, 100, 71, 'A2', 'Good coverage of democratic politics.'),
+('SCH-01-1006-Pre-Board-Computer Applications',  'SCH-01', 'SCH-01-1006', 'Pre-Board',   'Computer Applications',  92, 100, 82, 'A1', 'Solid understanding of loops.')
 ON CONFLICT (id) DO UPDATE SET
     marks_obtained = EXCLUDED.marks_obtained,
     max_marks = EXCLUDED.max_marks,
@@ -468,13 +563,13 @@ ON CONFLICT (id) DO UPDATE SET
     teacher_remarks = EXCLUDED.teacher_remarks,
     updated_at = NOW();
 
--- 7.5 SEED SYLLABUS ROADMAPS (Rich Flowchart + Study Pack JSONB)
+-- 7.6 SEED SYLLABUS ROADMAPS FOR SCH-01 (Ch 6 Biology, Ch 10 Physics, Ch 4 Mathematics)
 INSERT INTO public.syllabus_roadmaps (
     id, school_id, class_grade, subject, chapter_number, chapter_title, pdf_filename, file_size_label, ar_model_name, milestones_json
 ) VALUES
 (
     'syl-01',
-    'DVPS01',
+    'SCH-01',
     'Class 10',
     'Biology (Science)',
     6,
@@ -599,7 +694,7 @@ INSERT INTO public.syllabus_roadmaps (
 ),
 (
     'syl-02',
-    'DVPS01',
+    'SCH-01',
     'Class 10',
     'Physics (Science)',
     10,
@@ -696,7 +791,7 @@ INSERT INTO public.syllabus_roadmaps (
 ),
 (
     'syl-03',
-    'DVPS01',
+    'SCH-01',
     'Class 10',
     'Mathematics',
     4,
@@ -799,13 +894,13 @@ ON CONFLICT (id) DO UPDATE SET
     ar_model_name = EXCLUDED.ar_model_name,
     milestones_json = EXCLUDED.milestones_json;
 
--- 7.6 SEED SCHOOL CIRCULARS & NOTICES (Web to Mobile Broadcast)
+-- 7.7 SEED SCHOOL CIRCULARS FOR SCH-01
 INSERT INTO public.school_circulars (
     id, school_id, title, category, target_class, message, published_by, published_at
 ) VALUES
 (
     'circ-001',
-    'DVPS01',
+    'SCH-01',
     'Class 10 Pre-Board Examination Schedule',
     'Exam',
     'Class 10-A',
@@ -815,7 +910,7 @@ INSERT INTO public.school_circulars (
 ),
 (
     'circ-002',
-    'DVPS01',
+    'SCH-01',
     'Winter Timings Notice & School Uniform Advisory',
     'General',
     'All',
@@ -831,13 +926,13 @@ ON CONFLICT (id) DO UPDATE SET
     published_by = EXCLUDED.published_by,
     published_at = EXCLUDED.published_at;
 
--- 7.7 SEED INITIAL STUDENT ROADMAP PROGRESS (Aarav Sharma - Life Processes Sprint)
+-- 7.8 SEED INITIAL STUDENT ROADMAP PROGRESS (Aarav Sharma SCH-01-1001 - Life Processes Sprint)
 INSERT INTO public.student_roadmap_progress (
     id, school_id, student_id, roadmap_id, target_deadline, total_days, skipped_days_count, node_states_json, pace_status, completion_pct
 ) VALUES (
-    'SCH-2026-0104-syl-01',
-    'DVPS01',
-    'SCH-2026-0104',
+    'SCH-01-1001-syl-01',
+    'SCH-01',
+    'SCH-01-1001',
     'syl-01',
     (CURRENT_DATE + INTERVAL '5 days')::date,
     7,
@@ -863,9 +958,10 @@ ON CONFLICT (id) DO UPDATE SET
     completion_pct = EXCLUDED.completion_pct,
     updated_at = NOW();
 
--- Verification query
+-- Verification summary
 SELECT
     (SELECT COUNT(*) FROM public.schools) AS total_schools,
+    (SELECT COUNT(*) FROM public.school_staff) AS total_staff,
     (SELECT COUNT(*) FROM public.students) AS total_students,
     (SELECT COUNT(*) FROM public.fee_ledger) AS total_fee_installments,
     (SELECT COUNT(*) FROM public.exam_marks) AS total_exam_marks,
@@ -873,5 +969,5 @@ SELECT
     (SELECT COUNT(*) FROM public.school_circulars) AS total_circulars,
     (SELECT COUNT(*) FROM public.student_roadmap_progress) AS total_roadmap_progress;
 
--- Reload PostgREST schema cache to ensure instantaneous reflection of column/index definitions
+-- Reload PostgREST schema cache to ensure instantaneous reflection of new tables & indexes
 NOTIFY pgrst, 'reload schema';

@@ -351,7 +351,7 @@ export default function ProfileScreen() {
               </View>
               <Text style={[styles.settingSubtitle, { color: activeTheme.text.secondary }]}>
                 {connectionMode === 'LIVE_CLOUD'
-                  ? 'Realtime channel active • Subscribed to DVPS01 ledger'
+                  ? `Realtime channel active • Subscribed to ${studentProfile.schoolCode || 'SCH-01'} ledger`
                   : 'Operating in local offline demo fallback'}
               </Text>
             </View>
@@ -470,7 +470,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.policyCardTitle, { color: activeTheme.text.ink }]}>Campus Tenant Isolation</Text>
                 </View>
                 <Text style={[styles.policyCardBody, { color: activeTheme.text.secondary }]}>
-                  Student attendance, exam scores, and roll numbers are strictly sandboxed under Doon Valley Public School (DVPS01). Academic records are never commercialized, harvested, or sold to advertising brokers.
+                  Student attendance, exam scores, and roll numbers are strictly sandboxed under {studentProfile.schoolName || 'Doon Valley Public School'} ({studentProfile.schoolCode || 'SCH-01'}). Academic records are never commercialized, harvested, or sold to advertising brokers.
                 </Text>
               </View>
 

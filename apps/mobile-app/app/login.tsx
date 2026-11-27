@@ -26,10 +26,8 @@ import { useEdzyStore } from '@/store/useEdzyStore';
 import { useAppTheme, getCardShadow } from '@/theme/colors';
 
 const SCHOOL_OPTIONS = [
-  { code: 'DVPS01', name: 'Doon Valley Public School (New Delhi)' },
-  { code: 'DPSRKP', name: 'Delhi Public School (R.K. Puram)' },
-  { code: 'KV0042', name: 'Kendriya Vidyalaya No. 1 (IIT Powai)' },
-  { code: 'STXAV', name: "St. Xavier's Senior Secondary (Kolkata)" },
+  { code: 'SCH-01', name: 'Doon Valley Public School (CBSE)' },
+  { code: 'SCH-02', name: "St. Joseph's Academy (ICSE)" },
 ];
 
 export default function LoginScreen() {
@@ -37,8 +35,8 @@ export default function LoginScreen() {
   const { loginWithStudentId, oneTapDemoLogin, studentProfile } = useEdzyStore();
   const { theme, isDark } = useAppTheme();
 
-  const [selectedSchool, setSelectedSchool] = useState('DVPS01');
-  const [studentId, setStudentId] = useState('SCH-2026-0104');
+  const [selectedSchool, setSelectedSchool] = useState('SCH-01');
+  const [studentId, setStudentId] = useState('SCH-01-1001');
   const [password, setPassword] = useState('1234');
   const [showSchoolPicker, setShowSchoolPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -177,7 +175,7 @@ export default function LoginScreen() {
                 style={[styles.input, { color: theme.textPrimary }]}
                 value={studentId}
                 onChangeText={setStudentId}
-                placeholder="e.g. SCH-2026-0104"
+                placeholder="e.g. SCH-01-1001"
                 placeholderTextColor={theme.textMuted}
                 autoCapitalize="characters"
               />
@@ -268,7 +266,7 @@ export default function LoginScreen() {
         {/* Footer Note */}
         <View style={styles.footerNote}>
           <Text style={[styles.footerText, { color: theme.textMuted }]}>
-            Demo Roll No: SCH-2026-0104 • Parent PIN: 1234
+            Demo Roll No: SCH-01-1001 • Parent PIN: 1234
           </Text>
           <Text style={[styles.footerSubText, { color: theme.textMuted }]}>
             Edzy Indian School OS • Encrypted with 256-bit AES

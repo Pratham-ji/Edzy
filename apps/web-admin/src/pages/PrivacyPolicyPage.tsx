@@ -109,7 +109,7 @@ export default function PrivacyPolicyPage({
                 <span>Student Directory & Academic Roster</span>
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Roll number, full name, class/grade, section, and enrolled campus ID (e.g. <code>DVPS01</code>). Used solely to authenticate student access and route official homework circulars.
+                Roll number, full name, class/grade, section, and enrolled campus ID (e.g. <code>SCH-01</code>). Used solely to authenticate student access and route official homework circulars.
               </p>
             </div>
 

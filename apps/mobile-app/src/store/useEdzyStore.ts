@@ -447,8 +447,8 @@ const INITIAL_PROGRESS_MAP: Record<string, StudentRoadmapProgress> = (() => {
   const firstRoadmap = INITIAL_ROADMAPS[0];
   const initialPlan = buildSchedulePlan({
     roadmapId: firstRoadmap.id,
-    studentId: 'SCH-2026-0104',
-    schoolId: 'DVPS01',
+    studentId: 'SCH-01-1001',
+    schoolId: 'SCH-01',
     milestones: firstRoadmap.milestones.map((m) => ({
       ...m,
       nodeId: m.nodeId || m.id,
@@ -508,45 +508,45 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 
 const INITIAL_FEES: FeeInstallment[] = [
   {
-    id: 'inst-0104-q1',
+    id: 'inst-1001-q1',
     quarter: 'Quarter 1 (Apr - Jun 2026)',
-    academicYear: '2026-2027',
+    academicYear: '2026-27',
     amount: 12000,
     status: 'PAID',
     paymentMethod: 'OFFLINE_CASH',
-    paymentChannelDetail: 'School Reception Cash Counter Desk #2',
-    receiptNumber: '#SCH-1042',
+    paymentChannelDetail: 'Accounts Desk Counter #1',
+    receiptNumber: '#SCH-1001',
     paidDate: '12 Apr 2026',
     dueDate: '30 Apr 2026',
   },
   {
-    id: 'inst-0104-q2',
+    id: 'inst-1001-q2',
     quarter: 'Quarter 2 (Jul - Sep 2026)',
-    academicYear: '2026-2027',
+    academicYear: '2026-27',
     amount: 12000,
     status: 'PAID',
     paymentMethod: 'OFFLINE_CHEQUE',
-    paymentChannelDetail: 'HDFC Bank Cheque Clr #902188 (Accounts Office)',
-    receiptNumber: '#SCH-2190',
+    paymentChannelDetail: 'HDFC Cheque #902188 Cleared',
+    receiptNumber: '#SCH-2001',
     paidDate: '14 Jul 2026',
     dueDate: '31 Jul 2026',
   },
   {
-    id: 'inst-0104-q3',
+    id: 'inst-1001-q3',
     quarter: 'Quarter 3 (Oct - Dec 2026)',
-    academicYear: '2026-2027',
+    academicYear: '2026-27',
     amount: 12000,
     status: 'PAID',
     paymentMethod: 'ONLINE_UPI',
-    paymentChannelDetail: 'Edzy UPI Gateway (PhonePe - TxnRef: EDZ904812)',
-    receiptNumber: '#EDZ-5581',
+    paymentChannelDetail: 'Edzy UPI PhonePe Txn EDZ904812',
+    receiptNumber: '#EDZ-3001',
     paidDate: '05 Oct 2026',
     dueDate: '31 Oct 2026',
   },
   {
-    id: 'inst-0104-q4',
+    id: 'inst-1001-q4',
     quarter: 'Quarter 4 (Jan - Mar 2027)',
-    academicYear: '2026-2027',
+    academicYear: '2026-27',
     amount: 12000,
     status: 'PENDING',
     dueDate: '30 Nov 2026',
@@ -925,7 +925,7 @@ export function mapMobileProgressRow(row: any): StudentRoadmapProgress {
 
   return {
     id: row.id || `${row.student_id}-${row.roadmap_id}`,
-    schoolId: row.school_id || 'DVPS01',
+    schoolId: row.school_id || 'SCH-01',
     studentId: row.student_id,
     roadmapId: row.roadmap_id,
     targetDeadline: row.target_deadline || getLocalDateString(6),
@@ -948,7 +948,7 @@ function persistAndBroadcastRoadmapProgress(progress: StudentRoadmapProgress) {
     .upsert(
       {
         id: progress.id,
-        school_id: progress.schoolId || 'DVPS01',
+        school_id: progress.schoolId || 'SCH-01',
         student_id: progress.studentId,
         roadmap_id: progress.roadmapId,
         target_deadline: progress.targetDeadline,
@@ -970,7 +970,7 @@ function persistAndBroadcastRoadmapProgress(progress: StudentRoadmapProgress) {
   if (mobileBroadcastChannel) {
     const syncData = {
       id: progress.id,
-      schoolId: progress.schoolId || 'DVPS01',
+      schoolId: progress.schoolId || 'SCH-01',
       studentId: progress.studentId,
       roadmapId: progress.roadmapId,
       targetDeadline: progress.targetDeadline,
@@ -988,7 +988,7 @@ function persistAndBroadcastRoadmapProgress(progress: StudentRoadmapProgress) {
       event: 'EDZY_SYNC',
       payload: {
         action: 'ROADMAP_PROGRESS_UPDATED',
-        schoolId: progress.schoolId || 'DVPS01',
+        schoolId: progress.schoolId || 'SCH-01',
         studentId: progress.studentId,
         data: syncData,
         ts: Date.now(),
@@ -1052,12 +1052,12 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
   isAuthenticated: false,
   activeMode: 'STUDENT',
   studentProfile: {
-    id: 'SCH-2026-0104',
+    id: 'SCH-01-1001',
     name: 'Aarav Sharma',
     classGrade: 'Class 10-A',
-    rollNo: '24',
+    rollNo: '01',
     schoolName: 'Doon Valley Public School',
-    schoolCode: 'DVPS01',
+    schoolCode: 'SCH-01',
     schoolBoard: 'CBSE',
     parentName: 'Rajesh Sharma',
     parentPin: '1234',
@@ -1083,7 +1083,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
   liveSyncToast: null,
   clearLiveSyncToast: () => set({ liveSyncToast: null }),
 
-  initializeMobileSync: async (studentIdOrRoll = 'SCH-2026-0104') => {
+  initializeMobileSync: async (studentIdOrRoll = 'SCH-01-1001') => {
     if (!isLiveSupabaseConfigured) {
       set({ connectionMode: 'DEMO_MODE' });
       return () => {};
@@ -1092,52 +1092,72 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     try {
       const targetId = studentIdOrRoll || get().studentProfile.id;
 
-      // Clean up existing channel first to avoid duplicate listeners
+      // Clean up existing channels properly before subscribing to avoid duplicate callback errors
       if (mobileRealtimeChannel) {
         try {
-          supabase.removeChannel(mobileRealtimeChannel);
+          await supabase.removeChannel(mobileRealtimeChannel);
         } catch (e) {}
         mobileRealtimeChannel = null;
       }
+      if (mobileBroadcastChannel) {
+        try {
+          await supabase.removeChannel(mobileBroadcastChannel);
+        } catch (e) {}
+        mobileBroadcastChannel = null;
+      }
 
-      const [studentRes, feeRes, marksRes, syllabusRes, circRes, progressRes] = await Promise.all([
+      const initialSchoolCode = get().studentProfile.schoolCode || 'SCH-01';
+
+      const [studentRes, feeRes, marksRes, progressRes] = await Promise.all([
         supabase.from('students').select('*').eq('id', targetId).maybeSingle(),
         supabase.from('fee_ledger').select('*').eq('student_id', targetId).order('due_date', { ascending: true }),
         supabase.from('exam_marks').select('*').eq('student_id', targetId),
-        supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
-        supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
         supabase.from('student_roadmap_progress').select('*').eq('student_id', targetId).then((r) => r, () => ({ data: null })),
       ]);
 
       const updates: Partial<EdzyState> = {};
 
-      let activeSchoolCode = get().studentProfile.schoolCode || 'DVPS01';
+      let activeSchoolCode = initialSchoolCode;
       if (studentRes.data) {
         const s = studentRes.data;
-        activeSchoolCode = s.school_code || s.school_id || activeSchoolCode;
+        activeSchoolCode = s.school_id || s.school_code || activeSchoolCode;
         const { data: schoolData } = await supabase
           .from('schools')
           .select('*')
-          .eq('school_code', activeSchoolCode)
+          .or(`school_code.eq.${activeSchoolCode},id.eq.${activeSchoolCode}`)
           .maybeSingle()
           .then((r) => r, () => ({ data: null }));
 
         updates.studentProfile = {
           ...get().studentProfile,
           id: s.id,
-          name: s.name || s.full_name || get().studentProfile.name,
-          rollNo: String(s.roll_no || s.roll_number || get().studentProfile.rollNo).padStart(2, '0'),
+          name: s.full_name || s.name || get().studentProfile.name,
+          rollNo: String(s.roll_number || s.roll_no || get().studentProfile.rollNo).padStart(2, '0'),
           classGrade: s.class_grade || get().studentProfile.classGrade,
           schoolName: schoolData?.name || get().studentProfile.schoolName || 'Doon Valley Public School',
           schoolCode: activeSchoolCode,
           schoolBoard: cleanBoardCode(schoolData?.board || get().studentProfile.schoolBoard),
           parentName: s.parent_name || get().studentProfile.parentName,
           parentPin: s.parent_pin || get().studentProfile.parentPin,
-          weeklyStudyHours: Number(s.at_home_hours || s.weekly_study_hours || get().studentProfile.weeklyStudyHours),
+          weeklyStudyHours: Number(s.weekly_study_hours ?? s.at_home_hours ?? get().studentProfile.weeklyStudyHours),
           streakDays: Number(s.streak_days || get().studentProfile.streakDays),
-          attendancePct: Number(s.attendance_pct || s.attendance_percent || get().studentProfile.attendancePct || 96.8),
+          attendancePct: Number(s.attendance_pct ?? s.attendance_percent ?? get().studentProfile.attendancePct ?? 96.8),
         };
       }
+
+      const [syllabusRes, circRes] = await Promise.all([
+        supabase
+          .from('syllabus_roadmaps')
+          .select('*')
+          .eq('school_id', activeSchoolCode)
+          .order('chapter_number', { ascending: true }),
+        supabase
+          .from('school_circulars')
+          .select('*')
+          .eq('school_id', activeSchoolCode)
+          .order('published_at', { ascending: false })
+          .then((r) => r, () => ({ data: null })),
+      ]);
 
       const nextProgressMap: Record<string, StudentRoadmapProgress> = {
         ...get().studentRoadmapProgress,
@@ -1181,13 +1201,6 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       });
 
       // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
-      if (mobileBroadcastChannel) {
-        try {
-          supabase.removeChannel(mobileBroadcastChannel);
-        } catch (e) {}
-        mobileBroadcastChannel = null;
-      }
-
       mobileBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolCode}`, {
         config: { broadcast: { self: false, ack: true } },
       });
@@ -1284,6 +1297,10 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
                   : `New Syllabus Chapter synced: Ch ${mapped.chapterNumber}`,
             };
           });
+        } else if (action === 'STUDENT_UPDATED') {
+          if (data.operation === 'REMOVED' && data.studentId === targetId) {
+            set({ isAuthenticated: false });
+          }
         }
       };
 
@@ -1292,13 +1309,13 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         .on('broadcast', { event: 'edzy-event' }, ({ payload }) => handleMobileBroadcast(payload))
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[Edzy Cloud Mobile] Broadcast channel SUBSCRIBED to edzy-live:DVPS01');
+            console.log(`[Edzy Cloud Mobile] Broadcast channel SUBSCRIBED to edzy-live:${activeSchoolCode}`);
           }
         });
 
       // Layer B: Scoped postgres_changes subscription for durable delivery
       mobileRealtimeChannel = supabase
-        .channel(`mobile-sync-${targetId}`)
+        .channel(`mobile-sync-${targetId}-${Date.now()}`)
         .on(
           'postgres_changes',
           {
@@ -1308,6 +1325,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             filter: `student_id=eq.${targetId}`,
           },
           (payload) => {
+            if (payload.eventType === 'DELETE') return;
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
@@ -1339,14 +1357,18 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             filter: `id=eq.${targetId}`,
           },
           (payload) => {
+            if (payload.eventType === 'DELETE') {
+              set({ isAuthenticated: false });
+              return;
+            }
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
               const att = Number(row.attendance_pct ?? row.attendance_percent ?? 96.8);
               const newProfile: StudentProfile = {
                 ...state.studentProfile,
-                name: row.name || row.full_name || state.studentProfile.name,
-                weeklyStudyHours: Number(row.at_home_hours || row.weekly_study_hours || state.studentProfile.weeklyStudyHours),
+                name: row.full_name || row.name || state.studentProfile.name,
+                weeklyStudyHours: Number(row.weekly_study_hours ?? row.at_home_hours ?? state.studentProfile.weeklyStudyHours),
                 streakDays: Number(row.streak_days || state.studentProfile.streakDays),
                 parentPin: row.parent_pin || state.studentProfile.parentPin,
                 attendancePct: att,
@@ -1385,7 +1407,12 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'syllabus_roadmaps' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'syllabus_roadmaps',
+            filter: `school_id=eq.${activeSchoolCode}`,
+          },
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
@@ -1405,7 +1432,12 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'school_circulars' },
+          {
+            event: '*',
+            schema: 'public',
+            table: 'school_circulars',
+            filter: `school_id=eq.${activeSchoolCode}`,
+          },
           (payload) => {
             const row: any = payload.new;
             if (!row || !row.id) return;
@@ -1451,6 +1483,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
   },
 
   loginWithStudentId: async (schoolCode: string, studentId: string, pinOrPass: string) => {
+    const cleanSchool = (schoolCode || 'SCH-01').trim().toUpperCase();
     const cleanId = studentId.trim();
     const cleanPin = pinOrPass.trim();
 
@@ -1466,10 +1499,13 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         studentRow = idData;
 
         if (!studentRow) {
+          const paddedRoll = /^\d+$/.test(cleanId) ? cleanId.padStart(2, '0') : cleanId;
           const { data: rollData } = await supabase
             .from('students')
             .select('*')
-            .eq('roll_number', cleanId)
+            .eq('school_id', cleanSchool)
+            .in('roll_number', [cleanId, paddedRoll])
+            .limit(1)
             .maybeSingle();
           studentRow = rollData;
         }
@@ -1483,34 +1519,34 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             };
           }
 
-          const studentSchoolCode = studentRow.school_code || studentRow.school_id || schoolCode || 'DVPS01';
+          const studentSchoolCode = studentRow.school_id || studentRow.school_code || cleanSchool || 'SCH-01';
           const { data: schoolData } = await supabase
             .from('schools')
             .select('*')
-            .eq('school_code', studentSchoolCode)
+            .or(`school_code.eq.${studentSchoolCode},id.eq.${studentSchoolCode}`)
             .maybeSingle()
             .then((r) => r, () => ({ data: null }));
 
           const profile: StudentProfile = {
             id: studentRow.id,
-            name: studentRow.name || studentRow.full_name || 'Student',
+            name: studentRow.full_name || studentRow.name || 'Student',
             classGrade: studentRow.class_grade || 'Class 10-A',
-            rollNo: String(studentRow.roll_no || studentRow.roll_number || '24').padStart(2, '0'),
+            rollNo: String(studentRow.roll_number || studentRow.roll_no || '01').padStart(2, '0'),
             schoolName: schoolData?.name || 'Doon Valley Public School',
             schoolCode: studentSchoolCode,
             schoolBoard: cleanBoardCode(schoolData?.board || 'CBSE'),
             parentName: studentRow.parent_name || 'Parent',
             parentPin: expectedPin,
-            weeklyStudyHours: Number(studentRow.at_home_hours || studentRow.weekly_study_hours || 6.5),
+            weeklyStudyHours: Number(studentRow.weekly_study_hours ?? studentRow.at_home_hours ?? 6.5),
             streakDays: Number(studentRow.streak_days || 12),
-            attendancePct: Number(studentRow.attendance_pct || studentRow.attendance_percent || 96.8),
+            attendancePct: Number(studentRow.attendance_pct ?? studentRow.attendance_percent ?? 96.8),
           };
 
           const [feeRes, marksRes, syllabusRes, circRes, progressRes] = await Promise.all([
             supabase.from('fee_ledger').select('*').eq('student_id', studentRow.id).order('due_date', { ascending: true }),
             supabase.from('exam_marks').select('*').eq('student_id', studentRow.id),
-            supabase.from('syllabus_roadmaps').select('*').order('chapter_number', { ascending: true }),
-            supabase.from('school_circulars').select('*').order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
+            supabase.from('syllabus_roadmaps').select('*').eq('school_id', studentSchoolCode).order('chapter_number', { ascending: true }),
+            supabase.from('school_circulars').select('*').eq('school_id', studentSchoolCode).order('published_at', { ascending: false }).then((r) => r, () => ({ data: null })),
             supabase.from('student_roadmap_progress').select('*').eq('student_id', studentRow.id).then((r) => r, () => ({ data: null })),
           ]);
 
@@ -1552,7 +1588,13 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     }
 
     // Graceful offline fallback
-    if (cleanId === 'SCH-2026-0104' || cleanId === '24' || cleanId.toUpperCase() === 'AARAV' || cleanPin === '1234') {
+    if (
+      cleanId.toUpperCase() === 'SCH-01-1001' ||
+      cleanId === '01' ||
+      cleanId === '1' ||
+      cleanId.toUpperCase() === 'AARAV' ||
+      cleanPin === '1234'
+    ) {
       set({ isAuthenticated: true, activeMode: 'STUDENT' });
       return { success: true, message: 'Signed in with Aarav Sharma profile.' };
     }
@@ -1563,6 +1605,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         studentProfile: {
           ...get().studentProfile,
           id: cleanId,
+          schoolCode: cleanSchool,
           name: cleanId.includes('-') ? `Student (${cleanId})` : cleanId,
         },
       });
@@ -1571,15 +1614,19 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
 
     return {
       success: false,
-      message: 'Student ID not recognized. Please use SCH-2026-0104 or One-Tap Demo.',
+      message: 'Student ID not recognized. Please use SCH-01-1001 or One-Tap Demo.',
     };
   },
 
   login: (schoolCode, studentId, pinOrPass) => {
     const cleanId = studentId.trim();
-    if (cleanId === 'SCH-2026-0104' || pinOrPass === '1234' || schoolCode.toUpperCase() === 'DVPS01') {
+    if (
+      cleanId.toUpperCase() === 'SCH-01-1001' ||
+      pinOrPass === '1234' ||
+      schoolCode.toUpperCase() === 'SCH-01'
+    ) {
       set({ isAuthenticated: true });
-      get().initializeMobileSync('SCH-2026-0104');
+      get().initializeMobileSync('SCH-01-1001');
       return true;
     }
     if (cleanId.length >= 3) {
@@ -1595,7 +1642,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       isAuthenticated: true,
       activeMode: 'STUDENT',
     });
-    get().initializeMobileSync('SCH-2026-0104');
+    get().initializeMobileSync('SCH-01-1001');
   },
 
   logout: () => {
@@ -1654,7 +1701,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       buildSchedulePlan({
         roadmapId,
         studentId: state.studentProfile.id,
-        schoolId: state.studentProfile.schoolCode || 'DVPS01',
+        schoolId: state.studentProfile.schoolCode || 'SCH-01',
         milestones: spineList,
         targetDays: 7,
         dailyPaceMinutes: 45,
@@ -1742,7 +1789,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
     const nextPlan = buildSchedulePlan({
       roadmapId,
       studentId: state.studentProfile.id,
-      schoolId: state.studentProfile.schoolCode || 'DVPS01',
+      schoolId: state.studentProfile.schoolCode || 'SCH-01',
       milestones: spineList,
       targetDays,
       dailyPaceMinutes,
@@ -1777,7 +1824,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
       buildSchedulePlan({
         roadmapId,
         studentId: state.studentProfile.id,
-        schoolId: state.studentProfile.schoolCode || 'DVPS01',
+        schoolId: state.studentProfile.schoolCode || 'SCH-01',
         milestones: spineList,
         targetDays: 7,
         dailyPaceMinutes: 45,
@@ -1824,7 +1871,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         ? buildSchedulePlan({
             roadmapId,
             studentId: state.studentProfile.id,
-            schoolId: state.studentProfile.schoolCode || 'DVPS01',
+            schoolId: state.studentProfile.schoolCode || 'SCH-01',
             milestones: spineList,
             targetDays: currentDays,
             dailyPaceMinutes: pace,
@@ -1835,7 +1882,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
         : buildSchedulePlan({
             roadmapId,
             studentId: state.studentProfile.id,
-            schoolId: state.studentProfile.schoolCode || 'DVPS01',
+            schoolId: state.studentProfile.schoolCode || 'SCH-01',
             milestones: spineList,
             targetDays: currentDays + 2,
             dailyPaceMinutes: pace,
@@ -2000,7 +2047,7 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
           event: 'EDZY_SYNC',
           payload: {
             action: 'FEE_UPDATED',
-            schoolId: 'DVPS01',
+            schoolId: state.studentProfile.schoolCode || 'SCH-01',
             studentId: state.studentProfile.id,
             data: {
               installmentId,
