@@ -16,6 +16,7 @@ import {
   generateNextStudentId,
   sortStudentsAlphabetically,
 } from '../lib/idGenerator';
+import { hashStaffPassword, verifyStaffPassword } from '../lib/authCrypto';
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
@@ -828,8 +829,22 @@ const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
   },
 ];
 
+export interface StaffLookupResult {
+  found: boolean;
+  staff: SchoolStaff | null;
+  needsPasswordSetup: boolean;
+  isInactive: boolean;
+}
+
+export interface StaffAuthResult {
+  success: boolean;
+  message: string;
+  staff?: SchoolStaff;
+}
+
 interface AdminState {
   activeSchoolId: string;
+  currentStaff: SchoolStaff | null;
   schoolProfile: SchoolProfile;
   availableSchools: SchoolTenantRecord[];
   staffList: SchoolStaff[];
@@ -853,7 +868,13 @@ interface AdminState {
   addCircular: (payload: Omit<AdminCircular, 'id' | 'date'>) => void;
   toggleStudentAttendance: (studentId: string, status: 'PRESENT' | 'ABSENT') => void;
   markAllAttendance: (classGrade: string, status: 'PRESENT' | 'ABSENT') => void;
-  initializeRealtimeSync: () => Promise<() => void>;
+  initializeRealtimeSync: (schoolIdOverride?: string) => Promise<() => void>;
+
+  // Employee ID Authentication & Self-Password Onboarding
+  lookupEmployeeById: (employeeId: string) => Promise<StaffLookupResult>;
+  loginWithStaffPassword: (employeeId: string, plainPassword: string) => Promise<StaffAuthResult>;
+  completeFirstTimePasswordSetup: (employeeId: string, newPassword: string) => Promise<StaffAuthResult>;
+  logoutStaff: () => void;
 
   // Staff Directory & Auth CRUD
   fetchStaffList: (schoolId?: string) => Promise<void>;
@@ -968,8 +989,42 @@ function broadcastAdminSyncEvent(
   });
 }
 
+const STAFF_SESSION_KEY = 'edzy_staff_session_v1';
+
+function loadSavedStaffSession(): SchoolStaff | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STAFF_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SchoolStaff;
+    if (!parsed || !parsed.id || !parsed.department || parsed.status !== 'ACTIVE') {
+      window.localStorage.removeItem(STAFF_SESSION_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveStaffSession(staff: SchoolStaff | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (staff) {
+      window.localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify(staff));
+    } else {
+      window.localStorage.removeItem(STAFF_SESSION_KEY);
+    }
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+const INITIAL_RESTORED_STAFF = loadSavedStaffSession();
+
 export const useAdminStore = create<AdminState>((set, get) => ({
-  activeSchoolId: 'SCH-01',
+  activeSchoolId: INITIAL_RESTORED_STAFF?.schoolId || 'SCH-01',
+  currentStaff: INITIAL_RESTORED_STAFF,
   schoolProfile: {
     name: 'Doon Valley Public School',
     code: 'SCH-01',
@@ -1322,7 +1377,203 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
-  initializeRealtimeSync: async () => {
+  lookupEmployeeById: async (employeeId) => {
+    const cleanId = (employeeId || '').trim().toUpperCase();
+    if (!cleanId) {
+      return { found: false, staff: null, needsPasswordSetup: false, isInactive: false };
+    }
+
+    if (isLiveSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('school_staff')
+        .select('*')
+        .eq('id', cleanId)
+        .maybeSingle();
+
+      if (!error) {
+        if (!data) {
+          return { found: false, staff: null, needsPasswordSetup: false, isInactive: false };
+        }
+        const mapped = mapSchoolStaffRow(data);
+        set((state) => ({
+          staffList: state.staffList.some((m) => m.id === mapped.id)
+            ? state.staffList.map((m) => (m.id === mapped.id ? mapped : m))
+            : [...state.staffList, mapped],
+        }));
+        return {
+          found: true,
+          staff: mapped,
+          needsPasswordSetup: !mapped.isPasswordSet,
+          isInactive: mapped.status !== 'ACTIVE',
+        };
+      }
+      console.warn('[Edzy Cloud Web] lookupEmployeeById note:', error.message);
+    }
+
+    // Fallback when Supabase env is absent
+    const localMatch = get().staffList.find((m) => m.id.toUpperCase() === cleanId) || null;
+    if (!localMatch) {
+      return { found: false, staff: null, needsPasswordSetup: false, isInactive: false };
+    }
+    return {
+      found: true,
+      staff: localMatch,
+      needsPasswordSetup: !localMatch.isPasswordSet,
+      isInactive: localMatch.status !== 'ACTIVE',
+    };
+  },
+
+  loginWithStaffPassword: async (employeeId, plainPassword) => {
+    const cleanId = (employeeId || '').trim().toUpperCase();
+    const lookup = await get().lookupEmployeeById(cleanId);
+    if (!lookup.found || !lookup.staff) {
+      return {
+        success: false,
+        message: 'Employee ID not found. Contact your School Principal to register your account.',
+      };
+    }
+    if (lookup.isInactive) {
+      return {
+        success: false,
+        message: 'This Employee ID has been deactivated by your School Administrator.',
+      };
+    }
+    if (lookup.needsPasswordSetup || !lookup.staff.passwordHash) {
+      return {
+        success: false,
+        message: 'Account not activated yet. Please create your personal password first.',
+      };
+    }
+
+    const matches = await verifyStaffPassword(plainPassword, lookup.staff.passwordHash);
+    if (!matches) {
+      return {
+        success: false,
+        message: 'Incorrect password. Verify your Employee ID password and try again.',
+      };
+    }
+
+    const matchedSchool = get().availableSchools.find(
+      (s) => s.id === lookup.staff!.schoolId || s.schoolCode === lookup.staff!.schoolId
+    );
+
+    set((state) => ({
+      currentStaff: lookup.staff,
+      activeSchoolId: lookup.staff!.schoolId,
+      syncError: null,
+      schoolProfile: matchedSchool
+        ? {
+            ...state.schoolProfile,
+            name: matchedSchool.name,
+            code: matchedSchool.schoolCode,
+            board: cleanBoardCode(matchedSchool.board),
+            principalName: matchedSchool.principalName,
+            session: matchedSchool.academicSession,
+          }
+        : state.schoolProfile,
+    }));
+    saveStaffSession(lookup.staff);
+    get().initializeRealtimeSync(lookup.staff.schoolId);
+
+    return {
+      success: true,
+      message: `Signed in as ${lookup.staff.fullName}`,
+      staff: lookup.staff,
+    };
+  },
+
+  completeFirstTimePasswordSetup: async (employeeId, newPassword) => {
+    const cleanId = (employeeId || '').trim().toUpperCase();
+    if (!newPassword || newPassword.length < 6) {
+      return {
+        success: false,
+        message: 'Password must be at least 6 characters long.',
+      };
+    }
+
+    const lookup = await get().lookupEmployeeById(cleanId);
+    if (!lookup.found || !lookup.staff) {
+      return {
+        success: false,
+        message: 'Employee ID not found. Contact your School Principal.',
+      };
+    }
+    if (lookup.isInactive) {
+      return {
+        success: false,
+        message: 'This Employee ID has been deactivated by your School Administrator.',
+      };
+    }
+
+    const passwordHash = await hashStaffPassword(newPassword);
+
+    if (isLiveSupabaseConfigured) {
+      const { error } = await supabase
+        .from('school_staff')
+        .update({
+          password_hash: passwordHash,
+          is_password_set: true,
+        })
+        .eq('id', cleanId);
+
+      if (error) {
+        console.error('[Edzy Cloud Web] First-time password setup error:', error.code, error.message);
+        return {
+          success: false,
+          message: `Failed to save password to cloud: ${error.message}`,
+        };
+      }
+    }
+
+    const updatedStaff: SchoolStaff = {
+      ...lookup.staff,
+      passwordHash,
+      isPasswordSet: true,
+    };
+
+    const matchedSchool = get().availableSchools.find(
+      (s) => s.id === updatedStaff.schoolId || s.schoolCode === updatedStaff.schoolId
+    );
+
+    set((state) => ({
+      staffList: state.staffList.map((m) => (m.id === updatedStaff.id ? updatedStaff : m)),
+      currentStaff: updatedStaff,
+      activeSchoolId: updatedStaff.schoolId,
+      syncError: null,
+      schoolProfile: matchedSchool
+        ? {
+            ...state.schoolProfile,
+            name: matchedSchool.name,
+            code: matchedSchool.schoolCode,
+            board: cleanBoardCode(matchedSchool.board),
+            principalName: matchedSchool.principalName,
+            session: matchedSchool.academicSession,
+          }
+        : state.schoolProfile,
+    }));
+    saveStaffSession(updatedStaff);
+    broadcastAdminSyncEvent('STAFF_UPDATED', updatedStaff.schoolId, null, {
+      operation: 'PASSWORD_SET',
+      staffId: updatedStaff.id,
+    });
+    get().initializeRealtimeSync(updatedStaff.schoolId);
+
+    return {
+      success: true,
+      message: 'Password activated successfully!',
+      staff: updatedStaff,
+    };
+  },
+
+  logoutStaff: () => {
+    saveStaffSession(null);
+    set({
+      currentStaff: null,
+      syncError: null,
+    });
+  },
+
+  initializeRealtimeSync: async (schoolIdOverride) => {
     if (!isLiveSupabaseConfigured) {
       set({ connectionMode: 'DEMO_MODE', isSyncing: false });
       return () => {};
@@ -1348,7 +1599,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         adminBroadcastChannel = null;
       }
 
-      const activeSchoolId = get().activeSchoolId || get().schoolProfile.code || 'SCH-01';
+      const activeSchoolId =
+        schoolIdOverride ||
+        get().currentStaff?.schoolId ||
+        get().activeSchoolId ||
+        get().schoolProfile.code ||
+        'SCH-01';
 
       // Layer A: Broadcast channel for instantaneous UI patching (<150ms perceived latency)
       adminBroadcastChannel = supabase.channel(`edzy-live:${activeSchoolId}`, {
@@ -1433,9 +1689,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 : [...state.staffList, incoming],
             }));
           } else if (data.operation === 'REMOVED' && data.staffId) {
-            set((state) => ({
-              staffList: state.staffList.filter((m) => m.id !== data.staffId),
-            }));
+            set((state) => {
+              const shouldLogout = state.currentStaff?.id === data.staffId;
+              if (shouldLogout) saveStaffSession(null);
+              return {
+                staffList: state.staffList.filter((m) => m.id !== data.staffId),
+                currentStaff: shouldLogout ? null : state.currentStaff,
+              };
+            });
           }
         } else if (action === 'STUDENT_UPDATED') {
           if (data.operation === 'ADDED' && data.student) {
@@ -1546,7 +1807,20 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       }
 
       if (staffRes.data && staffRes.data.length > 0) {
-        updates.staffList = staffRes.data.map((row: any) => mapSchoolStaffRow(row));
+        const mappedStaff = staffRes.data.map((row: any) => mapSchoolStaffRow(row));
+        updates.staffList = mappedStaff;
+
+        const restored = get().currentStaff;
+        if (restored && restored.schoolId === activeSchoolId) {
+          const liveSelf = mappedStaff.find((m) => m.id === restored.id);
+          if (!liveSelf || liveSelf.status !== 'ACTIVE') {
+            saveStaffSession(null);
+            updates.currentStaff = null;
+          } else {
+            saveStaffSession(liveSelf);
+            updates.currentStaff = liveSelf;
+          }
+        }
       }
 
       if (studentsRes.data && studentsRes.data.length > 0) {
@@ -1671,9 +1945,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             if (payload.eventType === 'DELETE') {
               const delId = (payload.old as any)?.id;
               if (!delId) return;
-              set((state) => ({
-                staffList: state.staffList.filter((m) => m.id !== delId),
-              }));
+              set((state) => {
+                const shouldLogout = state.currentStaff?.id === delId;
+                if (shouldLogout) saveStaffSession(null);
+                return {
+                  staffList: state.staffList.filter((m) => m.id !== delId),
+                  currentStaff: shouldLogout ? null : state.currentStaff,
+                };
+              });
               return;
             }
             const row: any = payload.new;
@@ -1681,10 +1960,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             set((state) => {
               const mapped = mapSchoolStaffRow(row);
               const exists = state.staffList.some((m) => m.id === mapped.id);
+              const isSelfDeactivated =
+                state.currentStaff?.id === mapped.id && mapped.status !== 'ACTIVE';
+              if (isSelfDeactivated) saveStaffSession(null);
+              const nextCurrent =
+                isSelfDeactivated
+                  ? null
+                  : state.currentStaff?.id === mapped.id
+                  ? mapped
+                  : state.currentStaff;
+              if (nextCurrent && nextCurrent.id === mapped.id) {
+                saveStaffSession(nextCurrent);
+              }
               return {
                 staffList: exists
                   ? state.staffList.map((m) => (m.id === mapped.id ? mapped : m))
                   : [...state.staffList, mapped],
+                currentStaff: nextCurrent,
               };
             });
           }
