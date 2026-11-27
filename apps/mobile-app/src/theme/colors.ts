@@ -1,19 +1,200 @@
 /**
- * Edzy Light-First Consumer Design System
- * Unicorn-grade palette inspired by Zomato, Blinkit, Groww, Duolingo, Airbnb
+ * Edzy Consumer Design System
+ * Unicorn-grade dual-theme system (Light Default / Linear Dark)
  */
 
 import { Platform, ViewStyle, TextStyle } from 'react-native';
+import { useEdzyStore } from '../store/useEdzyStore';
 
-export const colors = {
-  // Canvas & Surfaces
-  background: '#F5F7FA',       // Soft cool off-white canvas
-  surface: '#FFFFFF',          // Pure white card surface
-  surfaceBorder: '#EAECEF',    // Subtle card border
-  surfaceHover: '#F0F2F5',     // Hover / pressed state
-  divider: '#E5E7EB',         // Thin dividers
+export type ThemeMode = 'light' | 'dark';
 
-  // Shadows (use with StyleSheet)
+export interface ThemeTokens {
+  mode: 'light' | 'dark';
+  // Core Surface & Canvas
+  canvas: string;
+  surface: string;
+  surfaceElevated: string;
+  surfaceSubtle: string;
+  border: string;
+  borderSubtle: string;
+
+  // Typography
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+
+  // Brand Palette
+  brand: {
+    primary: string;
+    primaryDark: string;
+    primaryLight: string;
+    tint: string;
+    tintBorder: string;
+  };
+  brandPrimary: string;
+  brandDark: string;
+  brandTint: string;
+  brandBorder: string;
+
+  // Functional Accents
+  success: string;
+  successTint: string;
+  warning: string;
+  warningTint: string;
+  danger: string;
+  dangerTint: string;
+  streak: {
+    primary: string;
+    tint: string;
+    border: string;
+  };
+  streakPrimary: string;
+  streakTint: string;
+
+  // Shadows
+  shadow: {
+    color: string;
+    opacity: number;
+    radius: number;
+    offset: { width: number; height: number };
+    elevation: number;
+  };
+
+  // Legacy & Nested Token Compatibility
+  background: string;
+  surfaceBorder: string;
+  surfaceHover: string;
+  divider: string;
+  text: {
+    primary: string;
+    secondary: string;
+    muted: string;
+    disabled: string;
+    inverse: string;
+    brand: string;
+    ink: string;
+    secondaryInk: string;
+    airbnbDivider: string;
+  };
+  brandObj: {
+    primary: string;
+    primaryDark: string;
+    primaryLight: string;
+    tint: string;
+    tintBorder: string;
+  };
+  student: {
+    primary: string;
+    primaryLight: string;
+    secondary: string;
+    secondaryLight: string;
+    glow: string;
+    cardBg: string;
+    border: string;
+    accent: string;
+  };
+  parent: {
+    primary: string;
+    primaryLight: string;
+    secondary: string;
+    secondaryLight: string;
+    glow: string;
+    cardBg: string;
+    border: string;
+    accent: string;
+  };
+  spatial: {
+    telemetryBg: string;
+    telemetryBorder: string;
+    nodeActive: string;
+    nodeInactive: string;
+    gridLine: string;
+    accentRed: string;
+    accentGreen: string;
+    viewportBg: string;
+  };
+  status: {
+    success: string;
+    successBg: string;
+    successBorder: string;
+    warning: string;
+    warningBg: string;
+    warningBorder: string;
+    error: string;
+    errorBg: string;
+    errorBorder: string;
+    info: string;
+    infoBg: string;
+    infoBorder: string;
+  };
+  payment: {
+    upi: string;
+    upiBg: string;
+    cash: string;
+    cashBg: string;
+    cheque: string;
+    chequeBg: string;
+    due: string;
+    dueBg: string;
+  };
+  streakObj: {
+    primary: string;
+    tint: string;
+    border: string;
+  };
+  tabBar: {
+    background: string;
+    border: string;
+    active: string;
+    inactive: string;
+    pillOverlay: string;
+    pillBorder: string;
+  };
+  bentoCard: string;
+  bentoCardHover: string;
+  cardBorder: string;
+  cardBorderLight: string;
+}
+
+export const lightTheme: ThemeTokens = {
+  mode: 'light',
+  canvas: '#F6F8FC',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
+  surfaceSubtle: '#EEF2F7',
+  border: '#E2E8F0',
+  borderSubtle: '#EEF2F7',
+
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#94A3B8',
+
+  brand: {
+    primary: '#4F46E5',
+    primaryDark: '#3730A3',
+    primaryLight: '#6366F1',
+    tint: '#EEF2FF',
+    tintBorder: '#C7D2FE',
+  },
+  brandPrimary: '#4F46E5',
+  brandDark: '#3730A3',
+  brandTint: '#EEF2FF',
+  brandBorder: '#C7D2FE',
+
+  success: '#059669',
+  successTint: '#ECFDF5',
+  warning: '#D97706',
+  warningTint: '#FFFBEB',
+  danger: '#DC2626',
+  dangerTint: '#FEF2F2',
+  streak: {
+    primary: '#EA580C',
+    tint: '#FFF7ED',
+    border: '#FED7AA',
+  },
+  streakPrimary: '#EA580C',
+  streakTint: '#FFF7ED',
+
   shadow: {
     color: '#000000',
     opacity: 0.05,
@@ -22,16 +203,32 @@ export const colors = {
     elevation: 2,
   },
 
-  // Primary Brand (Royal Indigo)
-  brand: {
+  // Compatibility aliases
+  background: '#F6F8FC',
+  surfaceBorder: '#E2E8F0',
+  surfaceHover: '#EEF2F7',
+  divider: '#E2E8F0',
+
+  text: {
+    primary: '#0F172A',
+    secondary: '#475569',
+    muted: '#94A3B8',
+    disabled: '#CBD5E1',
+    inverse: '#FFFFFF',
+    brand: '#4F46E5',
+    ink: '#0F172A',
+    secondaryInk: '#475569',
+    airbnbDivider: '#E5E9F2',
+  },
+
+  brandObj: {
     primary: '#4F46E5',
-    primaryDark: '#4338CA',
+    primaryDark: '#3730A3',
     primaryLight: '#6366F1',
     tint: '#EEF2FF',
     tintBorder: '#C7D2FE',
   },
 
-  // Student Persona (keep contract keys so store references compile)
   student: {
     primary: '#4F46E5',
     primaryLight: '#6366F1',
@@ -43,7 +240,6 @@ export const colors = {
     accent: '#8B5CF6',
   },
 
-  // Parent ERP Persona
   parent: {
     primary: '#059669',
     primaryLight: '#10B981',
@@ -55,7 +251,6 @@ export const colors = {
     accent: '#EC4899',
   },
 
-  // Spatial AR Engine (dark viewport only)
   spatial: {
     telemetryBg: 'rgba(6, 182, 212, 0.12)',
     telemetryBorder: '#06B6D4',
@@ -64,23 +259,9 @@ export const colors = {
     gridLine: 'rgba(79, 70, 229, 0.15)',
     accentRed: '#EF4444',
     accentGreen: '#10B981',
-    viewportBg: '#111827',  // Dark charcoal for 3D viewport only
+    viewportBg: '#111827',
   },
 
-  // Typography Hierarchy
-  text: {
-    primary: '#111827',      // Deep charcoal (never pure black)
-    secondary: '#6B7280',    // Clean neutral gray
-    muted: '#9CA3AF',        // Light muted
-    disabled: '#D1D5DB',     // Very light
-    inverse: '#FFFFFF',
-    brand: '#4F46E5',
-    ink: '#222222',          // Airbnb deep ink
-    secondaryInk: '#717171', // Airbnb secondary neutral
-    airbnbDivider: '#F0F0F0',
-  },
-
-  // Status & Badges
   status: {
     success: '#059669',
     successBg: '#ECFDF5',
@@ -96,7 +277,6 @@ export const colors = {
     infoBorder: '#BFDBFE',
   },
 
-  // Payment & Receipts
   payment: {
     upi: '#7C3AED',
     upiBg: '#F5F3FF',
@@ -108,93 +288,303 @@ export const colors = {
     dueBg: '#FEF2F2',
   },
 
-  // Streak & Energy
-  streak: {
+  streakObj: {
     primary: '#EA580C',
     tint: '#FFF7ED',
     border: '#FED7AA',
   },
 
-  // Tab Bar
   tabBar: {
     background: '#FFFFFF',
-    border: '#EAECEF',
+    border: '#E5E9F2',
     active: '#4F46E5',
-    inactive: '#9CA3AF',
+    inactive: '#94A3B8',
+    pillOverlay: 'rgba(15, 23, 42, 0.86)',
+    pillBorder: 'rgba(255, 255, 255, 0.14)',
   },
 
-  // Legacy compat (old dark theme references)
   bentoCard: '#FFFFFF',
-  bentoCardHover: '#F0F2F5',
-  cardBorder: '#EAECEF',
-  cardBorderLight: '#E5E7EB',
-} as const;
+  bentoCardHover: '#F1F5F9',
+  cardBorder: '#E5E9F2',
+  cardBorderLight: '#F1F5F9',
+};
 
-export type ColorTheme = typeof colors;
+export const darkTheme: ThemeTokens = {
+  mode: 'dark',
+  canvas: '#090D16',
+  surface: '#121826',
+  surfaceElevated: '#192234',
+  surfaceSubtle: '#1A2336',
+  border: '#232E44',
+  borderSubtle: '#1B2438',
+
+  textPrimary: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+
+  brand: {
+    primary: '#6366F1',
+    primaryDark: '#3730A3',
+    primaryLight: '#818CF8',
+    tint: '#1B2440',
+    tintBorder: '#3730A3',
+  },
+  brandPrimary: '#6366F1',
+  brandDark: '#3730A3',
+  brandTint: '#1B2440',
+  brandBorder: '#3730A3',
+
+  success: '#34D399',
+  successTint: 'rgba(16, 185, 129, 0.14)',
+  warning: '#FBBF24',
+  warningTint: 'rgba(245, 158, 11, 0.14)',
+  danger: '#F87171',
+  dangerTint: 'rgba(239, 68, 68, 0.14)',
+  streak: {
+    primary: '#FB923C',
+    tint: 'rgba(251, 146, 60, 0.14)',
+    border: 'rgba(251, 146, 60, 0.28)',
+  },
+  streakPrimary: '#FB923C',
+  streakTint: 'rgba(251, 146, 60, 0.14)',
+
+  shadow: {
+    color: '#000000',
+    opacity: 0.35,
+    radius: 12,
+    offset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+
+  // Compatibility aliases
+  background: '#090D16',
+  surfaceBorder: '#232E44',
+  surfaceHover: '#1A2336',
+  divider: '#232E44',
+
+  text: {
+    primary: '#F8FAFC',
+    secondary: '#94A3B8',
+    muted: '#64748B',
+    disabled: '#334155',
+    inverse: '#090D16',
+    brand: '#818CF8',
+    ink: '#F8FAFC',
+    secondaryInk: '#94A3B8',
+    airbnbDivider: '#232E44',
+  },
+
+  brandObj: {
+    primary: '#6366F1',
+    primaryDark: '#4F46E5',
+    primaryLight: '#818CF8',
+    tint: 'rgba(99, 102, 241, 0.16)',
+    tintBorder: 'rgba(99, 102, 241, 0.32)',
+  },
+
+  student: {
+    primary: '#6366F1',
+    primaryLight: '#818CF8',
+    secondary: '#22D3EE',
+    secondaryLight: '#38BDF8',
+    glow: 'rgba(99, 102, 241, 0.20)',
+    cardBg: 'rgba(99, 102, 241, 0.12)',
+    border: 'rgba(99, 102, 241, 0.28)',
+    accent: '#A78BFA',
+  },
+
+  parent: {
+    primary: '#34D399',
+    primaryLight: '#6EE7B7',
+    secondary: '#FBBF24',
+    secondaryLight: '#FCD34D',
+    glow: 'rgba(52, 211, 153, 0.20)',
+    cardBg: 'rgba(52, 211, 153, 0.12)',
+    border: 'rgba(52, 211, 153, 0.28)',
+    accent: '#F472B6',
+  },
+
+  spatial: {
+    telemetryBg: 'rgba(6, 182, 212, 0.16)',
+    telemetryBorder: '#06B6D4',
+    nodeActive: '#38BDF8',
+    nodeInactive: '#64748B',
+    gridLine: 'rgba(99, 102, 241, 0.25)',
+    accentRed: '#F87171',
+    accentGreen: '#34D399',
+    viewportBg: '#090D14',
+  },
+
+  status: {
+    success: '#34D399',
+    successBg: 'rgba(52, 211, 153, 0.14)',
+    successBorder: 'rgba(52, 211, 153, 0.28)',
+    warning: '#FBBF24',
+    warningBg: 'rgba(251, 191, 36, 0.14)',
+    warningBorder: 'rgba(251, 191, 36, 0.28)',
+    error: '#F87171',
+    errorBg: 'rgba(248, 113, 113, 0.14)',
+    errorBorder: 'rgba(248, 113, 113, 0.28)',
+    info: '#60A5FA',
+    infoBg: 'rgba(96, 165, 250, 0.14)',
+    infoBorder: 'rgba(96, 165, 250, 0.28)',
+  },
+
+  payment: {
+    upi: '#A78BFA',
+    upiBg: 'rgba(167, 139, 250, 0.14)',
+    cash: '#34D399',
+    cashBg: 'rgba(52, 211, 153, 0.14)',
+    cheque: '#38BDF8',
+    chequeBg: 'rgba(56, 189, 248, 0.14)',
+    due: '#F87171',
+    dueBg: 'rgba(248, 113, 113, 0.14)',
+  },
+
+  streakObj: {
+    primary: '#FB923C',
+    tint: 'rgba(251, 146, 60, 0.14)',
+    border: 'rgba(251, 146, 60, 0.28)',
+  },
+
+  tabBar: {
+    background: '#121826',
+    border: '#232E44',
+    active: '#818CF8',
+    inactive: '#64748B',
+    pillOverlay: 'rgba(28, 37, 56, 0.90)',
+    pillBorder: 'rgba(255, 255, 255, 0.16)',
+  },
+
+  bentoCard: '#121826',
+  bentoCardHover: '#1A2336',
+  cardBorder: '#232E44',
+  cardBorderLight: '#1B2438',
+};
+
+// Default export matches lightTheme for backward compatibility
+export const colors = lightTheme;
+export type ColorTheme = ThemeTokens;
+
+export function getTheme(mode: ThemeMode = 'light'): ThemeTokens {
+  return mode === 'dark' ? darkTheme : lightTheme;
+}
 
 /**
- * Airbnb Card Standard
- * Pure white tactile surface with subtle border and cross-platform diffused elevation
+ * Global Hook to consume current active theme
+ */
+export function useAppTheme() {
+  const themeMode = useEdzyStore((state) => state.themeMode || 'light');
+  const toggleThemeMode = useEdzyStore((state) => state.toggleThemeMode);
+  const setThemeMode = useEdzyStore((state) => state.setThemeMode);
+  const isDark = themeMode === 'dark';
+  const theme = isDark ? darkTheme : lightTheme;
+
+  return {
+    theme,
+    isDark,
+    themeMode,
+    toggleThemeMode,
+    setThemeMode,
+  };
+}
+
+/**
+ * Cross-platform card shadow helper
+ */
+export function getCardShadow(isDark: boolean): ViewStyle {
+  return Platform.select<ViewStyle>({
+    ios: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.35 : 0.05,
+      shadowRadius: isDark ? 12 : 10,
+    },
+    android: {
+      elevation: isDark ? 1 : 2,
+    },
+    default: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.35 : 0.05,
+      shadowRadius: isDark ? 12 : 10,
+    },
+  }) || {};
+}
+
+/**
+ * Airbnb Card Standard Helper
  */
 export const airbnbCardStyle: ViewStyle = {
   backgroundColor: '#FFFFFF',
   borderRadius: 20,
   borderWidth: 1,
-  borderColor: '#EBEBEB',
+  borderColor: '#E5E9F2',
   ...Platform.select<ViewStyle>({
     ios: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.06,
-      shadowRadius: 16,
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
     },
     android: {
-      elevation: 3,
+      elevation: 2,
     },
     default: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.06,
-      shadowRadius: 16,
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
     },
   }),
 };
 
+export const getAirbnbCardStyle = (mode: ThemeMode = 'light'): ViewStyle => {
+  const isDark = mode === 'dark';
+  const t = isDark ? darkTheme : lightTheme;
+  return {
+    backgroundColor: t.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: t.border,
+    ...getCardShadow(isDark),
+  };
+};
+
 /**
  * Airbnb Typography Standard
- * Tight tracking display titles and human-centered text hierarchy
  */
 export const airbnbTypography = {
   displayTitle: {
     fontSize: 22,
     fontWeight: '700' as const,
     letterSpacing: -0.5,
-    color: '#222222',
+    color: '#0F172A',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700' as const,
     letterSpacing: -0.4,
-    color: '#222222',
+    color: '#0F172A',
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600' as const,
     letterSpacing: -0.3,
-    color: '#222222',
+    color: '#0F172A',
   },
   body: {
     fontSize: 14,
     fontWeight: '400' as const,
-    color: '#717171',
+    color: '#475569',
     lineHeight: 20,
   },
   caption: {
     fontSize: 12,
     fontWeight: '500' as const,
-    color: '#717171',
+    color: '#94A3B8',
   },
-  divider: '#F0F0F0',
-  ink: '#222222',
-  secondaryInk: '#717171',
+  divider: '#E5E9F2',
+  ink: '#0F172A',
+  secondaryInk: '#475569',
 };

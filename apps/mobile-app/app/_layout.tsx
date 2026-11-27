@@ -1,13 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { useAppTheme } from '@/theme/colors';
+import { EdzySplashScreen } from '@/components/EdzySplashScreen';
 
 export default function RootLayout() {
   const { isAuthenticated } = useEdzyStore();
+  const { theme, isDark } = useAppTheme();
+  const [showSplash, setShowSplash] = useState(true);
   const segments = useSegments();
   const router = useRouter();
 
@@ -30,22 +33,24 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.container}>
-        <StatusBar style="dark" />
+      <View style={[styles.container, { backgroundColor: theme.canvas }]}>
+        <StatusBar
+          style={showSplash ? 'light' : isDark ? 'light' : 'dark'}
+        />
         <Stack
           screenOptions={{
             headerStyle: {
-              backgroundColor: colors.surface,
+              backgroundColor: theme.surface,
             },
-            headerTintColor: colors.text.primary,
+            headerTintColor: theme.textPrimary,
             headerTitleStyle: {
               fontWeight: '700',
               fontSize: 17,
-              color: colors.text.primary,
+              color: theme.textPrimary,
             },
             headerShadowVisible: false,
             contentStyle: {
-              backgroundColor: colors.background,
+              backgroundColor: theme.canvas,
             },
           }}
         >
@@ -54,7 +59,7 @@ export default function RootLayout() {
           <Stack.Screen
             name="study/roadmap"
             options={{
-              title: 'CBSE Chapter Roadmap',
+              title: 'Study Roadmap',
               headerBackTitle: 'Back',
             }}
           />
@@ -87,6 +92,9 @@ export default function RootLayout() {
             }}
           />
         </Stack>
+
+        {/* 60fps Native-driver animated launch overlay */}
+        {showSplash && <EdzySplashScreen onFinish={() => setShowSplash(false)} />}
       </View>
     </SafeAreaProvider>
   );
@@ -95,6 +103,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
 });

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Home, BookOpen, Wallet, User } from 'lucide-react-native';
+import { useEdzyStore } from '@/store/useEdzyStore';
 
 export interface FloatingGlassTabBarProps {
   state: any;
@@ -52,6 +53,8 @@ export function FloatingGlassTabBar({
   navigateToTab,
 }: FloatingGlassTabBarProps) {
   const insets = useSafeAreaInsets();
+  const themeMode = useEdzyStore((s) => s.themeMode);
+  const isDark = themeMode === 'dark';
   const [containerWidth, setContainerWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
 
@@ -116,18 +119,49 @@ export function FloatingGlassTabBar({
       pointerEvents="box-none"
       style={[styles.outerWrapper, { bottom: bottomOffset }]}
     >
-      <View style={styles.shadowContainer} onLayout={handleLayout}>
-        <View style={styles.innerPill}>
+      <View
+        style={[
+          styles.shadowContainer,
+          {
+            backgroundColor:
+              Platform.OS === 'android'
+                ? isDark
+                  ? '#161B22'
+                  : '#0F172A'
+                : 'transparent',
+          },
+        ]}
+        onLayout={handleLayout}
+      >
+        <View
+          style={[
+            styles.innerPill,
+            {
+              borderColor: isDark
+                ? 'rgba(255, 255, 255, 0.14)'
+                : 'rgba(255, 255, 255, 0.16)',
+            },
+          ]}
+        >
           {/* Frosted Glass Layer */}
           <BlurView
             intensity={65}
             tint="dark"
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             style={StyleSheet.absoluteFill}
           />
 
-          {/* Deep Obsidian Overlay to ensure 100% readability */}
-          <View style={[StyleSheet.absoluteFill, styles.darkOverlay]} />
+          {/* Deep Slate / Obsidian Overlay */}
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: isDark
+                  ? 'rgba(28, 37, 56, 0.90)'
+                  : 'rgba(15, 23, 42, 0.86)',
+              },
+            ]}
+          />
 
           {/* Animated Sliding Highlight Pill */}
           {tabWidth > 0 && (
@@ -137,6 +171,12 @@ export function FloatingGlassTabBar({
                 {
                   width: indicatorWidth,
                   transform: [{ translateX }],
+                  backgroundColor: isDark
+                    ? 'rgba(99, 102, 241, 0.28)'
+                    : 'rgba(255, 255, 255, 0.16)',
+                  borderColor: isDark
+                    ? 'rgba(99, 102, 241, 0.45)'
+                    : 'rgba(255, 255, 255, 0.22)',
                 },
               ]}
             />

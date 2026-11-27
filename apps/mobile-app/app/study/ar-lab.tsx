@@ -8,7 +8,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Boxes,
   RotateCw,
@@ -26,7 +26,7 @@ import {
   Layers,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors } from '@/theme/colors';
+import { colors, useAppTheme } from '@/theme/colors';
 
 const ANATOMICAL_NODES = [
   {
@@ -64,6 +64,8 @@ const ANATOMICAL_NODES = [
 ];
 
 export default function ArLabScreen() {
+  const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   const { activeArDirective, updateArDirective } = useEdzyStore();
 
   const [rotationAngle, setRotationAngle] = useState(45);
@@ -102,8 +104,19 @@ export default function ArLabScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.canvas }]} edges={['bottom', 'left', 'right']}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: 16,
+            paddingHorizontal: 16,
+            paddingBottom: Math.max(insets.bottom, 24) + 16,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+      >
         {/* ─── 3D VIEWPORT CONTAINER (Dark Charcoal inside only) ─── */}
         <View style={styles.viewportOuterCard}>
           <View style={styles.viewport3D}>
@@ -214,8 +227,8 @@ export default function ArLabScreen() {
             </View>
             <View style={styles.statBoxDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>CBSE EXAM RELEVANCE</Text>
-              <Text style={[styles.statBoxValue, { color: colors.brand.primary }]}>
+              <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>BOARD EXAM RELEVANCE</Text>
+              <Text style={[styles.statBoxValue, { color: theme.brandPrimary }]}>
                 Very High (5 Marks)
               </Text>
             </View>
@@ -320,7 +333,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 16,
     gap: 14,
   },
   viewportOuterCard: {

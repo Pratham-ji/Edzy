@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   X,
   Printer,
@@ -23,21 +23,38 @@ export const StudentLoginSlipModal: React.FC<StudentLoginSlipModalProps> = ({
 }) => {
   const { schoolProfile } = useAdminStore();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!student) return null;
 
   const handlePrint = () => {
     window.print();
   };
 
-  const whatsappMessage = `Dear ${student.parentName},\n\nGreetings from ${schoolProfile.name}!\n\nYour child ${student.name}'s Edzy Campus & At-Home AI Study Space account is now active.\n\n📱 Mobile App Download: https://edzy.app/download\n🏫 School Code: ${schoolProfile.code}\n🆔 Student Admission ID: ${student.id}\n🔑 Parent Fee Passbook PIN: ${student.parentPin}\n\nPlease install the app to view daily CBSE attendance, 3D AR experiments, and quarterly fee receipts.\n\nRegards,\nPrincipal Office, ${schoolProfile.name}`;
+  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
+  const whatsappMessage = `Dear ${student.parentName},\n\nGreetings from ${schoolProfile.name}!\n\nYour child ${student.name}'s Edzy Campus & At-Home AI Study Space account is now active.\n\n📱 Mobile App Download: https://edzy.app/download\n🏫 School Code: ${schoolProfile.code}\n🆔 Student Admission ID: ${student.id}\n🔑 Parent Fee Passbook PIN: ${student.parentPin}\n\nPlease install the app to view daily ${schoolBoard} attendance, 3D AR experiments, and quarterly fee receipts.\n\nRegards,\nPrincipal Office, ${schoolProfile.name}`;
 
   const whatsappUrl = `https://wa.me/91${student.parentPhone}?text=${encodeURIComponent(
     whatsappMessage
   )}`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-6">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Control Bar */}
         <div className="no-print px-6 py-3 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -46,15 +63,17 @@ export const StudentLoginSlipModal: React.FC<StudentLoginSlipModalProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Slip</span>
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white transition rounded-md"
+              className="p-1 text-slate-400 hover:text-white transition rounded-md cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
