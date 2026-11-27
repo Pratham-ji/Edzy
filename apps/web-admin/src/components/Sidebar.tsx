@@ -8,19 +8,15 @@ import {
   BookOpen,
   GraduationCap,
   Settings,
-  Sparkles,
   School,
   ShieldCheck,
   Bell,
-  LogOut,
 } from 'lucide-react';
 import { useAdminStore } from '../store/useAdminStore';
 import {
   NavTab,
   extractClassShortTag,
-  formatStaffRoleLabel,
   getRoleNavigation,
-  getStaffInitials,
 } from '../lib/rbac';
 
 export type { NavTab };
@@ -44,7 +40,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavigatePath }) => {
-  const { schoolProfile, feeInstallments, currentStaff, logoutStaff } = useAdminStore();
+  const { schoolProfile, feeInstallments, currentStaff } = useAdminStore();
 
   const pendingDuesCount = feeInstallments.filter(
     (f) => f.status === 'PENDING' || f.status === 'OVERDUE'
@@ -62,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
         <div className="p-5 border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <School className="w-5 h-5 text-white" />
+              <School className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -74,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
                 </span>
               </div>
               <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
-                School Command Cloud
+                Education Made Easy
               </p>
             </div>
           </div>
@@ -83,8 +79,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
         {/* Institution Context Card */}
         <div className="mx-4 my-4 p-3 rounded-xl bg-[#F6F8FC] dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44]">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-[#4F46E5] dark:text-[#6366F1] tracking-wider">
-              CAMPUS TENANT
+            <span className="text-[10px] font-bold text-[#4F46E5] dark:text-[#818CF8] tracking-wider uppercase">
+              Authorized School
             </span>
             <span className="text-[10px] bg-[#EEF2F7] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8] font-mono px-1.5 py-0.5 rounded border border-[#E2E8F0] dark:border-[#232E44]">
               {schoolProfile.code}
@@ -94,13 +90,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
             {schoolProfile.name}
           </p>
           <div className="flex items-center gap-1 mt-1 text-[11px] text-[#475569] dark:text-[#94A3B8]">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399]" />
+            <ShieldCheck className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
             <span>{schoolBoard} Affiliated</span>
           </div>
         </div>
 
         {/* Role-Scoped Navigation Items */}
-        <nav className="px-3 space-y-1">
+        <nav aria-label="Campus modules" className="px-3 space-y-1">
           <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider">
             {roleNav.sectionLabel}
           </p>
@@ -113,6 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => onSelectTab(item.id)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-xs transition-all cursor-pointer ${
                   isActive
@@ -160,72 +157,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
         </nav>
       </div>
 
-      {/* Bottom Active Staff Card + Sync + Public Links */}
-      <div className="p-4 border-t border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#090D16]/60 space-y-3">
-        {currentStaff && (
-          <div className="p-2.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#4F46E5] dark:bg-[#6366F1] text-white font-bold text-[11px] flex items-center justify-center shrink-0">
-                {getStaffInitials(currentStaff.fullName)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold text-[#0F172A] dark:text-[#F8FAFC] truncate leading-tight">
-                  {currentStaff.fullName}
-                </p>
-                <p className="text-[10px] text-[#475569] dark:text-[#94A3B8] truncate">
-                  {formatStaffRoleLabel(currentStaff)}
-                </p>
-                <p className="text-[9.5px] font-mono font-semibold text-[#4F46E5] dark:text-[#6366F1] truncate">
-                  {currentStaff.id}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={logoutStaff}
-              title="Sign Out"
-              className="p-1.5 rounded-lg text-[#475569] dark:text-[#94A3B8] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition shrink-0 cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#059669] dark:bg-[#34D399]"></span>
-              </span>
-              <span className="text-[11px] font-semibold text-[#059669] dark:text-[#34D399]">
-                Synced with Mobile App
-              </span>
-            </div>
-            <Sparkles className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#6366F1]" />
-          </div>
-          <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] leading-tight">
-            Parent & Student App Active • Cloud Synced
-          </p>
+      {/* Clean Minimal Status & Privacy Footer (No Duplicate Profile Card or Sales Links) */}
+      <div className="p-4 border-t border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#090D16]/60 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#059669] dark:bg-[#34D399]"></span>
+          </span>
+          <span className="text-[11px] font-semibold text-[#059669] dark:text-[#34D399]">
+            Parent &amp; Student App Active
+          </span>
         </div>
 
-        {/* Public Pitch & Privacy Links */}
-        <div className="pt-2.5 border-t border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between text-[11px]">
-          <button
-            onClick={() => (onNavigatePath ? onNavigatePath('/pitch') : (window.location.href = '/pitch'))}
-            className="text-[#4F46E5] dark:text-[#6366F1] hover:text-[#3730A3] dark:hover:text-[#818CF8] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <span>Public Pitch ↗</span>
-          </button>
-          <button
-            onClick={() =>
-              onNavigatePath ? onNavigatePath('/privacy-policy') : (window.location.href = '/privacy-policy')
-            }
-            className="text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] transition-colors cursor-pointer"
-          >
-            Privacy Policy
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() =>
+            onNavigatePath ? onNavigatePath('/privacy-policy') : (window.location.href = '/privacy-policy')
+          }
+          className="text-[11px] font-medium text-[#475569] dark:text-[#94A3B8] hover:text-[#4F46E5] dark:hover:text-[#F8FAFC] transition-colors cursor-pointer"
+        >
+          Privacy &amp; Security Policy
+        </button>
       </div>
     </aside>
   );

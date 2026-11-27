@@ -54,13 +54,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       {syncError && (
         <div className="bg-red-600 dark:bg-red-700 text-white px-6 py-2 flex items-center justify-between text-xs font-semibold shadow-inner">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-white shrink-0 animate-bounce" />
-            <span>Supabase Write Note: {syncError}</span>
+            <AlertTriangle className="w-4 h-4 text-white shrink-0 animate-bounce" aria-hidden="true" />
+            <span>Sync Notice: {syncError}</span>
           </div>
           <button
             onClick={() => setSyncError(null)}
             className="p-1 hover:bg-red-800/60 rounded text-white/90 hover:text-white transition"
-            title="Dismiss error notice"
+            title="Dismiss notice"
           >
             <X className="w-4 h-4" />
           </button>
@@ -147,24 +147,24 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           <div className="h-5 w-px bg-slate-200 dark:bg-[#1A2336]" />
 
-          {/* Database Status Indicator: Live Cloud Sync vs Local Cache Sync + Force Sync */}
+          {/* Clean Campus Sync Status Indicator */}
           <div className="flex items-center gap-1">
             {connectionMode === 'LIVE_CLOUD' ? (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 shadow-xs whitespace-nowrap">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span>Live Cloud Sync</span>
+                <span>Cloud Synced</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 shadow-xs whitespace-nowrap">
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                <span>Local Cache Sync</span>
+                <span>Offline Mode</span>
               </div>
             )}
 
             <button
               onClick={() => initializeRealtimeSync()}
               disabled={isSyncing}
-              title={isSyncing ? 'Syncing with Supabase...' : 'Force Cloud Sync'}
+              title={isSyncing ? 'Syncing school records...' : 'Refresh Campus Sync'}
               className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-[#94A3B8] dark:hover:text-slate-100 hover:bg-[#EEF2F7] dark:hover:bg-slate-800 transition-colors disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw

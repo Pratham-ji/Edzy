@@ -4,18 +4,9 @@ import {
   TrendingUp,
   AlertTriangle,
   Clock,
-  ArrowUpRight,
-  Boxes,
-  Users,
-  BookOpen,
-  CheckCircle2,
-  Calendar,
   Sparkles,
   ArrowRight,
-  ChevronRight,
-  ShieldCheck,
   Receipt,
-  IndianRupee,
 } from 'lucide-react';
 import {
   BarChart,
@@ -41,12 +32,9 @@ interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
-  onOpenFeeModal,
   onOpenCsvModal,
-  onOpenSyllabusModal,
 }) => {
   const { students, feeInstallments, syllabusVault, schoolProfile, studentProgressList } = useAdminStore();
-  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
 
   const liveEngagementData = syllabusVault.slice(0, 5).map((ch) => {
     const progRows = studentProgressList.filter((p) => p.roadmapId === ch.id);
@@ -99,53 +87,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner for School Principals */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-96 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.25),transparent_70%)] pointer-events-none" />
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] bg-indigo-500/30 text-indigo-300 font-extrabold px-2.5 py-0.5 rounded-full border border-indigo-400/30 tracking-wider">
-                EXECUTIVE COCKPIT
-              </span>
-              <span className="text-xs text-slate-300 font-medium">{schoolBoard} Academic Session {schoolProfile.session}</span>
-            </div>
-            <h2 className="text-xl lg:text-2xl font-black tracking-tight text-white">
-              {schoolProfile.name} Command Center
-            </h2>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Replacing fragmented paper fee registers with instant UPI / Offline reconciliation and transforming at-home self-study with school-verified {schoolBoard} 3D AR spatial simulations.
-            </p>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              onClick={onOpenFeeModal}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center gap-1.5"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Collect Fee</span>
-            </button>
-            <button
-              onClick={onOpenCsvModal}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
-            >
-              <Users className="w-4 h-4" />
-              <span>Import CSV</span>
-            </button>
-            <button
-              onClick={onOpenSyllabusModal}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-            >
-              <BookOpen className="w-4 h-4 text-cyan-400" />
-              <span>Publish Syllabus</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* New Campus Quick-Start Banner when freshly onboarded (0 students) */}
+      {/* New Campus Quick-Start Card when freshly onboarded (0 students) */}
       {isNewEmptyCampus && (
         <div className="rounded-2xl bg-[#EEF2FF] dark:bg-[#1B2440]/80 border border-[#C7D2FE] dark:border-[#3730A3] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">

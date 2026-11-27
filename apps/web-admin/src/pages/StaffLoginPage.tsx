@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   KeyRound,
   Sparkles,
-  ExternalLink,
   ChevronDown,
   ChevronUp,
   Lock,
@@ -167,31 +166,37 @@ export default function StaffLoginPage({ onNavigatePath }: StaffLoginPageProps) 
     <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col justify-between transition-colors font-sans">
       {/* Subtle Top Utility Header */}
       <header className="w-full max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onNavigatePath('/')}
+          className="flex items-center gap-3 text-left cursor-pointer group"
+        >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20">
-            <School className="w-5 h-5 text-white" />
+            <School className="w-5 h-5 text-white" aria-hidden="true" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg tracking-wider text-[#0F172A] dark:text-[#F8FAFC]">EDZY</span>
+              <span className="font-extrabold text-lg tracking-wider text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#4F46E5] dark:group-hover:text-[#818CF8] transition-colors">
+                EDZY
+              </span>
               <span className="text-[10px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] font-bold px-2 py-0.5 rounded border border-[#C7D2FE] dark:border-[#3730A3]">
-                SCHOOL ERP
+                SCHOOL PORTAL
               </span>
             </div>
             <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
-              School Command Cloud
+              Education Made Easy
             </p>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => onNavigatePath('/pitch')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#4F46E5] dark:text-[#6366F1] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] transition cursor-pointer"
+            onClick={() => onNavigatePath('/')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#4F46E5] dark:text-[#818CF8] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] transition cursor-pointer"
           >
-            <span>View Public Pitch</span>
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Back to Edzy.in</span>
           </button>
 
           <button
@@ -201,9 +206,9 @@ export default function StaffLoginPage({ onNavigatePath }: StaffLoginPageProps) 
             className="p-2 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2FF] dark:hover:bg-[#1A2336] transition cursor-pointer"
           >
             {themeMode === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
+              <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
             ) : (
-              <Moon className="w-4 h-4 text-[#475569]" />
+              <Moon className="w-4 h-4 text-[#475569]" aria-hidden="true" />
             )}
           </button>
         </div>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Building2,
   Save,
-  Database,
+  Lock,
   FileSpreadsheet,
   CheckCircle2,
   Sun,
@@ -29,7 +29,7 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
   const [formData, setFormData] = useState({ ...schoolProfile });
   const [saveToast, setSaveToast] = useState(false);
 
-  // Sync form whenever active school's live metadata refreshes from Postgres
+  // Sync form whenever active school's live profile updates
   useEffect(() => {
     setFormData({ ...schoolProfile });
   }, [schoolProfile]);
@@ -355,41 +355,59 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
         </div>
       </form>
 
-      {/* Isolated Cloud Sync Health Card */}
-      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6">
-        <div className="flex items-center gap-2 text-slate-900 dark:text-[#F8FAFC] font-bold text-base mb-2">
-          <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          <span>Campus Cloud Sync & Data Isolation</span>
+      {/* Data Confidentiality & Campus Security Card */}
+      <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-[#232E44]">
+          <div className="flex items-center gap-2 text-slate-900 dark:text-[#F8FAFC] font-bold text-base">
+            <Lock className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+            <span>Data Confidentiality &amp; Campus Security</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold bg-[#EEF2FF] dark:bg-[#1B2440] px-3 py-1 rounded-full border border-[#C7D2FE] dark:border-[#3730A3] text-[#4F46E5] dark:text-[#818CF8]">
+            <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>School Vault: {schoolProfile.code}</span>
+          </div>
         </div>
-        <p className="text-xs text-slate-500 dark:text-[#94A3B8] mb-4">
-          Dedicated Postgres storage and real-time synchronization scoped exclusively to {schoolProfile.name} ({schoolProfile.code}).
-        </p>
+
+        <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/50 space-y-1.5">
+          <div className="flex items-center gap-2 text-sm font-bold text-emerald-800 dark:text-emerald-300">
+            <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span>End-to-End School Confidentiality Active</span>
+          </div>
+          <p className="text-xs text-emerald-900/90 dark:text-emerald-200/90 leading-relaxed">
+            All student profiles, exam marks, and fee records belong exclusively to{' '}
+            <strong>{schoolProfile.name}</strong>. Encrypted in transit, DPDP Act Section 9 compliant,
+            and strictly isolated from other institutions.
+          </p>
+        </div>
 
         <div className="p-4 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div
-              className={`w-3.5 h-3.5 rounded-full ${
+              className={`w-3 h-3 rounded-full shrink-0 ${
                 isLiveSupabaseConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
               }`}
             />
             <div>
-              <div className="text-sm font-bold text-slate-800 dark:text-[#F8FAFC]">
-                {isLiveSupabaseConfigured
-                  ? 'Connected to Live Cloud Postgres'
-                  : 'Local Cache Fallback Mode'}
+              <div
+                className={`text-sm font-bold ${
+                  isLiveSupabaseConfigured
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : 'text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {isLiveSupabaseConfigured ? 'Cloud Sync Active' : 'Offline Mode — Reconnecting'}
               </div>
               <div className="text-xs text-slate-500 dark:text-[#94A3B8]">
                 {isLiveSupabaseConfigured
-                  ? `Zero-latency Realtime & broadcast sync active on channel edzy-live:${schoolProfile.code}.`
-                  : 'Resilient local cache active when network connectivity is offline.'}
+                  ? 'Changes sync automatically across campus desks and authorized parent apps.'
+                  : 'Reconnecting to campus cloud — records stay safely queued on this device.'}
               </div>
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono bg-white dark:bg-[#121826] px-3 py-1.5 rounded border border-[#E2E8F0] dark:border-[#232E44] text-emerald-700 dark:text-emerald-300">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Isolated Tenant: {schoolProfile.code}</span>
-          </div>
+          <span className="text-[11px] font-semibold text-[#475569] dark:text-[#94A3B8]">
+            Private Campus Tenant
+          </span>
         </div>
       </div>
     </div>

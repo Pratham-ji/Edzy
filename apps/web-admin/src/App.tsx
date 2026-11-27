@@ -3,6 +3,7 @@ import { Sidebar, NavTab } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { useAdminStore } from './store/useAdminStore';
 import { getRoleNavigation } from './lib/rbac';
+import { applyRouteSeo } from './lib/seo';
 import { downloadCsvFile, formatReceiptNumber } from './lib/feeMetrics';
 import DashboardPage from './pages/DashboardPage';
 import StaffManagementPage from './pages/StaffManagementPage';
@@ -14,7 +15,7 @@ import SyllabusPage from './pages/SyllabusPage';
 import MarksPage from './pages/MarksPage';
 import SettingsPage from './pages/SettingsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import SchoolPitchPage from './pages/SchoolPitchPage';
+import LandingPage from './pages/LandingPage';
 import StaffLoginPage from './pages/StaffLoginPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 
@@ -23,15 +24,21 @@ import CsvImportModal from './components/CsvImportModal';
 import UploadSyllabusModal from './components/UploadSyllabusModal';
 import AddStudentModal from './components/AddStudentModal';
 
+function normalizeRoutePath(rawPath: string): string {
+  if (!rawPath || rawPath === '/pitch') return '/';
+  return rawPath;
+}
+
 export default function App() {
-  const [pathname, setPathname] = useState(
-    typeof window !== 'undefined' ? window.location.pathname : '/'
+  const [pathname, setPathname] = useState(() =>
+    typeof window !== 'undefined' ? normalizeRoutePath(window.location.pathname) : '/'
   );
   const {
     currentStaff,
     initializeRealtimeSync,
     schoolProfile,
     feeInstallments,
+    themeMode,
   } = useAdminStore();
 
   const initialDept = currentStaff?.department || 'ADM';
@@ -43,9 +50,20 @@ export default function App() {
   const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
 
+  // Keep /pitch normalized to / and respond to browser back/forward navigation
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname === '/pitch') {
+      window.history.replaceState({}, '', '/');
+      setPathname('/');
+    }
+
     const handlePopState = () => {
-      setPathname(window.location.pathname);
+      const next = normalizeRoutePath(window.location.pathname);
+      if (window.location.pathname === '/pitch') {
+        window.history.replaceState({}, '', '/');
+      }
+      setPathname(next);
     };
     window.addEventListener('popstate', handlePopState);
     return () => {
@@ -53,10 +71,26 @@ export default function App() {
     };
   }, []);
 
+  // Synchronize light/dark DOM class and <meta name="color-scheme">
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('dark', themeMode === 'dark');
+    document
+      .querySelector('meta[name="color-scheme"]')
+      ?.setAttribute('content', themeMode === 'dark' ? 'dark' : 'light');
+  }, [themeMode]);
+
+  // Synchronize per-route SEO title, canonical link, and indexing directives
+  useEffect(() => {
+    applyRouteSeo(pathname, Boolean(currentStaff), schoolProfile.name);
+  }, [pathname, currentStaff, schoolProfile.name]);
+
   const navigateTo = (path: string) => {
+    const clean = normalizeRoutePath(path);
     if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', path);
-      setPathname(path);
+      window.history.pushState({}, '', clean);
+      setPathname(clean);
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
   };
 
@@ -79,31 +113,33 @@ export default function App() {
     }
   }, [currentStaff?.id, currentStaff?.department, activeTab]);
 
-  // Public Standalone Pages (Always accessible without authentication)
+  // Public Standalone Privacy Policy Route
   if (pathname === '/privacy-policy') {
     return (
       <PrivacyPolicyPage
         onNavigateHome={() => navigateTo('/')}
-        onNavigatePitch={() => navigateTo('/pitch')}
+        onNavigatePortal={() => navigateTo('/portal')}
       />
     );
   }
 
-  if (pathname === '/pitch') {
+  // Private Edzy Founder / Super-Admin HQ Console (Never linked inside public website or school ERP)
+  if (pathname === '/super-admin') {
+    return <SuperAdminPage onNavigateHome={() => navigateTo('/')} />;
+  }
+
+  // Public Flagship Landing Website (/ and normalized /pitch)
+  const isPortalRoute = pathname === '/portal' || pathname === '/login';
+  if (!isPortalRoute) {
     return (
-      <SchoolPitchPage
-        onNavigateHome={() => navigateTo('/')}
+      <LandingPage
+        onNavigatePortal={() => navigateTo('/portal')}
         onNavigatePrivacy={() => navigateTo('/privacy-policy')}
       />
     );
   }
 
-  // Private Edzy Founder / Super-Admin HQ Console (Not linked inside any school workspace)
-  if (pathname === '/super-admin') {
-    return <SuperAdminPage onNavigateHome={() => navigateTo('/')} />;
-  }
-
-  // Require Staff Employee ID Login for ERP workspace
+  // Require Staff Employee ID Login for School ERP Portal (/portal and /login)
   if (!currentStaff) {
     return <StaffLoginPage onNavigatePath={navigateTo} />;
   }
@@ -155,8 +191,8 @@ export default function App() {
     switch (safeTab) {
       case 'dashboard':
         return {
-          title: 'Executive School Command Center',
-          subtitle: `${schoolProfile.name} (${schoolProfile.code}) • ${schoolBoard} Affiliated Boarding & Day Campus`,
+          title: 'Campus Command Center',
+          subtitle: `${schoolProfile.name} (${schoolProfile.code}) • ${schoolBoard} Session ${schoolProfile.session}`,
         };
       case 'staff':
         return {
@@ -165,49 +201,49 @@ export default function App() {
         };
       case 'fees':
         return {
-          title: 'Hybrid Fee Counter & Receipts',
-          subtitle: 'Desk Cash/Cheque Collection, UPI Reconciliation, and WhatsApp Due Reminders',
+          title: 'Fee Counter & Receipts',
+          subtitle: 'Cash/Cheque Receipts, Parent UPI Reconciliation & Dues Follow-up',
         };
       case 'accounts-export':
         return {
           title: 'Tally & Fee Reconciliation Exports',
-          subtitle: `${schoolProfile.name} • Real-Time Collection Reports & CSV Accounting Bundles`,
+          subtitle: `${schoolProfile.name} • Daily Collections & Tally CSV Bundles`,
         };
       case 'students':
         return {
           title:
             currentStaff.department === 'TCH' && currentStaff.assignedClass
               ? `My Class Roster • ${currentStaff.assignedClass}`
-              : 'Student Directory & Access Passes',
-          subtitle: `${schoolBoard} Enrollment Roster, Mobile Pass Slips, and At-Home Study Telemetry`,
+              : 'Student Directory & Passes',
+          subtitle: `${schoolBoard} Student Roster & App Login Slips`,
         };
       case 'circulars':
         return {
           title:
             currentStaff.department === 'TCH'
               ? 'Class Attendance & Official Notices'
-              : 'Official Circulars & Attendance Register',
-          subtitle: 'Digital Broadcasts to Parent App & Daily Class Attendance Tracking',
+              : 'Official Circulars & Attendance',
+          subtitle: 'Digital Parent Broadcasts & Daily Attendance Register',
         };
       case 'syllabus':
         return {
           title: 'Curriculum Vault & 3D Labs',
-          subtitle: `${schoolBoard} Syllabus Scanner with Visual Flowchart Roadmaps, Notes & 3D Visual Labs`,
+          subtitle: `${schoolBoard} Visual Flowchart Roadmaps & 3D Labs`,
         };
       case 'marks':
         return {
-          title: 'Exam Marks & Term Assessments',
-          subtitle: `${schoolBoard} Grading Spreadsheet with Real-Time Parent App Sync`,
+          title: 'Exam Marks & Assessments',
+          subtitle: `${schoolBoard} Term Grading & Report Card Sync`,
         };
       case 'settings':
         return {
-          title: 'Campus ERP Configuration & Profile',
-          subtitle: 'Official School Entity Details, Tally CSV Exports, and Cloud Health',
+          title: 'Campus Settings & Profile',
+          subtitle: 'School Profile, Receipts Header & Appearance',
         };
       default:
         return {
           title: 'Edzy School ERP',
-          subtitle: 'B2B K-12 Educational SaaS & Spatial Computing',
+          subtitle: `${schoolProfile.name} (${schoolProfile.code})`,
         };
     }
   };

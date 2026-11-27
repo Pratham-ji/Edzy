@@ -16,48 +16,69 @@ import {
 
 interface PrivacyPolicyPageProps {
   onNavigateHome?: () => void;
+  onNavigatePortal?: () => void;
   onNavigatePitch?: () => void;
 }
 
 export default function PrivacyPolicyPage({
   onNavigateHome,
+  onNavigatePortal,
   onNavigatePitch,
 }: PrivacyPolicyPageProps) {
+  const goHome = () => {
+    if (onNavigateHome) onNavigateHome();
+    else if (onNavigatePitch) onNavigatePitch();
+    else if (typeof window !== 'undefined') window.location.href = '/';
+  };
+
+  const goPortal = () => {
+    if (onNavigatePortal) onNavigatePortal();
+    else if (typeof window !== 'undefined') window.location.href = '/portal';
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      <header className="sticky top-0 z-30 bg-white/85 dark:bg-[#0D1320]/85 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#232E44]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <School className="w-5 h-5 text-white" />
+          <button
+            type="button"
+            onClick={goHome}
+            className="flex items-center gap-3 text-left cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20">
+              <School className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-base tracking-wider text-slate-900 dark:text-white">EDZY</span>
-                <span className="text-[10px] bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 font-bold px-1.5 py-0.5 rounded border border-indigo-400/20">
+                <span className="font-extrabold text-base tracking-wider text-[#0F172A] dark:text-[#F8FAFC]">
+                  EDZY
+                </span>
+                <span className="text-[10px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] font-bold px-1.5 py-0.5 rounded border border-[#C7D2FE] dark:border-[#3730A3]">
                   LEGAL
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">Privacy & Data Governance</p>
+              <p className="text-[10px] text-[#475569] dark:text-[#94A3B8]">
+                Privacy &amp; Data Governance
+              </p>
             </div>
-          </div>
+          </button>
 
-          <div className="flex items-center gap-3">
-            {onNavigatePitch && (
-              <button
-                onClick={onNavigatePitch}
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <span>School Pitch ↗</span>
-              </button>
-            )}
+          <div className="flex items-center gap-2.5">
             <button
-              onClick={onNavigateHome || (() => (window.location.href = '/'))}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/30 transition-all"
+              type="button"
+              onClick={goHome}
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-[#475569] dark:text-[#94A3B8] hover:text-[#4F46E5] dark:hover:text-[#F8FAFC] px-3 py-1.5 rounded-lg hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to School ERP</span>
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Edzy Home</span>
+            </button>
+            <button
+              type="button"
+              onClick={goPortal}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold shadow-sm shadow-indigo-600/20 transition-all cursor-pointer"
+            >
+              <span>School Portal →</span>
             </button>
           </div>
         </div>
@@ -234,17 +255,27 @@ export default function PrivacyPolicyPage({
         </section>
 
         {/* Footer Back Button */}
-        <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            © 2026 Edzy Learning Technologies. All rights reserved.
+        <div className="pt-6 border-t border-[#E2E8F0] dark:border-[#232E44] flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-[#475569] dark:text-[#94A3B8]">
+            © 2026 Edzy Learning Technologies Pvt. Ltd. All rights reserved.
           </p>
-          <button
-            onClick={onNavigateHome || (() => (window.location.href = '/'))}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return to School ERP Dashboard</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={goHome}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#121826] text-[#0F172A] dark:text-[#F8FAFC] text-xs font-bold hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              <span>Back to Edzy Home</span>
+            </button>
+            <button
+              type="button"
+              onClick={goPortal}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+            >
+              <span>Open School Portal →</span>
+            </button>
+          </div>
         </div>
       </main>
     </div>

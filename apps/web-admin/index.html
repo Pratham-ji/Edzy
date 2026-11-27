@@ -2,14 +2,111 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234F46E5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 10v6M2 10l10-5 10 5-10 5z'/><path d='M6 12v5c3 3 9 3 12 0v-5'/></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EDZY: Education Made Easy — School Command Cloud</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      try {
+        var t = localStorage.getItem('edzy_admin_theme');
+        if (t === 'dark') {
+          document.documentElement.classList.add('dark');
+          document.querySelector('meta[name="color-scheme"]').setAttribute('content', 'dark');
+        } else {
+          document.querySelector('meta[name="color-scheme"]').setAttribute('content', 'light');
+        }
+      } catch (e) {}
+    </script>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234F46E5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 10v6M2 10l10-5 10 5-10 5z'/><path d='M6 12v5c3 3 9 3 12 0v-5'/></svg>" />
+    <title>EDZY: Education Made Easy | AI School ERP, 3D Visual Labs &amp; Study Roadmaps for Indian Schools</title>
+    <meta
+      name="description"
+      content="Replace evening tuitions with your school's own AI study roadmaps and 3D visual science labs, while running hybrid UPI fees, marks, and attendance on one strictly isolated Indian K-12 campus OS."
+    />
+    <meta
+      name="keywords"
+      content="Indian K-12 school ERP, CBSE digital campus, ICSE school software, AI study roadmap for schools, hybrid UPI fee management, 3D AR science labs, Dehradun EdTech, school attendance software, DPDP Act compliant school ERP"
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#4F46E5" />
+    <link rel="canonical" href="https://edzy-admin.pages.dev/" />
+
+    <!-- Open Graph / WhatsApp & Social Preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:site_name" content="EDZY: Education Made Easy" />
+    <meta property="og:url" content="https://edzy-admin.pages.dev/" />
+    <meta property="og:title" content="EDZY: Education Made Easy | AI School ERP &amp; 3D Visual Labs" />
+    <meta
+      property="og:description"
+      content="Zero classroom phones. Replace evening tuitions with school-verified AI study roadmaps &amp; 3D labs while reconciling Cash, Cheque, and Parent UPI fees on one isolated campus OS."
+    />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="EDZY: Education Made Easy | AI School ERP &amp; 3D Visual Labs" />
+    <meta
+      name="twitter:description"
+      content="Built for CBSE, ICSE &amp; State Board schools across India: isolated campus vaults, hybrid fee reconciliation, alphabetical teacher registers, and at-home 3D labs."
+    />
+
+    <!-- Structured Data (2026 SEO: Organization, SoftwareApplication, WebSite) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://edzy-admin.pages.dev/#organization",
+            "name": "Edzy Learning Technologies Pvt. Ltd.",
+            "alternateName": "EDZY: Education Made Easy",
+            "url": "https://edzy-admin.pages.dev/",
+            "email": "support@edzy.in",
+            "areaServed": "IN",
+            "foundingLocation": {
+              "@type": "Place",
+              "name": "Dehradun, Uttarakhand, India"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://edzy-admin.pages.dev/#website",
+            "name": "EDZY: Education Made Easy",
+            "url": "https://edzy-admin.pages.dev/",
+            "publisher": {
+              "@id": "https://edzy-admin.pages.dev/#organization"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://edzy-admin.pages.dev/#software",
+            "name": "Edzy Campus OS",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Web, iOS, Android",
+            "url": "https://edzy-admin.pages.dev/",
+            "description": "Tenant-isolated K-12 Indian School ERP featuring role-based Principal, Class Teacher, and Accounts workspaces, hybrid UPI and cash fee reconciliation, AI syllabus roadmaps, and on-device 3D visual science labs.",
+            "offers": {
+              "@type": "AggregateOffer",
+              "priceCurrency": "INR",
+              "lowPrice": "49",
+              "highPrice": "99",
+              "offerCount": "2"
+            },
+            "provider": {
+              "@id": "https://edzy-admin.pages.dev/#organization"
+            }
+          }
+        ]
+      }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
   </head>
-  <body class="bg-slate-50 text-slate-900 antialiased font-['Plus_Jakarta_Sans',sans-serif]">
+  <body class="bg-[#F6F8FC] text-[#0F172A] antialiased font-['Plus_Jakarta_Sans',sans-serif]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

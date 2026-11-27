@@ -3003,11 +3003,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         localStorage.setItem('edzy_admin_theme', next);
       }
       if (typeof document !== 'undefined') {
-        if (next === 'dark') {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        document.documentElement.classList.toggle('dark', next === 'dark');
+        document
+          .querySelector('meta[name="color-scheme"]')
+          ?.setAttribute('content', next === 'dark' ? 'dark' : 'light');
       }
       return { themeMode: next };
     });
@@ -3018,11 +3017,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       localStorage.setItem('edzy_admin_theme', mode);
     }
     if (typeof document !== 'undefined') {
-      if (mode === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      document.documentElement.classList.toggle('dark', mode === 'dark');
+      document
+        .querySelector('meta[name="color-scheme"]')
+        ?.setAttribute('content', mode === 'dark' ? 'dark' : 'light');
     }
     set({ themeMode: mode });
   },

@@ -63,7 +63,7 @@ interface OnboardingKitData {
 }
 
 const HQ_SESSION_KEY = 'edzy_hq_founder_auth_v1';
-const PORTAL_PUBLIC_URL = 'https://edzy-admin.pages.dev';
+const PORTAL_PUBLIC_URL = 'https://edzy-admin.pages.dev/portal';
 const EXPECTED_PASSKEY =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_FOUNDER_PASSKEY) ||
   'edzy-hq-2026';

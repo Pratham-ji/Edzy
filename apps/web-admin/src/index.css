@@ -3,6 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: light;
   --edzy-canvas: #F6F8FC;
   --edzy-surface: #FFFFFF;
   --edzy-subtle: #EEF2F7;
@@ -16,6 +17,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --edzy-canvas: #090D16;
   --edzy-surface: #121826;
   --edzy-subtle: #1A2336;
@@ -28,15 +30,83 @@
   --edzy-brand-border: #3730A3;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 @layer base {
   body {
-    background-color: #F6F8FC;
-    color: #0F172A;
+    background-color: var(--edzy-canvas);
+    color: var(--edzy-ink);
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   }
-  .dark body {
-    background-color: #090D16;
-    color: #F8FAFC;
+}
+
+/* Visually hidden skip links and SR-only helpers that become visible on keyboard focus */
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Range slider progressive enhancement when accent-color is unsupported */
+.edzy-range {
+  accent-color: var(--edzy-brand);
+}
+
+@supports not (accent-color: #4F46E5) {
+  .edzy-range {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+  .edzy-range::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 10px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      to right,
+      var(--edzy-brand) var(--range-progress, 21%),
+      var(--edzy-border) var(--range-progress, 21%)
+    );
+  }
+  .edzy-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 9999px;
+    background: var(--edzy-brand);
+    cursor: pointer;
+    margin-top: -5px;
+    border: 2px solid #ffffff;
+  }
+  .edzy-range::-moz-range-track {
+    width: 100%;
+    height: 10px;
+    border-radius: 9999px;
+    background: var(--edzy-border);
+  }
+  .edzy-range::-moz-range-progress {
+    height: 10px;
+    border-radius: 9999px;
+    background: var(--edzy-brand);
+  }
+  .edzy-range::-moz-range-thumb {
+    height: 18px;
+    width: 18px;
+    border-radius: 9999px;
+    background: var(--edzy-brand);
+    border: 2px solid #ffffff;
+    cursor: pointer;
   }
 }
 
