@@ -13,7 +13,7 @@ export interface ThreeScene {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  /** Call to cleanly dispose GPU resources when the GL view unmounts */
+  /** Cleanly dispose GPU resources when the GL view unmounts */
   dispose: () => void;
 }
 
@@ -55,6 +55,34 @@ export function createThreeScene(gl: ExpoWebGLRenderingContext): ThreeScene {
     (navigator as any).userAgent = 'ReactNative';
   }
 
+  // ── WebGL 2 Polyfill ──────────────────────────────────────────────────────
+  // Three.js r163+ dropped WebGL 1 entirely. It detects WebGL 2 via:
+  //   gl instanceof WebGL2RenderingContext
+  // In React Native / Hermes, WebGL2RenderingContext is not a global class,
+  // so the check always returns false. The fix: assign the expo-gl context's
+  // own constructor as the global WebGL2RenderingContext *before* constructing
+  // the renderer, so the instanceof check passes on every Android device.
+  if (typeof (globalThis as any).WebGL2RenderingContext === 'undefined') {
+    (globalThis as any).WebGL2RenderingContext = (gl as any).constructor;
+  }
+
+  // Polyfill drawingBufferColorSpace (used by THREE r166+ SRGBColorSpace logic)
+  if (typeof (gl as any).drawingBufferColorSpace === 'undefined') {
+    Object.defineProperty(gl, 'drawingBufferColorSpace', {
+      get: () => 'srgb',
+      set: () => {},
+      configurable: true,
+    });
+  }
+  // Polyfill unpackColorSpace (used by Three.js texture uploads in WebGL 2 path)
+  if (typeof (gl as any).unpackColorSpace === 'undefined') {
+    Object.defineProperty(gl, 'unpackColorSpace', {
+      get: () => 'srgb',
+      set: () => {},
+      configurable: true,
+    });
+  }
+
   // ── Renderer ──────────────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({
     canvas: mockCanvas,
@@ -68,37 +96,44 @@ export function createThreeScene(gl: ExpoWebGLRenderingContext): ThreeScene {
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = false;
+  // Enable clipping planes for cross-section exploration mode
+  renderer.localClippingEnabled = true;
 
   // ── Scene ─────────────────────────────────────────────────────────────────
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0a14);
+  scene.background = new THREE.Color(0x0b101b);
 
   // ── Camera ────────────────────────────────────────────────────────────────
   const camera = new THREE.PerspectiveCamera(55, width / height, 0.01, 1000);
   camera.position.set(0, 0, 3);
 
   // ── Lighting Rig ──────────────────────────────────────────────────────────
-  // Ambient: fills shadowed areas
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.65);
   scene.add(ambient);
 
-  // Key light: main top-right illumination
-  const keyLight = new THREE.DirectionalLight(0xfff2e0, 1.5);
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 1.55);
   keyLight.position.set(5, 8, 5);
   scene.add(keyLight);
 
-  // Fill light: soft cool light from opposite angle
-  const fillLight = new THREE.DirectionalLight(0xc0d0ff, 0.5);
+  const fillLight = new THREE.DirectionalLight(0xc0d4ff, 0.55);
   fillLight.position.set(-5, 2, -5);
   scene.add(fillLight);
 
-  // Rim light: backlight to highlight edges against dark background
-  const rimLight = new THREE.DirectionalLight(0xff7766, 0.7);
+  const rimLight = new THREE.DirectionalLight(0x93c5fd, 0.65);
   rimLight.position.set(0, -4, -6);
   scene.add(rimLight);
 
   // ── Dispose helper ────────────────────────────────────────────────────────
   function dispose() {
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.geometry?.dispose();
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        mats.forEach((m) => m?.dispose());
+      }
+    });
+    scene.clear();
     renderer.dispose();
   }
 

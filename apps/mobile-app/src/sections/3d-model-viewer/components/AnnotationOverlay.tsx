@@ -1,12 +1,10 @@
 /**
  * AnnotationOverlay
- * Renders 2D anatomical hotspot pins mapped from 3D coordinates
+ * Renders 2D educational hotspot pins projected from 3D model coordinates
  * over the Expo GL canvas.
  */
-import { Pressable, StyleSheet, View } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ModelAnnotation } from '../data/models';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ModelComponentNode } from '../interactions/types';
 
 export interface ScreenPoint {
   x: number;
@@ -15,10 +13,10 @@ export interface ScreenPoint {
 }
 
 interface AnnotationOverlayProps {
-  annotations: ModelAnnotation[];
+  annotations: ModelComponentNode[];
   screenPositions: Record<string, ScreenPoint>;
   selectedId: string | null;
-  onSelect: (item: ModelAnnotation) => void;
+  onSelect: (item: ModelComponentNode) => void;
   visible: boolean;
   accentColor?: string;
 }
@@ -29,9 +27,9 @@ export function AnnotationOverlay({
   selectedId,
   onSelect,
   visible,
-  accentColor = '#E74C3C',
+  accentColor = '#4F46E5',
 }: AnnotationOverlayProps) {
-  if (!visible) return null;
+  if (!visible || annotations.length === 0) return null;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -62,38 +60,35 @@ export function AnnotationOverlay({
               accessibilityLabel={`Hotspot ${item.number}: ${item.label}`}
               accessibilityRole="button"
             >
-              {/* Pulse effect for selected or unselected */}
               <View
                 style={[
                   styles.pulseRing,
                   isSelected && styles.pulseRingSelected,
-                  { borderColor: isSelected ? accentColor : '#fff' },
+                  { borderColor: isSelected ? accentColor : '#FFFFFF' },
                 ]}
               />
 
-              {/* Center Pin Button */}
               <View
                 style={[
                   styles.pinBadge,
-                  { backgroundColor: isSelected ? accentColor : 'rgba(255,255,255,0.92)' },
+                  { backgroundColor: isSelected ? accentColor : 'rgba(255,255,255,0.94)' },
                 ]}
               >
-                <ThemedText
+                <Text
                   style={[
                     styles.pinText,
-                    { color: isSelected ? '#ffffff' : '#111222' },
+                    { color: isSelected ? '#FFFFFF' : '#0F172A' },
                   ]}
                 >
                   {item.number}
-                </ThemedText>
+                </Text>
               </View>
 
-              {/* Floating Label when selected or compact tag */}
               {isSelected && (
-                <View style={[styles.floatingTag, { borderColor: accentColor + '88' }]}>
-                  <ThemedText style={styles.floatingTagText} numberOfLines={1}>
+                <View style={[styles.floatingTag, { borderColor: `${accentColor}99` }]}>
+                  <Text style={styles.floatingTagText} numberOfLines={1}>
                     {item.label}
-                  </ThemedText>
+                  </Text>
                 </View>
               )}
             </Pressable>
@@ -125,16 +120,16 @@ const styles = StyleSheet.create({
   },
   pulseRing: {
     position: 'absolute',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1.5,
     opacity: 0.45,
   },
   pulseRingSelected: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
     opacity: 0.9,
   },
@@ -151,14 +146,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   pinText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    lineHeight: 14,
+    lineHeight: 13,
   },
   floatingTag: {
     position: 'absolute',
     top: -26,
-    backgroundColor: 'rgba(17, 18, 34, 0.92)',
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -167,10 +162,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 4,
+    minWidth: 68,
+    alignItems: 'center',
   },
   floatingTagText: {
-    color: '#ffffff',
-    fontSize: 11,
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '700',
   },
 });
