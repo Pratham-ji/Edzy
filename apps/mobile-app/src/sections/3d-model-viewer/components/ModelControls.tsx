@@ -1,64 +1,89 @@
 /**
- * ModelControls — Phase 3 (Hotspots, Heartbeat, Zoom & Camera)
+ * ModelControls
  *
- * Floating control panel rendered on top of the GL canvas.
- *
- * Controls
- * ────────
- * Left column  : Zoom in (＋), Zoom out (－), Heartbeat Pulse (💓)
- * Right column : Reset View (↺), Wireframe (⬡), Auto-rotate (⟳), Annotations (📌)
+ * Reusable floating 3D control overlay shared across every model in the workspace.
+ * Supports:
+ * - Left column  : Zoom In, Zoom Out, Orbit/Pan gesture toggle, Animation toggle
+ * - Right column : Fullscreen, Reset View, Labels/Hotspots toggle, Wireframe, Auto-Rotate, Isolate
  */
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Activity,
+  Box,
+  Focus,
+  MapPin,
+  Maximize2,
+  Minimize2,
+  Move,
+  RefreshCw,
+  RotateCcw,
+  Rotate3d,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react-native';
+import { InteractionMode } from '../interactions/types';
 
 interface ModelControlsProps {
   onReset: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  interactionMode: InteractionMode;
+  onToggleInteractionMode: () => void;
   wireframe: boolean;
   onToggleWireframe: () => void;
   autoRotate: boolean;
   onToggleAutoRotate: () => void;
   showAnnotations: boolean;
   onToggleAnnotations: () => void;
-  heartbeat: boolean;
-  onToggleHeartbeat: () => void;
+  supportsAnnotations?: boolean;
+  animationEnabled: boolean;
+  onToggleAnimation: () => void;
+  supportsAnimation?: boolean;
+  animationStatusText?: string;
+  isolateSelected?: boolean;
+  onToggleIsolate?: () => void;
+  canIsolate?: boolean;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   isInfoPanelOpen?: boolean;
+  accentColor?: string;
+  compact?: boolean;
 }
 
 interface ControlButtonProps {
-  label: string;
   onPress: () => void;
   active?: boolean;
   accentColor?: string;
   accessibilityLabel: string;
+  size: number;
+  children: React.ReactNode;
 }
 
 function ControlButton({
-  label,
   onPress,
   active,
-  accentColor = '#E74C3C',
+  accentColor = '#4F46E5',
   accessibilityLabel,
+  size,
+  children,
 }: ControlButtonProps) {
   return (
     <TouchableOpacity
       style={[
         styles.button,
+        { width: size, height: size, borderRadius: size / 2 },
         active && {
-          backgroundColor: accentColor + '88',
+          backgroundColor: `${accentColor}CC`,
           borderColor: accentColor,
         },
       ]}
       onPress={onPress}
-      activeOpacity={0.72}
+      activeOpacity={0.75}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
     >
-      <ThemedText style={[styles.buttonText, active && styles.buttonTextActive]}>
-        {label}
-      </ThemedText>
+      {children}
     </TouchableOpacity>
   );
 }
@@ -67,145 +92,223 @@ export function ModelControls({
   onReset,
   onZoomIn,
   onZoomOut,
+  interactionMode,
+  onToggleInteractionMode,
   wireframe,
   onToggleWireframe,
   autoRotate,
   onToggleAutoRotate,
   showAnnotations,
   onToggleAnnotations,
-  heartbeat,
-  onToggleHeartbeat,
+  supportsAnnotations = true,
+  animationEnabled,
+  onToggleAnimation,
+  supportsAnimation = false,
+  animationStatusText,
+  isolateSelected = false,
+  onToggleIsolate,
+  canIsolate = false,
+  isFullscreen = false,
+  onToggleFullscreen,
   isInfoPanelOpen = false,
+  accentColor = '#4F46E5',
+  compact = false,
 }: ModelControlsProps) {
+  const btnSize = compact ? 34 : 40;
+  const iconSize = compact ? 15 : 17;
+
   return (
     <View
       style={[
         styles.root,
+        compact && styles.rootCompact,
         isInfoPanelOpen && styles.rootPanelShifted,
       ]}
       pointerEvents="box-none"
     >
-      {/* Left Column: Zoom & Heartbeat */}
+      {/* Left Column: Zoom, Pan/Orbit, Animation */}
       <View style={styles.column}>
         <ControlButton
-          label="＋"
+          size={btnSize}
           onPress={onZoomIn}
           accessibilityLabel="Zoom in"
-        />
+        >
+          <ZoomIn size={iconSize} color="#FFFFFF" />
+        </ControlButton>
+
         <ControlButton
-          label="－"
+          size={btnSize}
           onPress={onZoomOut}
           accessibilityLabel="Zoom out"
-        />
+        >
+          <ZoomOut size={iconSize} color="#FFFFFF" />
+        </ControlButton>
+
         <ControlButton
-          label={heartbeat ? '💓' : '🤍'}
-          onPress={onToggleHeartbeat}
-          active={heartbeat}
-          accentColor="#E74C3C"
-          accessibilityLabel={heartbeat ? 'Stop heartbeat simulation' : 'Start heartbeat simulation'}
-        />
+          size={btnSize}
+          onPress={onToggleInteractionMode}
+          active={interactionMode === 'pan'}
+          accentColor="#0EA5E9"
+          accessibilityLabel={
+            interactionMode === 'pan' ? 'Switch to orbit rotate' : 'Switch to single-finger pan'
+          }
+        >
+          {interactionMode === 'pan' ? (
+            <Move size={iconSize} color="#FFFFFF" />
+          ) : (
+            <Rotate3d size={iconSize} color="#FFFFFF" />
+          )}
+        </ControlButton>
+
+        {supportsAnimation && (
+          <ControlButton
+            size={btnSize}
+            onPress={onToggleAnimation}
+            active={animationEnabled}
+            accentColor={accentColor}
+            accessibilityLabel={animationEnabled ? 'Pause animation' : 'Play animation'}
+          >
+            <Activity size={iconSize} color="#FFFFFF" />
+          </ControlButton>
+        )}
       </View>
 
-      {/* Right Column: Interactive Modes */}
+      {/* Right Column: Fullscreen, Reset, Pins, Wireframe, Auto-Rotate, Isolate */}
       <View style={styles.column}>
+        {onToggleFullscreen && (
+          <ControlButton
+            size={btnSize}
+            onPress={onToggleFullscreen}
+            active={isFullscreen}
+            accentColor={accentColor}
+            accessibilityLabel={isFullscreen ? 'Exit fullscreen' : 'Open fullscreen viewer'}
+          >
+            {isFullscreen ? (
+              <Minimize2 size={iconSize} color="#FFFFFF" />
+            ) : (
+              <Maximize2 size={iconSize} color="#FFFFFF" />
+            )}
+          </ControlButton>
+        )}
+
         <ControlButton
-          label="↺"
+          size={btnSize}
           onPress={onReset}
-          accessibilityLabel="Reset camera pose"
-        />
+          accessibilityLabel="Reset camera view"
+        >
+          <RotateCcw size={iconSize} color="#FFFFFF" />
+        </ControlButton>
+
+        {supportsAnnotations && (
+          <ControlButton
+            size={btnSize}
+            onPress={onToggleAnnotations}
+            active={showAnnotations}
+            accentColor="#38BDF8"
+            accessibilityLabel={showAnnotations ? 'Hide labels' : 'Show labels'}
+          >
+            <MapPin size={iconSize} color="#FFFFFF" />
+          </ControlButton>
+        )}
+
+        {canIsolate && onToggleIsolate && (
+          <ControlButton
+            size={btnSize}
+            onPress={onToggleIsolate}
+            active={isolateSelected}
+            accentColor={accentColor}
+            accessibilityLabel={isolateSelected ? 'Show full assembly' : 'Isolate selected part'}
+          >
+            <Focus size={iconSize} color="#FFFFFF" />
+          </ControlButton>
+        )}
+
         <ControlButton
-          label="📌"
-          onPress={onToggleAnnotations}
-          active={showAnnotations}
-          accentColor="#3498DB"
-          accessibilityLabel={showAnnotations ? 'Hide anatomical pins' : 'Show anatomical pins'}
-        />
-        <ControlButton
-          label="⬡"
+          size={btnSize}
           onPress={onToggleWireframe}
           active={wireframe}
-          accentColor="#9B59B6"
-          accessibilityLabel={wireframe ? 'Disable wireframe mode' : 'Enable wireframe mode'}
-        />
+          accentColor="#A855F7"
+          accessibilityLabel={wireframe ? 'Disable wireframe' : 'Enable wireframe'}
+        >
+          <Box size={iconSize} color="#FFFFFF" />
+        </ControlButton>
+
         <ControlButton
-          label="⟳"
+          size={btnSize}
           onPress={onToggleAutoRotate}
           active={autoRotate}
-          accentColor="#F39C12"
+          accentColor="#F59E0B"
           accessibilityLabel={autoRotate ? 'Stop auto-rotate' : 'Start auto-rotate'}
-        />
+        >
+          <RefreshCw size={iconSize} color="#FFFFFF" />
+        </ControlButton>
       </View>
 
-      {/* Rhythmic BPM indicator banner when heartbeat active */}
-      {heartbeat && !isInfoPanelOpen && (
-        <View style={styles.statusPill}>
-          <ThemedText style={styles.statusText}>72 BPM • Cardiac Cycle active</ThemedText>
+      {/* Subtle status pill when animation or pan mode is active */}
+      {!isInfoPanelOpen && (interactionMode === 'pan' || (supportsAnimation && animationEnabled && animationStatusText)) && (
+        <View style={styles.statusPill} pointerEvents="none">
+          <Text style={[styles.statusText, { borderColor: `${accentColor}66` }]} numberOfLines={1}>
+            {interactionMode === 'pan'
+              ? 'Pan Mode • Drag to move model'
+              : animationStatusText}
+          </Text>
         </View>
       )}
     </View>
   );
 }
 
-const BTN = 44;
-
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    bottom: 34,
-    left: 16,
-    right: 16,
+    bottom: 18,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
+  rootCompact: {
+    bottom: 10,
+    left: 10,
+    right: 10,
+  },
   rootPanelShifted: {
-    bottom: 230,
+    bottom: 196,
   },
   column: {
-    gap: 10,
+    gap: 7,
     alignItems: 'center',
   },
   button: {
-    width: BTN,
-    height: BTN,
-    borderRadius: BTN / 2,
-    backgroundColor: 'rgba(20, 22, 40, 0.78)',
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.35,
-    shadowRadius: 6,
+    shadowRadius: 5,
     elevation: 4,
-  },
-  buttonText: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  buttonTextActive: {
-    color: '#ffffff',
   },
   statusPill: {
     position: 'absolute',
-    bottom: 4,
-    left: 0,
-    right: 0,
+    bottom: 2,
+    left: 48,
+    right: 48,
     alignItems: 'center',
-    pointerEvents: 'none',
   },
   statusText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 10,
     fontWeight: '600',
-    backgroundColor: 'rgba(15, 16, 30, 0.85)',
-    paddingHorizontal: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(231, 76, 60, 0.4)',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    overflow: 'hidden',
   },
 });
