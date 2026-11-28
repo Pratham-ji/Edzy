@@ -30,11 +30,98 @@ interface DashboardPageProps {
   onOpenSyllabusModal?: () => void;
 }
 
+const QUARTER_FULL_LABELS: Record<string, string> = {
+  Q1: 'Q1 (Apr – Jun)',
+  Q2: 'Q2 (Jul – Sep)',
+  Q3: 'Q3 (Oct – Dec)',
+  Q4: 'Q4 (Jan – Mar)',
+};
+
+const QuarterlyFeeTooltip: React.FC<any> = ({ active, payload, label, themeMode }) => {
+  if (!active || !payload || payload.length === 0) return null;
+  const total = payload.reduce((sum: number, item: any) => sum + Number(item.value || 0), 0);
+  const isDark = themeMode === 'dark';
+
+  return (
+    <div
+      className={`rounded-xl px-3.5 py-2.5 shadow-xl border text-xs min-w-[195px] tabular-nums ${
+        isDark
+          ? 'bg-[#0D1320] border-[#232E44] text-[#F8FAFC]'
+          : 'bg-white border-[#E2E8F0] text-[#0F172A]'
+      }`}
+    >
+      <div className="font-extrabold text-[11px] pb-1.5 mb-1.5 border-b border-slate-200/70 dark:border-[#232E44]">
+        {QUARTER_FULL_LABELS[label] || label}
+      </div>
+      <div className="space-y-1">
+        {payload.map((entry: any, idx: number) => (
+          <div key={entry.dataKey || idx} className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: entry.color || '#4F46E5' }}
+              />
+              <span>{entry.name}</span>
+            </span>
+            <span className="font-mono font-bold">
+              ₹{Number(entry.value || 0).toLocaleString('en-IN')}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 pt-1.5 border-t border-slate-200/70 dark:border-[#232E44] flex items-center justify-between font-extrabold">
+        <span>Total</span>
+        <span className="font-mono text-[#059669] dark:text-[#34D399]">
+          ₹{total.toLocaleString('en-IN')}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const StudyTelemetryTooltip: React.FC<any> = ({ active, payload, label, themeMode }) => {
+  if (!active || !payload || payload.length === 0) return null;
+  const isDark = themeMode === 'dark';
+
+  return (
+    <div
+      className={`rounded-xl px-3.5 py-2.5 shadow-xl border text-xs min-w-[180px] tabular-nums ${
+        isDark
+          ? 'bg-[#0D1320] border-[#232E44] text-[#F8FAFC]'
+          : 'bg-white border-[#E2E8F0] text-[#0F172A]'
+      }`}
+    >
+      <div className="font-extrabold text-[11px] pb-1.5 mb-1.5 border-b border-slate-200/70 dark:border-[#232E44]">
+        {label}
+      </div>
+      <div className="space-y-1">
+        {payload.map((entry: any, idx: number) => (
+          <div key={entry.dataKey || idx} className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: entry.color || '#4F46E5' }}
+              />
+              <span>{entry.name}</span>
+            </span>
+            <span className="font-mono font-bold">
+              {entry.dataKey === 'class10Mastery'
+                ? `${Number(entry.value || 0)}%`
+                : `${Number(entry.value || 0)} hrs`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
   onOpenCsvModal,
 }) => {
-  const { students, feeInstallments, syllabusVault, schoolProfile, studentProgressList } = useAdminStore();
+  const { students, feeInstallments, syllabusVault, schoolProfile, studentProgressList, themeMode } =
+    useAdminStore();
 
   const liveEngagementData = syllabusVault.slice(0, 5).map((ch) => {
     const progRows = studentProgressList.filter((p) => p.roadmapId === ch.id);
@@ -238,14 +325,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     tickFormatter={(val) => `₹${val / 1000}k`}
                   />
                   <Tooltip
-                    formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
-                    contentStyle={{
-                      backgroundColor: '#0F172A',
-                      borderRadius: '12px',
-                      color: '#fff',
-                      border: 'none',
-                      fontSize: '11px',
+                    cursor={{
+                      fill:
+                        themeMode === 'dark'
+                          ? 'rgba(99, 102, 241, 0.12)'
+                          : 'rgba(79, 70, 229, 0.06)',
+                      radius: 8,
                     }}
+                    content={<QuarterlyFeeTooltip themeMode={themeMode} />}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   <Bar dataKey="onlineUpi" name="Edzy App UPI" fill="#4F46E5" radius={[4, 4, 0, 0]} />
@@ -295,13 +382,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <XAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748B' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0F172A',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    border: 'none',
-                    fontSize: '11px',
+                  cursor={{
+                    stroke: themeMode === 'dark' ? 'rgba(99, 102, 241, 0.45)' : 'rgba(79, 70, 229, 0.35)',
+                    strokeWidth: 1,
                   }}
+                  content={<StudyTelemetryTooltip themeMode={themeMode} />}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                 <Area

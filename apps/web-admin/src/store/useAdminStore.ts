@@ -18,6 +18,16 @@ import {
 } from '../lib/idGenerator';
 import { hashStaffPassword, verifyStaffPassword } from '../lib/authCrypto';
 import { resequenceStudentsAlphabeticallyByClass } from '../lib/classScope';
+import {
+  buildDefaultCampusConfig,
+  CampusConfig,
+  InstallmentFeeHeadAmount,
+  loadLocalCampusConfig,
+  loadLocalFeeAdjustments,
+  normalizeCampusConfig,
+  saveLocalCampusConfig,
+  saveLocalFeeAdjustment,
+} from '../lib/campusConfig';
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
@@ -113,13 +123,19 @@ export interface FeeInstallmentRecord {
   classGrade: string;
   quarter: string; // e.g. Q1 (Apr - Jun 2026)
   amount: number;
+  concessionAmount?: number;
+  concessionReason?: string;
+  lateFee?: number;
+  feeHeadsJson?: InstallmentFeeHeadAmount[];
   status: PaymentStatus;
   paymentMethod?: PaymentMethod;
   paymentRef?: string;
   receiptNumber?: string;
   paidDate?: string;
+  paidTimestamp?: string;
   dueDate: string;
   clerkNote?: string;
+  collectedBy?: string;
 }
 
 export interface SyllabusChapterRecord {
@@ -249,26 +265,55 @@ export function mapStudentRow(row: any): StudentRecord {
 
 export function mapFeeRow(row: any, students?: StudentRecord[]): FeeInstallmentRecord {
   const matchedStudent = students?.find((s) => s.id === row.student_id);
+  const paidDateObj = row.paid_at ? new Date(row.paid_at) : null;
+  const schoolCode = row.school_id || INITIAL_BOOT_SCHOOL_ID;
+  const localAdj = loadLocalFeeAdjustments(schoolCode)[row.id];
+
+  const dbAmount = Number(row.amount ?? 12000);
+  const amount = localAdj?.amount !== undefined && row.concession_amount === undefined ? localAdj.amount : dbAmount;
+
   return {
     id: row.id,
     studentId: row.student_id,
     studentName: row.student_name || matchedStudent?.name || 'Aarav Sharma',
     classGrade: row.class_grade || matchedStudent?.classGrade || 'Class 10-A',
     quarter: row.installment_title || row.quarter || 'Q1 (Apr - Jun 2026)',
-    amount: Number(row.amount || 12000),
+    amount,
+    concessionAmount:
+      row.concession_amount !== undefined
+        ? Number(row.concession_amount || 0)
+        : localAdj?.concessionAmount || 0,
+    concessionReason: row.concession_reason || localAdj?.concessionReason || undefined,
+    lateFee: row.late_fee !== undefined ? Number(row.late_fee || 0) : localAdj?.lateFee || 0,
+    feeHeadsJson:
+      Array.isArray(row.fee_heads_json) && row.fee_heads_json.length > 0
+        ? row.fee_heads_json
+        : localAdj?.feeHeadsJson,
     status: (row.status as PaymentStatus) || 'PENDING',
     paymentMethod: (row.payment_mode as PaymentMethod) || undefined,
     paymentRef: row.payment_ref || row.reference_note || undefined,
     receiptNumber: row.receipt_number || undefined,
-    paidDate: row.paid_at
-      ? new Date(row.paid_at).toLocaleDateString('en-IN', {
+    paidDate: paidDateObj
+      ? paidDateObj.toLocaleDateString('en-IN', {
           day: '2-digit',
           month: 'short',
           year: 'numeric',
         })
       : undefined,
+    paidTimestamp: paidDateObj
+      ? `${paidDateObj.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })}, ${paidDateObj.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })} IST`
+      : undefined,
     dueDate: row.due_date ? String(row.due_date).split('T')[0] : '2026-11-30',
     clerkNote: row.reference_note || undefined,
+    collectedBy: row.collected_by || localAdj?.collectedBy || undefined,
   };
 }
 
@@ -847,6 +892,7 @@ interface AdminState {
   activeSchoolId: string;
   currentStaff: SchoolStaff | null;
   schoolProfile: SchoolProfile;
+  campusConfig: CampusConfig;
   availableSchools: SchoolTenantRecord[];
   staffList: SchoolStaff[];
   students: StudentRecord[];
@@ -955,6 +1001,17 @@ interface AdminState {
   ) => void;
 
   updateSchoolProfile: (profilePartial: Partial<SchoolProfile>) => void;
+  updateCampusConfig: (configPartial: Partial<CampusConfig>) => Promise<void>;
+  updateFeeInstallment: (
+    installmentId: string,
+    payload: {
+      amount: number;
+      concessionAmount: number;
+      concessionReason?: string;
+      lateFee: number;
+      feeHeadsJson?: InstallmentFeeHeadAmount[];
+    }
+  ) => Promise<void>;
 }
 
 let adminRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
@@ -1098,6 +1155,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   activeSchoolId: INITIAL_BOOT_SCHOOL_ID,
   currentStaff: INITIAL_RESTORED_STAFF,
   schoolProfile: buildDefaultProfileForSchool(INITIAL_BOOT_SCHOOL_ID),
+  campusConfig: loadLocalCampusConfig(INITIAL_BOOT_SCHOOL_ID, '2026-27'),
   availableSchools: INITIAL_SCHOOLS,
   staffList: USE_LOCAL_SCH01_FALLBACK
     ? INITIAL_STAFF
@@ -2127,6 +2185,16 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           academicSession: activeSchoolRow.academic_session || '2026-27',
         };
         updates.schoolProfile = buildDefaultProfileForSchool(activeSchoolId, [tenantMeta]);
+        const localCfg = loadLocalCampusConfig(activeSchoolId, tenantMeta.academicSession);
+        const hasRemoteCfg =
+          activeSchoolRow.campus_config &&
+          typeof activeSchoolRow.campus_config === 'object' &&
+          Object.keys(activeSchoolRow.campus_config).length > 0;
+        updates.campusConfig = hasRemoteCfg
+          ? normalizeCampusConfig(activeSchoolRow.campus_config, activeSchoolId, tenantMeta.academicSession)
+          : localCfg;
+      } else {
+        updates.campusConfig = loadLocalCampusConfig(activeSchoolId, '2026-27');
       }
 
       // Strictly hydrate EVERY table for activeSchoolId (including 0-row [] states for newly onboarded schools!)
@@ -2444,16 +2512,27 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       throw new Error('Installment not found');
     }
 
-    const nextReceiptNum = `#SCH-${state.receiptCounter + 1}`;
-    const todayStr = new Date().toLocaleDateString('en-IN', {
+    const nextReceiptNum = `#${schoolId}-${state.receiptCounter + 1}`;
+    const nowDate = new Date();
+    const todayStr = nowDate.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
+    const timestampStr = `${todayStr}, ${nowDate.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })} IST`;
+    const collectorLabel = state.currentStaff
+      ? `${state.currentStaff.fullName} (${state.currentStaff.id})`
+      : 'Accounts Desk';
 
     const refNote = referenceNo
       ? `${referenceNo}${clerkNote ? ' • ' + clerkNote : ''}`
-      : clerkNote || `Collected by Accounts Desk on ${todayStr}`;
+      : clerkNote || (mode === 'OFFLINE_CASH' ? 'Counter Desk Cash Settlement' : '');
+
+    saveLocalFeeAdjustment(schoolId, installmentId, { collectedBy: collectorLabel });
 
     const updatedInstallments = state.feeInstallments.map((item) => {
       if (item.id === installmentId) {
@@ -2464,7 +2543,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           paymentRef: refNote,
           receiptNumber: nextReceiptNum,
           paidDate: todayStr,
+          paidTimestamp: timestampStr,
           clerkNote: refNote,
+          collectedBy: collectorLabel,
         };
       }
       return item;
@@ -2488,22 +2569,39 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     });
 
     if (isLiveSupabaseConfigured) {
-      const nowIso = new Date().toISOString();
+      const nowIso = nowDate.toISOString();
+      const baseFeeUpdate = {
+        status: 'PAID',
+        payment_mode: mode,
+        receipt_number: nextReceiptNum,
+        paid_at: nowIso,
+        reference_note: refNote,
+        updated_at: nowIso,
+      };
       supabase
         .from('fee_ledger')
         .update({
-          status: 'PAID',
-          payment_mode: mode,
-          receipt_number: nextReceiptNum,
-          paid_at: nowIso,
-          reference_note: refNote,
-          updated_at: nowIso,
+          ...baseFeeUpdate,
+          collected_by: collectorLabel,
         })
         .eq('id', installmentId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[Edzy Cloud Web] Fee collection error:', error.code, error.message);
-            get().setSyncError(`Fee Collection Error: ${error.message} (${error.code})`);
+        .then(async ({ error }) => {
+          let finalError = error;
+          if (
+            finalError &&
+            ((finalError.message || '').toLowerCase().includes('column') ||
+              (finalError.message || '').toLowerCase().includes('schema cache') ||
+              finalError.code === 'PGRST204')
+          ) {
+            const retry = await supabase
+              .from('fee_ledger')
+              .update(baseFeeUpdate)
+              .eq('id', installmentId);
+            finalError = retry.error;
+          }
+          if (finalError) {
+            console.error('[Edzy Cloud Web] Fee collection error:', finalError.code, finalError.message);
+            get().setSyncError(`Fee Collection Error: ${finalError.message} (${finalError.code})`);
             return;
           }
           const st = updatedStudents.find((s) => s.id === inst.studentId);
@@ -2994,6 +3092,153 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         ...profilePartial,
       },
     }));
+  },
+
+  updateCampusConfig: async (configPartial) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const nextConfig: CampusConfig = {
+      ...state.campusConfig,
+      ...configPartial,
+    };
+
+    saveLocalCampusConfig(schoolId, nextConfig);
+    set({ campusConfig: nextConfig });
+
+    if (isLiveSupabaseConfigured) {
+      const { error } = await supabase
+        .from('schools')
+        .update({ campus_config: nextConfig })
+        .eq('id', schoolId);
+
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (!msg.includes('column') && !msg.includes('schema cache') && error.code !== 'PGRST204') {
+          get().setSyncError(`Campus settings sync note: ${error.message}`);
+        }
+      }
+    }
+  },
+
+  updateFeeInstallment: async (installmentId, payload) => {
+    const state = get();
+    if (state.currentStaff?.department !== 'ADM') {
+      throw new Error('Only the School Principal can modify fee structures or concessions.');
+    }
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const target = state.feeInstallments.find((f) => f.id === installmentId);
+    if (!target) {
+      throw new Error('Installment not found');
+    }
+
+    const netAmount = Math.max(0, Math.round(payload.amount));
+    const concessionAmount = Math.max(0, Math.round(payload.concessionAmount));
+    const lateFee = Math.max(0, Math.round(payload.lateFee));
+    const concessionReason = payload.concessionReason?.trim() || undefined;
+    const feeHeadsJson = payload.feeHeadsJson;
+
+    saveLocalFeeAdjustment(schoolId, installmentId, {
+      amount: netAmount,
+      concessionAmount,
+      concessionReason,
+      lateFee,
+      feeHeadsJson,
+    });
+
+    const updatedInstallments = state.feeInstallments.map((item) =>
+      item.id === installmentId
+        ? {
+            ...item,
+            amount: netAmount,
+            concessionAmount,
+            concessionReason,
+            lateFee,
+            feeHeadsJson,
+          }
+        : item
+    );
+
+    const updatedStudents = state.students.map((st) => {
+      if (st.id === target.studentId) {
+        const stuInsts = updatedInstallments.filter((f) => f.studentId === st.id);
+        const totalPaid = stuInsts
+          .filter((f) => f.status === 'PAID')
+          .reduce((sum, f) => sum + f.amount, 0);
+        const totalPending = stuInsts
+          .filter((f) => f.status !== 'PAID')
+          .reduce((sum, f) => sum + f.amount, 0);
+        return {
+          ...st,
+          totalPaid,
+          totalPending,
+          annualFee: totalPaid + totalPending,
+        };
+      }
+      return st;
+    });
+
+    set({
+      feeInstallments: updatedInstallments,
+      students: updatedStudents,
+    });
+
+    if (isLiveSupabaseConfigured) {
+      const nowIso = new Date().toISOString();
+      const { error } = await supabase
+        .from('fee_ledger')
+        .update({
+          amount: netAmount,
+          concession_amount: concessionAmount,
+          concession_reason: concessionReason || null,
+          late_fee: lateFee,
+          fee_heads_json: feeHeadsJson || null,
+          updated_at: nowIso,
+        })
+        .eq('id', installmentId);
+
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('column') || msg.includes('schema cache') || error.code === 'PGRST204') {
+          await supabase
+            .from('fee_ledger')
+            .update({ amount: netAmount, updated_at: nowIso })
+            .eq('id', installmentId);
+        } else {
+          get().setSyncError(`Installment update note: ${error.message}`);
+        }
+      }
+
+      const st = updatedStudents.find((s) => s.id === target.studentId);
+      if (st) {
+        await supabase
+          .from('students')
+          .update({
+            total_fee: st.annualFee,
+            paid_fee: st.totalPaid,
+            balance_due: st.totalPending,
+            updated_at: nowIso,
+          })
+          .eq('id', st.id);
+      }
+
+      broadcastAdminSyncEvent(
+        'FEE_UPDATED',
+        schoolId,
+        target.studentId,
+        {
+          installmentId,
+          studentId: target.studentId,
+          status: target.status,
+          amount: netAmount,
+          concessionAmount,
+          lateFee,
+        },
+        {
+          installmentId,
+          amount: netAmount,
+        }
+      );
+    }
   },
 
   toggleThemeMode: () => {

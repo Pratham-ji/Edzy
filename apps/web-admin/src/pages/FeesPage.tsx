@@ -19,10 +19,12 @@ import {
   ListChecks,
   Sparkles,
   Phone,
+  Pencil,
 } from 'lucide-react';
 import { useAdminStore, FeeInstallmentRecord } from '../store/useAdminStore';
 import { OfflineFeeModal } from '../components/OfflineFeeModal';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { EditInstallmentModal } from '../components/EditInstallmentModal';
 import { getDynamicCampusClasses } from '../lib/classScope';
 import {
   buildStudentFeeSummaries,
@@ -41,7 +43,8 @@ const STUDENTS_PAGE_SIZE = 20;
 const TRANSACTIONS_PAGE_SIZE = 25;
 
 export const FeesPage: React.FC = () => {
-  const { feeInstallments, students, staffList, schoolProfile } = useAdminStore();
+  const { feeInstallments, students, staffList, schoolProfile, currentStaff } = useAdminStore();
+  const isPrincipalAdmin = currentStaff?.department === 'ADM';
 
   const [viewMode, setViewMode] = useState<LedgerViewMode>('STUDENTS');
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,13 +56,14 @@ export const FeesPage: React.FC = () => {
 
   const [activeCollectModal, setActiveCollectModal] = useState<FeeInstallmentRecord | null>(null);
   const [activeReceiptModal, setActiveReceiptModal] = useState<FeeInstallmentRecord | null>(null);
+  const [activeEditModal, setActiveEditModal] = useState<FeeInstallmentRecord | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // `/` shortcut focuses search immediately; `Escape` clears search when focused
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeCollectModal || activeReceiptModal) return;
+      if (activeCollectModal || activeReceiptModal || activeEditModal) return;
 
       const target = e.target as HTMLElement | null;
       const isEditable =
@@ -83,7 +87,7 @@ export const FeesPage: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [activeCollectModal, activeReceiptModal, searchQuery]);
+  }, [activeCollectModal, activeReceiptModal, activeEditModal, searchQuery]);
 
   // Reset pagination whenever filters or view mode change
   useEffect(() => {
@@ -684,27 +688,47 @@ export const FeesPage: React.FC = () => {
                                         </span>
                                       </div>
 
-                                      <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] dark:border-[#232E44]">
-                                        <span className="font-extrabold text-sm text-[#0F172A] dark:text-[#F8FAFC]">
-                                          ₹{inst.amount.toLocaleString('en-IN')}
-                                        </span>
-                                        {paid ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => setActiveReceiptModal(inst)}
-                                            className="px-2.5 py-1 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] text-[11px] font-bold cursor-pointer"
-                                          >
-                                            {formatReceiptNumber(inst.receiptNumber)}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => setActiveCollectModal(inst)}
-                                            className="px-2.5 py-1 rounded-lg bg-[#059669] text-white text-[11px] font-bold cursor-pointer"
-                                          >
-                                            Collect
-                                          </button>
-                                        )}
+                                      <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] gap-1.5">
+                                        <div>
+                                          <span className="font-extrabold text-sm text-[#0F172A] dark:text-[#F8FAFC]">
+                                            ₹{inst.amount.toLocaleString('en-IN')}
+                                          </span>
+                                          {(inst.concessionAmount || 0) > 0 && (
+                                            <span className="block text-[10px] font-bold text-[#059669] dark:text-[#34D399]">
+                                              -₹{(inst.concessionAmount || 0).toLocaleString('en-IN')} concession
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          {isPrincipalAdmin && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setActiveEditModal(inst)}
+                                              title="Edit Fee / Concession"
+                                              aria-label={`Edit fee or concession for ${inst.quarter}`}
+                                              className="p-1 rounded-lg bg-[#EEF2F7] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#E2E8F0] dark:border-[#232E44] cursor-pointer"
+                                            >
+                                              <Pencil className="w-3 h-3" aria-hidden="true" />
+                                            </button>
+                                          )}
+                                          {paid ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => setActiveReceiptModal(inst)}
+                                              className="px-2.5 py-1 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] text-[11px] font-bold cursor-pointer"
+                                            >
+                                              {formatReceiptNumber(inst.receiptNumber)}
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => setActiveCollectModal(inst)}
+                                              className="px-2.5 py-1 rounded-lg bg-[#059669] text-white text-[11px] font-bold cursor-pointer"
+                                            >
+                                              Collect
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -769,8 +793,19 @@ export const FeesPage: React.FC = () => {
                           </p>
                         </td>
 
-                        <td className="px-4 py-3 font-extrabold text-sm">
-                          ₹{inst.amount.toLocaleString('en-IN')}
+                        <td className="px-4 py-3 font-extrabold text-sm tabular-nums">
+                          <div>₹{inst.amount.toLocaleString('en-IN')}</div>
+                          {(inst.concessionAmount || 0) > 0 && (
+                            <span className="text-[10px] font-bold text-[#059669] dark:text-[#34D399]">
+                              -₹{(inst.concessionAmount || 0).toLocaleString('en-IN')}{' '}
+                              {inst.concessionReason ? `(${inst.concessionReason})` : 'concession'}
+                            </span>
+                          )}
+                          {(inst.lateFee || 0) > 0 && (
+                            <span className="block text-[10px] font-bold text-[#D97706] dark:text-[#FBBF24]">
+                              +₹{(inst.lateFee || 0).toLocaleString('en-IN')} late fee
+                            </span>
+                          )}
                         </td>
 
                         <td className="px-4 py-3">
@@ -824,6 +859,16 @@ export const FeesPage: React.FC = () => {
 
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {isPrincipalAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveEditModal(inst)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] hover:bg-[#4F46E5] hover:text-white text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] text-[11px] font-bold transition cursor-pointer"
+                              >
+                                <Pencil className="w-3 h-3" aria-hidden="true" />
+                                <span>Edit Fee / Concession</span>
+                              </button>
+                            )}
                             {isPaid ? (
                               <button
                                 type="button"
@@ -924,6 +969,13 @@ export const FeesPage: React.FC = () => {
         <ReceiptModal
           installment={activeReceiptModal}
           onClose={() => setActiveReceiptModal(null)}
+        />
+      )}
+
+      {isPrincipalAdmin && activeEditModal && (
+        <EditInstallmentModal
+          installment={activeEditModal}
+          onClose={() => setActiveEditModal(null)}
         />
       )}
     </div>

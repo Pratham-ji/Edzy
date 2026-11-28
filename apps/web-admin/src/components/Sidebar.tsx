@@ -40,7 +40,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavigatePath }) => {
-  const { schoolProfile, feeInstallments, currentStaff } = useAdminStore();
+  const { schoolProfile, campusConfig, feeInstallments, currentStaff } = useAdminStore();
 
   const pendingDuesCount = feeInstallments.filter(
     (f) => f.status === 'PENDING' || f.status === 'OVERDUE'
@@ -57,9 +57,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
         {/* Brand Header */}
         <div className="p-5 border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <School className="w-5 h-5 text-white" aria-hidden="true" />
-            </div>
+            {campusConfig.logoDataUrl ? (
+              <img
+                src={campusConfig.logoDataUrl}
+                alt={`${schoolProfile.name} crest`}
+                className="w-10 h-10 rounded-xl object-contain bg-white border border-[#E2E8F0] dark:border-[#232E44] p-0.5 shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+                <School className="w-5 h-5 text-white" aria-hidden="true" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-lg tracking-wider text-[#0F172A] dark:text-[#F8FAFC]">

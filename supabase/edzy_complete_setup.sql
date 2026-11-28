@@ -13,11 +13,18 @@
 --     ADD COLUMN IF NOT EXISTS plan_tier TEXT NOT NULL DEFAULT 'AI_SUITE',
 --     ADD COLUMN IF NOT EXISTS billing_status TEXT NOT NULL DEFAULT 'ACTIVE',
 --     ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT 'Dehradun',
---     ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+--     ADD COLUMN IF NOT EXISTS contact_phone TEXT,
+--     ADD COLUMN IF NOT EXISTS campus_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 -- ALTER TABLE public.schools DROP CONSTRAINT IF EXISTS schools_plan_tier_check;
 -- ALTER TABLE public.schools ADD CONSTRAINT schools_plan_tier_check CHECK (plan_tier IN ('CORE_ERP', 'AI_SUITE'));
 -- ALTER TABLE public.schools DROP CONSTRAINT IF EXISTS schools_billing_status_check;
 -- ALTER TABLE public.schools ADD CONSTRAINT schools_billing_status_check CHECK (billing_status IN ('TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED'));
+-- ALTER TABLE public.fee_ledger
+--     ADD COLUMN IF NOT EXISTS concession_amount INTEGER NOT NULL DEFAULT 0,
+--     ADD COLUMN IF NOT EXISTS concession_reason TEXT,
+--     ADD COLUMN IF NOT EXISTS late_fee INTEGER NOT NULL DEFAULT 0,
+--     ADD COLUMN IF NOT EXISTS fee_heads_json JSONB,
+--     ADD COLUMN IF NOT EXISTS collected_by TEXT;
 -- NOTIFY pgrst, 'reload schema';
 
 -- 1. SAFE DROP OF EXISTING TABLES IN REVERSE DEPENDENCY ORDER
@@ -53,7 +60,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 3. CORE TABLE SCHEMAS (ALL 8 TABLES USE TEXT KEYS - ZERO UUID 22P02)
 -- ====================================================================
 
--- 3.1 SCHOOLS (Multi-School Multi-Tenant Core + SaaS Billing Metadata)
+-- 3.1 SCHOOLS (Multi-School Multi-Tenant Core + SaaS Billing & Branding Config)
 CREATE TABLE public.schools (
     id TEXT PRIMARY KEY, -- e.g. 'SCH-01', 'SCH-02'
     school_serial INTEGER NOT NULL,
@@ -66,6 +73,7 @@ CREATE TABLE public.schools (
     billing_status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (billing_status IN ('TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED')),
     city TEXT NOT NULL DEFAULT 'Dehradun',
     contact_phone TEXT,
+    campus_config JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -108,7 +116,7 @@ CREATE TABLE public.students (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.4 FEE LEDGER (Quarterly Hybrid Fees: Cash, Cheque & UPI)
+-- 3.4 FEE LEDGER (Quarterly Hybrid Fees: Cash, Cheque, UPI & Audit Adjustments)
 CREATE TABLE public.fee_ledger (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     school_id TEXT NOT NULL DEFAULT 'SCH-01' REFERENCES public.schools(id) ON DELETE CASCADE,
@@ -116,10 +124,15 @@ CREATE TABLE public.fee_ledger (
     installment_title TEXT NOT NULL, -- e.g. 'Q1 (Apr - Jun 2026)'
     due_date DATE NOT NULL,
     amount NUMERIC(10, 2) NOT NULL DEFAULT 12000.00,
+    concession_amount INTEGER NOT NULL DEFAULT 0,
+    concession_reason TEXT,
+    late_fee INTEGER NOT NULL DEFAULT 0,
+    fee_heads_json JSONB,
     status TEXT NOT NULL DEFAULT 'PENDING', -- 'PAID', 'PENDING'
     payment_mode TEXT NOT NULL DEFAULT 'PENDING', -- 'ONLINE_UPI', 'OFFLINE_CASH', 'OFFLINE_CHEQUE', 'PENDING'
     receipt_number TEXT,
     reference_note TEXT,
+    collected_by TEXT,
     paid_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

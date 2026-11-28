@@ -137,6 +137,20 @@
     margin: 0 !important;
     padding: 0 !important;
   }
+  #edzy-receipt-dialog-backdrop {
+    position: static !important;
+    inset: auto !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  #edzy-printable-receipt-shell {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
 }
 
 /* Native top-layer modal/drawer scroll containment */
