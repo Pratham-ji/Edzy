@@ -10,7 +10,12 @@ import {
 } from 'lucide-react';
 import { useAdminStore, StudentRecord } from '../store/useAdminStore';
 import { generateNextStudentId } from '../lib/idGenerator';
-import { getDynamicCampusClasses } from '../lib/classScope';
+import {
+  PRE_PRIMARY_CLASSES,
+  compareClassNames,
+  getDynamicCampusClasses,
+  isPrePrimaryClass,
+} from '../lib/classScope';
 import StudentLoginSlipModal from './StudentLoginSlipModal';
 
 interface AddStudentModalProps {
@@ -29,6 +34,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
     staffList,
     schoolProfile,
     currentStaff,
+    campusConfig,
     addSingleStudent,
   } = useAdminStore();
 
@@ -37,10 +43,27 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
       ? currentStaff.assignedClass
       : null;
 
-  const classOptions = getDynamicCampusClasses(students, staffList, defaultClass);
+  const dynamicClasses = getDynamicCampusClasses(
+    students,
+    staffList,
+    defaultClass,
+    campusConfig.customClasses || []
+  );
+  const classOptions = Array.from(
+    new Set([...PRE_PRIMARY_CLASSES.map((c) => `${c}-A`), ...dynamicClasses])
+  ).sort(compareClassNames);
   const initialClass =
     lockedClass ||
     (defaultClass && defaultClass !== 'ALL' ? defaultClass : classOptions[0] || 'Class 10-A');
+
+  const suggestFeeForClass = (cls: string) =>
+    isPrePrimaryClass(cls)
+      ? '28000'
+      : cls.includes('10')
+      ? '48000'
+      : cls.includes('9')
+      ? '44000'
+      : '32000';
 
   const [classGrade, setClassGrade] = useState(initialClass);
   const [customClass, setCustomClass] = useState('');
@@ -48,7 +71,8 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   const [parentPin, setParentPin] = useState('1234');
-  const [annualFee, setAnnualFee] = useState('48000');
+  const [annualFee, setAnnualFee] = useState(() => suggestFeeForClass(initialClass));
+  const [feeTouched, setFeeTouched] = useState(false);
 
   const [createdStudent, setCreatedStudent] = useState<StudentRecord | null>(null);
   const [slipStudent, setSlipStudent] = useState<StudentRecord | null>(null);
@@ -257,7 +281,13 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                   <>
                     <select
                       value={classGrade}
-                      onChange={(e) => setClassGrade(e.target.value)}
+                      onChange={(e) => {
+                        const picked = e.target.value;
+                        setClassGrade(picked);
+                        if (!feeTouched && picked !== '__CUSTOM__') {
+                          setAnnualFee(suggestFeeForClass(picked));
+                        }
+                      }}
                       className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
                     >
                       {classOptions.map((cls) => (
@@ -272,8 +302,14 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                         type="text"
                         required
                         value={customClass}
-                        onChange={(e) => setCustomClass(e.target.value)}
-                        placeholder="e.g. Class 8-A"
+                        onChange={(e) => {
+                          const nextVal = e.target.value;
+                          setCustomClass(nextVal);
+                          if (!feeTouched) {
+                            setAnnualFee(suggestFeeForClass(nextVal));
+                          }
+                        }}
+                        placeholder="e.g. Nursery-B, Class 8-A, Montessori-1"
                         className="mt-2 w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC]"
                       />
                     )}
@@ -291,6 +327,14 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                   {idPreview.id}
                 </span>
               </div>
+
+              {isPrePrimaryClass(
+                lockedClass || (classGrade === '__CUSTOM__' ? customClass : classGrade)
+              ) && (
+                <div className="p-3 rounded-xl bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.12)] border border-emerald-200 dark:border-emerald-800/60 text-[11px] font-medium text-emerald-900 dark:text-emerald-200 leading-relaxed">
+                  <strong>Pre-Primary Wing (Fee &amp; Circulars Mode):</strong> Parents receive instant fee receipts, daily attendance updates, and school circulars. Study roadmaps &amp; mark sheets stay hidden for Pre-Primary classes.
+                </div>
+              )}
 
               {/* Student Name */}
               <div>
@@ -349,7 +393,10 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                     min={0}
                     step={500}
                     value={annualFee}
-                    onChange={(e) => setAnnualFee(e.target.value)}
+                    onChange={(e) => {
+                      setAnnualFee(e.target.value);
+                      setFeeTouched(true);
+                    }}
                     className="w-full h-10 px-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
                   />
                 </div>

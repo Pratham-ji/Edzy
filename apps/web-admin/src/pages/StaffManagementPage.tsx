@@ -12,6 +12,7 @@ import {
   X,
   AlertTriangle,
   Phone,
+  Pencil,
 } from 'lucide-react';
 import { useAdminStore, SchoolStaff } from '../store/useAdminStore';
 import { StaffDepartment } from '../lib/idGenerator';
@@ -27,6 +28,7 @@ export default function StaffManagementPage() {
   const [deptFilter, setDeptFilter] = useState<DeptFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [staffToEdit, setStaffToEdit] = useState<SchoolStaff | null>(null);
   const [slipStaff, setSlipStaff] = useState<SchoolStaff | null>(null);
   const [staffToRemove, setStaffToRemove] = useState<SchoolStaff | null>(null);
 
@@ -281,6 +283,16 @@ export default function StaffManagementPage() {
                         <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
+                            onClick={() => setStaffToEdit(member)}
+                            aria-label={`Edit ${member.fullName}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#232E44] font-bold text-xs transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => setSlipStaff(member)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] hover:bg-[#4F46E5] hover:text-white dark:hover:bg-[#6366F1] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs transition-colors cursor-pointer"
                           >
@@ -313,8 +325,14 @@ export default function StaffManagementPage() {
         </div>
       </div>
 
-      {/* Add Staff Modal */}
+      {/* Add / Edit Staff Modal */}
       {isAddModalOpen && <AddStaffModal onClose={() => setIsAddModalOpen(false)} />}
+      {staffToEdit && (
+        <AddStaffModal
+          editingStaff={staffToEdit}
+          onClose={() => setStaffToEdit(null)}
+        />
+      )}
 
       {/* Staff Activation Card Modal */}
       {slipStaff && (

@@ -19,7 +19,14 @@ import {
   cleanBoardCode,
   generateStudyPackFromSyllabus,
 } from '../lib/syllabusGenerator';
-import { extractBaseGrade } from '../lib/classScope';
+import {
+  STANDARD_BOARDS,
+  extractBaseGrade,
+  formatBoardLabel,
+  getCampusSubjects,
+  isPrePrimaryClass,
+} from '../lib/classScope';
+import CustomizableSelect from './CustomizableSelect';
 
 interface UploadSyllabusModalProps {
   onClose: () => void;
@@ -29,15 +36,11 @@ interface UploadSyllabusModalProps {
 }
 
 const CLASSES = Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
-const BOARDS = ['CBSE', 'ICSE', 'ISC', 'STATE_BOARD'];
-const SUBJECTS = [
+const SYL_EXTRA_SUBJECTS = [
   'Science',
   'Physics (Science)',
   'Chemistry (Science)',
   'Biology (Science)',
-  'Mathematics',
-  'Social Science',
-  'English',
 ];
 
 const SAMPLE_ICSE_SYLLABUS = `1. The Circulatory System (ICSE Class 10): Blood & Tissue Fluid, RBC/WBC/Platelets
@@ -51,7 +54,13 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
   onSuccess,
   onOpenStudio,
 }) => {
-  const { uploadSyllabusChapter, schoolProfile, currentStaff } = useAdminStore();
+  const {
+    uploadSyllabusChapter,
+    schoolProfile,
+    currentStaff,
+    campusConfig,
+    updateCampusConfig,
+  } = useAdminStore();
 
   const effectiveLockedGrade =
     lockedClass ||
@@ -62,11 +71,34 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
   const [fileName, setFileName] = useState('School_Chapter_Syllabus.txt');
   const [chapterNumber, setChapterNumber] = useState(7);
   const [title, setTitle] = useState('Human Circulatory System & Cardiac Rhythm');
-  const [classGrade, setClassGrade] = useState(effectiveLockedGrade || 'Class 10');
+  const [classGrade, setClassGrade] = useState(
+    effectiveLockedGrade && !isPrePrimaryClass(effectiveLockedGrade)
+      ? effectiveLockedGrade
+      : 'Class 10'
+  );
   const [subject, setSubject] = useState('Biology (Science)');
-  const [board, setBoard] = useState(cleanBoardCode(schoolProfile.board));
+  const [saveCustomSubject, setSaveCustomSubject] = useState(true);
+  const [board, setBoard] = useState(() => formatBoardLabel(cleanBoardCode(schoolProfile.board)));
   const [selected3dModel, setSelected3dModel] = useState<string>('AUTO_MATCH');
   const [rawText, setRawText] = useState(SAMPLE_ICSE_SYLLABUS);
+
+  const subjectOptions = React.useMemo(() => {
+    const merged = [...SYL_EXTRA_SUBJECTS, ...getCampusSubjects(campusConfig)];
+    const seen = new Set<string>();
+    return merged.filter((s) => {
+      const k = s.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [campusConfig]);
+
+  const classOptions = React.useMemo(() => {
+    const customK12 = (campusConfig.customClasses || [])
+      .map((c) => extractBaseGrade(c))
+      .filter((c) => c && !isPrePrimaryClass(c));
+    return Array.from(new Set([...CLASSES, ...customK12]));
+  }, [campusConfig.customClasses]);
 
   const [isScanning, setIsScanning] = useState(false);
   const [generatedPack, setGeneratedPack] = useState<GeneratedStudyPack | null>(null);
@@ -107,13 +139,27 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
 
   const handleScanAndGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanSub = subject.trim();
+    const cleanBoard = board.trim() || 'CBSE';
+    if (!cleanSub) return;
+
+    if (
+      saveCustomSubject &&
+      !subjectOptions.some((s) => s.toLowerCase() === cleanSub.toLowerCase())
+    ) {
+      const nextCustom = Array.from(
+        new Set([...(campusConfig.customSubjects || []), cleanSub])
+      );
+      void updateCampusConfig({ customSubjects: nextCustom });
+    }
+
     setIsScanning(true);
     try {
       const pack = await generateStudyPackFromSyllabus({
         rawText,
         classGrade,
-        subject,
-        board,
+        subject: cleanSub,
+        board: cleanBoard,
         chapterNumber,
         title,
         selected3dModel,
@@ -187,65 +233,69 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
         {/* Step 1: Scan Input Form */}
         {!generatedPack && !publishedResult && (
           <form onSubmit={handleScanAndGenerate} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1">
-                  Education Board *
-                </label>
-                <select
-                  value={board}
-                  onChange={(e) => setBoard(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]"
-                >
-                  {BOARDS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+              <CustomizableSelect
+                id="syllabus-board"
+                name="board"
+                label="Education Board *"
+                value={board}
+                onChange={setBoard}
+                options={[...STANDARD_BOARDS]}
+                customOptionLabel="Other Board (Specify)..."
+                customPlaceholder="e.g. Maharashtra SSC / Waldorf"
+                required
+                selectClassName="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                inputClassName="w-full h-9 px-3 rounded-lg bg-white dark:bg-[#0D1322] border border-[#4F46E5] dark:border-[#6366F1] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                <div className="flex items-center justify-between mb-2">
+                  <label
+                    htmlFor="syllabus-class-grade"
+                    className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#94A3B8]"
+                  >
                     Class / Grade *
                   </label>
                   {effectiveLockedGrade && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#4F46E5] dark:text-[#6366F1]">
-                      <Lock className="w-2.5 h-2.5" /> Locked to {effectiveLockedGrade}
+                      <Lock className="w-2.5 h-2.5" aria-hidden="true" /> Locked to {effectiveLockedGrade}
                     </span>
                   )}
                 </div>
                 <select
+                  id="syllabus-class-grade"
                   value={classGrade}
                   disabled={Boolean(effectiveLockedGrade)}
                   onChange={(e) => setClassGrade(e.target.value)}
                   className="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] disabled:opacity-75 disabled:cursor-not-allowed"
                 >
-                  {CLASSES.map((c) => (
+                  {classOptions.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
                   ))}
                 </select>
+                <p className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-1 leading-snug">
+                  Pre-Primary (Playgroup–UKG) uses Fees &amp; Circulars only.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1">
-                  Subject *
-                </label>
-                <select
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC]"
-                >
-                  {SUBJECTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomizableSelect
+                id="syllabus-subject"
+                name="subject"
+                label="Subject *"
+                value={subject}
+                onChange={setSubject}
+                options={subjectOptions}
+                customOptionLabel="Other Subject (Specify)..."
+                customPlaceholder="e.g. Sanskrit, French, Robotics"
+                saveChecked={saveCustomSubject}
+                onSaveCheckedChange={setSaveCustomSubject}
+                saveLabel="Save to School Subjects"
+                required
+                selectClassName="w-full h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                inputClassName="w-full h-9 px-3 rounded-lg bg-white dark:bg-[#0D1322] border border-[#4F46E5] dark:border-[#6366F1] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
             </div>
 
             <div className="grid grid-cols-4 gap-3">

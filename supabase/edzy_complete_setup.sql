@@ -389,6 +389,10 @@ INSERT INTO public.students (
     parent_name, parent_phone, parent_pin, total_fee, paid_fee, balance_due,
     weekly_study_hours, streak_days, attendance_pct
 ) VALUES
+-- Pre-Primary Nursery-A (Strict A -> Z, Fee & Notice Mode)
+('SCH-01-NUR01', 'SCH-01', 'SCH-01', '01', 'Advik Joshi',     'Nursery-A',  'A', 'Gaurav Joshi',     '9811234531', '1234', 28000, 21000,  7000, 0.0,  0, 96.2),
+('SCH-01-NUR02', 'SCH-01', 'SCH-01', '02', 'Kiara Rawat',     'Nursery-A',  'A', 'Nitin Rawat',      '9811234532', '1234', 28000, 28000,     0, 0.0,  0, 98.4),
+
 -- Class 10-A (Strict A -> Z)
 ('SCH-01-1001', 'SCH-01', 'SCH-01', '01', 'Aarav Sharma',    'Class 10-A', 'A', 'Rajesh Sharma',    '9811234567', '1234', 48000, 36000, 12000, 6.5, 12, 96.8),
 ('SCH-01-1002', 'SCH-01', 'SCH-01', '02', 'Ananya Verma',    'Class 10-A', 'A', 'Amit Verma',       '9811234502', '1234', 48000, 48000,     0, 8.2, 19, 98.5),
@@ -428,7 +432,7 @@ ON CONFLICT (id) DO UPDATE SET
     streak_days = EXCLUDED.streak_days,
     attendance_pct = EXCLUDED.attendance_pct;
 
--- 7.4 SEED ALL 76 QUARTERLY FEE LEDGER ROWS (4 Quarters x 19 Students, 100% matching student totals)
+-- 7.4 SEED ALL 84 QUARTERLY FEE LEDGER ROWS (4 Quarters x 21 Students, 100% matching student totals)
 INSERT INTO public.fee_ledger (
     id, school_id, student_id, installment_title, due_date, amount, status, payment_mode, receipt_number, reference_note, paid_at
 ) VALUES
@@ -547,7 +551,20 @@ INSERT INTO public.fee_ledger (
 ('inst-205-q1', 'SCH-01', 'SCH-01-205', 'Q1 (Apr - Jun 2026)', '2026-04-30', 8000.00, 'PAID',    'OFFLINE_CASH',   '#SCH-1205', 'Accounts Desk Counter #2',  '2026-04-13 10:40:00+05:30'),
 ('inst-205-q2', 'SCH-01', 'SCH-01-205', 'Q2 (Jul - Sep 2026)', '2026-07-31', 8000.00, 'PAID',    'OFFLINE_CHEQUE', '#SCH-2205', 'SBI Cheque #812093',        '2026-07-15 13:00:00+05:30'),
 ('inst-205-q3', 'SCH-01', 'SCH-01-205', 'Q3 (Oct - Dec 2026)', '2026-10-31', 8000.00, 'PAID',    'ONLINE_UPI',     '#EDZ-3205', 'GPay GP3205',               '2026-10-08 17:10:00+05:30'),
-('inst-205-q4', 'SCH-01', 'SCH-01-205', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due', NULL)
+('inst-205-q4', 'SCH-01', 'SCH-01-205', 'Q4 (Jan - Mar 2027)', '2026-11-30', 8000.00, 'PENDING', 'PENDING',        NULL,        'Quarter 4 Installment Due', NULL),
+
+-- Nursery-A (Pre-Primary ₹7,000/qtr)
+-- 20. SCH-01-NUR01 Advik Joshi (Q1-Q3 PAID = 21000, Q4 PENDING = 7000)
+('inst-nur01-q1', 'SCH-01', 'SCH-01-NUR01', 'Q1 (Apr - Jun 2026)', '2026-04-30', 7000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-1NUR01', 'GPay GP1NUR01',             '2026-04-12 09:30:00+05:30'),
+('inst-nur01-q2', 'SCH-01', 'SCH-01-NUR01', 'Q2 (Jul - Sep 2026)', '2026-07-31', 7000.00, 'PAID',    'OFFLINE_CASH', '#SCH-2NUR01', 'Accounts Desk Counter #1',  '2026-07-14 11:15:00+05:30'),
+('inst-nur01-q3', 'SCH-01', 'SCH-01-NUR01', 'Q3 (Oct - Dec 2026)', '2026-10-31', 7000.00, 'PAID',    'ONLINE_UPI',   '#EDZ-3NUR01', 'PhonePe EDZ3NUR01',         '2026-10-08 15:20:00+05:30'),
+('inst-nur01-q4', 'SCH-01', 'SCH-01-NUR01', 'Q4 (Jan - Mar 2027)', '2026-11-30', 7000.00, 'PENDING', 'PENDING',      NULL,          'Quarter 4 Installment Due', NULL),
+
+-- 21. SCH-01-NUR02 Kiara Rawat (All Paid = 28000)
+('inst-nur02-q1', 'SCH-01', 'SCH-01-NUR02', 'Q1 (Apr - Jun 2026)', '2026-04-30', 7000.00, 'PAID', 'ONLINE_UPI',     '#EDZ-1NUR02', 'GPay GP1NUR02',       '2026-04-10 10:00:00+05:30'),
+('inst-nur02-q2', 'SCH-01', 'SCH-01-NUR02', 'Q2 (Jul - Sep 2026)', '2026-07-31', 7000.00, 'PAID', 'ONLINE_UPI',     '#EDZ-2NUR02', 'Paytm PT2NUR02',      '2026-07-12 12:30:00+05:30'),
+('inst-nur02-q3', 'SCH-01', 'SCH-01-NUR02', 'Q3 (Oct - Dec 2026)', '2026-10-31', 7000.00, 'PAID', 'OFFLINE_CHEQUE', '#SCH-3NUR02', 'HDFC Cheque #441902', '2026-10-06 14:40:00+05:30'),
+('inst-nur02-q4', 'SCH-01', 'SCH-01-NUR02', 'Q4 (Jan - Mar 2027)', '2026-11-30', 7000.00, 'PAID', 'ONLINE_UPI',     '#EDZ-4NUR02', 'GPay GP4NUR02',       '2026-11-02 11:10:00+05:30')
 ON CONFLICT (id) DO UPDATE SET
     status = EXCLUDED.status,
     payment_mode = EXCLUDED.payment_mode,

@@ -18,14 +18,23 @@ import {
   Lock,
   AlertTriangle,
   CalendarCheck,
+  Pencil,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { useAdminStore, StudentRecord } from '../store/useAdminStore';
 import { sortStudentsAlphabetically } from '../lib/idGenerator';
-import { compareClassNames, getDynamicCampusClasses } from '../lib/classScope';
+import {
+  compareClassNames,
+  formatBoardLabel,
+  getDynamicCampusClasses,
+  isPrePrimaryClass,
+} from '../lib/classScope';
 import StudentLoginSlipModal from '../components/StudentLoginSlipModal';
 import OfflineFeeModal from '../components/OfflineFeeModal';
 import CsvImportModal from '../components/CsvImportModal';
 import AddStudentModal from '../components/AddStudentModal';
+import EditStudentModal from '../components/EditStudentModal';
 
 export default function StudentsPage() {
   const {
@@ -33,11 +42,12 @@ export default function StudentsPage() {
     staffList,
     currentStaff,
     schoolProfile,
+    campusConfig,
     studentProgressList,
     removeStudent,
   } = useAdminStore();
 
-  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
+  const schoolBoard = formatBoardLabel(schoolProfile.board).split(' ')[0].toUpperCase();
   const isTeacher = currentStaff?.department === 'TCH';
   const teacherClass = isTeacher ? currentStaff?.assignedClass || null : null;
   const canManageFees = currentStaff?.department === 'ADM' || currentStaff?.department === 'ACT';
@@ -48,13 +58,20 @@ export default function StudentsPage() {
   // Modals state
   const [selectedSlipStudent, setSelectedSlipStudent] = useState<StudentRecord | null>(null);
   const [selectedFeeStudent, setSelectedFeeStudent] = useState<StudentRecord | null>(null);
+  const [studentToEdit, setStudentToEdit] = useState<StudentRecord | null>(null);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [studentToRemove, setStudentToRemove] = useState<StudentRecord | null>(null);
 
   const classOptions = useMemo(
-    () => getDynamicCampusClasses(students, staffList, teacherClass),
-    [students, staffList, teacherClass]
+    () =>
+      getDynamicCampusClasses(
+        students,
+        staffList,
+        teacherClass,
+        campusConfig.customClasses || []
+      ),
+    [students, staffList, teacherClass, campusConfig.customClasses]
   );
 
   // TCH stays strictly locked to their assigned class; ADM can filter freely
@@ -109,14 +126,19 @@ export default function StudentsPage() {
     return ordered;
   }, [scopedStudents, searchTerm]);
 
-  const avgHours = (
-    scopedStudents.reduce((acc, s) => acc + s.atHomeHoursThisWeek, 0) / (scopedStudents.length || 1)
-  ).toFixed(1);
+  const k12StudyStudents = scopedStudents.filter((s) => !isPrePrimaryClass(s.classGrade));
+  const prePrimaryCount = scopedStudents.filter((s) => isPrePrimaryClass(s.classGrade)).length;
+  const avgHours =
+    k12StudyStudents.length > 0
+      ? (
+          k12StudyStudents.reduce((acc, s) => acc + s.atHomeHoursThisWeek, 0) /
+          k12StudyStudents.length
+        ).toFixed(1)
+      : '0.0';
   const avgAttendance = Math.round(
     scopedStudents.reduce((acc, s) => acc + s.attendancePercent, 0) / (scopedStudents.length || 1)
   );
-  const class10Count = students.filter((s) => s.classGrade === 'Class 10-A').length;
-  const class9Count = students.filter((s) => s.classGrade === 'Class 9-B').length;
+  const activeClassesCount = new Set(students.map((s) => s.classGrade)).size;
 
   const confirmRemoveStudent = () => {
     if (!studentToRemove) return;
@@ -229,21 +251,29 @@ export default function StudentsPage() {
           <>
             <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-100 dark:border-cyan-800 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-                <span className="font-bold text-xs">10-A</span>
+                <Layers className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
-                <div className="text-xl font-bold text-[#0F172A] dark:text-[#F8FAFC]">{class10Count} Active</div>
-                <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">Class 10 Board Section</div>
+                <div className="text-xl font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                  {activeClassesCount} Classes
+                </div>
+                <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
+                  Active Sections &amp; Wings
+                </div>
               </div>
             </div>
 
             <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-100 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                <span className="font-bold text-xs">9-B</span>
+                <Sparkles className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
-                <div className="text-xl font-bold text-[#0F172A] dark:text-[#F8FAFC]">{class9Count} Active</div>
-                <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">Class 9 Foundation</div>
+                <div className="text-sm sm:text-base font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                  {k12StudyStudents.length} Study • {prePrimaryCount} Nursery–UKG
+                </div>
+                <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
+                  AI Study vs Fee &amp; Notice Mode
+                </div>
               </div>
             </div>
           </>
@@ -255,7 +285,9 @@ export default function StudentsPage() {
           </div>
           <div>
             <div className="text-xl font-bold text-[#0F172A] dark:text-[#F8FAFC]">{avgHours}h/wk</div>
-            <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">Avg At-Home Study</div>
+            <div className="text-xs text-[#475569] dark:text-[#94A3B8] font-medium">
+              {isPrePrimaryClass(effectiveClass) ? 'Pre-Primary Wing' : 'Avg Study (Class 1–12)'}
+            </div>
           </div>
         </div>
       </div>
@@ -392,7 +424,17 @@ export default function StudentsPage() {
 
                       {/* Study, Live Roadmap Mastery & Streak */}
                       <td className="py-3.5 px-4">
-                        {(() => {
+                        {isPrePrimaryClass(s.classGrade) ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] border border-emerald-200 dark:border-emerald-800/50">
+                              <Sparkles className="w-3 h-3" aria-hidden="true" />
+                              Pre-Primary • Fee &amp; Notices Only
+                            </span>
+                            <div className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                              Att. {s.attendancePercent}% • No Roadmaps
+                            </div>
+                          </div>
+                        ) : (() => {
                           const progs = studentProgressList.filter((p) => p.studentId === s.id);
                           const primary = progs[0];
                           const masteryPct = primary
@@ -463,6 +505,17 @@ export default function StudentsPage() {
 
                           <button
                             type="button"
+                            onClick={() => setStudentToEdit(s)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#232E44] font-semibold text-xs transition-colors cursor-pointer"
+                            title={`Edit details for ${s.name}`}
+                            aria-label={`Edit ${s.name}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => setStudentToRemove(s)}
                             className="inline-flex items-center justify-center p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 transition-colors cursor-pointer"
                             title={`Remove ${s.name} from class roster`}
@@ -502,6 +555,13 @@ export default function StudentsPage() {
         <AddStudentModal
           defaultClass={effectiveClass}
           onClose={() => setIsAddModalOpen(false)}
+        />
+      )}
+
+      {studentToEdit && (
+        <EditStudentModal
+          student={studentToEdit}
+          onClose={() => setStudentToEdit(null)}
         />
       )}
 

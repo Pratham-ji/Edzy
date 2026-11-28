@@ -9,10 +9,37 @@ export function parseClassGradeParts(classGrade: string): {
   section: string;
 } {
   const clean = (classGrade || 'Class 10-A').trim();
-  const match = clean.match(/(\d+)\s*[-\s]*([A-Za-z])?/);
-  const classNum = match?.[1] || '10';
-  const section = (match?.[2] || 'A').toUpperCase();
-  return { classNum, section };
+  const sectionMatch = clean.match(/[-\s]([A-Za-z])$/);
+  const section = (sectionMatch?.[1] || 'A').toUpperCase();
+  const lower = clean.toLowerCase();
+
+  if (lower.startsWith('playgroup') || lower === 'pg') {
+    return { classNum: 'PG', section };
+  }
+  if (lower.startsWith('nursery') || lower.startsWith('pre-nursery') || lower.startsWith('nur')) {
+    return { classNum: 'NUR', section };
+  }
+  if (lower.startsWith('lkg')) {
+    return { classNum: 'LKG', section };
+  }
+  if (lower.startsWith('ukg') || lower === 'kg') {
+    return { classNum: 'UKG', section };
+  }
+
+  const numMatch = clean.match(/(\d+)\s*[-\s]*([A-Za-z])?/);
+  if (numMatch?.[1]) {
+    return {
+      classNum: numMatch[1],
+      section: (numMatch[2] || section || 'A').toUpperCase(),
+    };
+  }
+
+  // Fallback for custom wing/class names (first 3 uppercase letters)
+  const alphaCode = clean
+    .replace(/[^A-Za-z]/g, '')
+    .toUpperCase()
+    .slice(0, 3) || 'CLS';
+  return { classNum: alphaCode, section };
 }
 
 /**

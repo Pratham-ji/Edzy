@@ -17,7 +17,11 @@ import {
   sortStudentsAlphabetically,
 } from '../lib/idGenerator';
 import { hashStaffPassword, verifyStaffPassword } from '../lib/authCrypto';
-import { resequenceStudentsAlphabeticallyByClass } from '../lib/classScope';
+import {
+  getCampusSubjects,
+  isPrePrimaryClass,
+  resequenceStudentsAlphabeticallyByClass,
+} from '../lib/classScope';
 import {
   buildDefaultCampusConfig,
   CampusConfig,
@@ -31,7 +35,7 @@ import {
 
 export type PaymentMethod = 'ONLINE_UPI' | 'OFFLINE_CASH' | 'OFFLINE_CHEQUE';
 export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE';
-export type ExamTerm = 'UNIT_TEST_1' | 'MIDTERM' | 'PRE_BOARD';
+export type ExamTerm = 'UNIT_TEST_1' | 'MIDTERM' | 'PRE_BOARD' | 'ANNUAL' | (string & {});
 export type ARModelType =
   | 'Human Heart 3D'
   | 'Optics Ray Bench 3D'
@@ -182,7 +186,7 @@ export interface AdminCircular {
   id: string;
   title: string;
   targetClass: string;
-  category: 'ACADEMIC' | 'EXAM' | 'HOLIDAY' | 'SPORTS' | 'GENERAL';
+  category: 'ACADEMIC' | 'EXAM' | 'HOLIDAY' | 'SPORTS' | 'GENERAL' | (string & {});
   date: string;
   author: string;
   message: string;
@@ -216,10 +220,14 @@ export function calculateCbseGrade(percentage: number): string {
 }
 
 export function normalizeExamTerm(raw: string): ExamTerm {
-  const upper = (raw || '').toUpperCase().replace(/[\s-]/g, '_');
+  const cleaned = (raw || '').trim();
+  const upper = cleaned.toUpperCase().replace(/[\s-]+/g, '_');
+  if (!upper) return 'UNIT_TEST_1';
   if (upper.includes('PRE_BOARD') || upper.includes('PREBOARD')) return 'PRE_BOARD';
   if (upper.includes('MIDTERM') || upper.includes('MID_TERM')) return 'MIDTERM';
-  return 'UNIT_TEST_1';
+  if (upper === 'UNIT_TEST_1' || upper === 'UNIT_TEST1') return 'UNIT_TEST_1';
+  if (upper === 'ANNUAL' || upper === 'ANNUAL_EXAM' || upper === 'FINAL') return 'ANNUAL';
+  return upper;
 }
 
 export function mapSchoolStaffRow(row: any): SchoolStaff {
@@ -601,6 +609,10 @@ type SeedStudentTuple = [
 ];
 
 const RAW_SEED_STUDENTS: SeedStudentTuple[] = [
+  // Pre-Primary Nursery-A (Strict A -> Z, Fee & Notice Mode)
+  ['SCH-01-NUR01', '01', 'Advik Joshi', 'Nursery-A', 'A', 'Gaurav Joshi', '9811234531', 28000, 3, 0, 0, 96.2],
+  ['SCH-01-NUR02', '02', 'Kiara Rawat', 'Nursery-A', 'A', 'Nitin Rawat', '9811234532', 28000, 4, 0, 0, 98.4],
+
   // Class 10-A (Strict A -> Z)
   ['SCH-01-1001', '01', 'Aarav Sharma', 'Class 10-A', 'A', 'Rajesh Sharma', '9811234567', 48000, 3, 6.5, 12, 96.8],
   ['SCH-01-1002', '02', 'Ananya Verma', 'Class 10-A', 'A', 'Amit Verma', '9811234502', 48000, 4, 8.2, 19, 98.5],
@@ -919,6 +931,16 @@ interface AdminState {
     principalName?: string;
   }) => Promise<{ school: SchoolTenantRecord; principalStaff: SchoolStaff }>;
   addCircular: (payload: Omit<AdminCircular, 'id' | 'date'>) => void;
+  updateCircular: (
+    circularId: string,
+    updates: {
+      title: string;
+      category: AdminCircular['category'];
+      targetClass: string;
+      message: string;
+    }
+  ) => void;
+  deleteCircular: (circularId: string) => void;
   toggleStudentAttendance: (studentId: string, status: 'PRESENT' | 'ABSENT') => void;
   markAllAttendance: (classGrade: string, status: 'PRESENT' | 'ABSENT') => void;
   initializeRealtimeSync: (schoolIdOverride?: string) => Promise<() => void>;
@@ -940,6 +962,17 @@ interface AdminState {
     phone?: string | null;
   }) => Promise<{ success: boolean; staff?: SchoolStaff; error?: string }>;
   removeStaffMember: (staffId: string) => void;
+  updateStaffMember: (
+    staffId: string,
+    payload: {
+      fullName: string;
+      designation: string;
+      assignedClass?: string | null;
+      subject?: string | null;
+      phone?: string | null;
+      status?: 'ACTIVE' | 'INACTIVE';
+    }
+  ) => Promise<{ success: boolean; staff?: SchoolStaff; error?: string }>;
   setStaffPassword: (staffId: string, passwordHash: string) => void;
 
   // Student CRUD
@@ -951,6 +984,17 @@ interface AdminState {
     parentPin?: string;
     annualFee?: number;
   }) => StudentRecord;
+  updateStudent: (
+    studentId: string,
+    payload: {
+      fullName: string;
+      classGrade: string;
+      parentName: string;
+      parentPhone: string;
+      parentPin?: string;
+      annualFee?: number;
+    }
+  ) => { success: boolean; student?: StudentRecord; error?: string };
   removeStudent: (studentId: string) => void;
 
   collectOfflineFee: (
@@ -1469,6 +1513,83 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
+  updateStaffMember: async (staffId, payload) => {
+    const state = get();
+    if (state.currentStaff && state.currentStaff.department !== 'ADM') {
+      return { success: false, error: 'Only School Principal / ERP Admin can edit staff records.' };
+    }
+    const existing = state.staffList.find((m) => m.id === staffId);
+    if (!existing) {
+      return { success: false, error: 'Staff record not found.' };
+    }
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || existing.schoolId || 'SCH-01';
+    const cleanFullName = payload.fullName.trim();
+    const cleanDesignation = payload.designation.trim() || existing.designation;
+    if (!cleanFullName) {
+      return { success: false, error: 'Full name is required.' };
+    }
+
+    const cleanAssignedClass =
+      existing.department === 'TCH'
+        ? payload.assignedClass?.trim() || existing.assignedClass || null
+        : null;
+    const cleanSubject = payload.subject?.trim() || null;
+    const cleanPhone = payload.phone?.trim() || null;
+    const nextStatus = payload.status || existing.status;
+
+    const updatedStaff: SchoolStaff = {
+      ...existing,
+      fullName: cleanFullName,
+      designation: cleanDesignation,
+      assignedClass: cleanAssignedClass,
+      subject: cleanSubject,
+      phone: cleanPhone,
+      status: nextStatus,
+    };
+
+    if (isLiveSupabaseConfigured) {
+      const { data: updatedRow, error } = await supabase
+        .from('school_staff')
+        .update({
+          full_name: cleanFullName,
+          designation: cleanDesignation,
+          assigned_class: cleanAssignedClass,
+          subject: cleanSubject,
+          phone: cleanPhone,
+          status: nextStatus,
+        })
+        .eq('id', staffId)
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        const msg = `Staff Update Error: ${error.message}${error.code ? ` (${error.code})` : ''}`;
+        console.error('[Edzy Cloud Web] updateStaffMember error:', msg);
+        get().setSyncError(msg);
+        return { success: false, error: msg };
+      }
+
+      const confirmed = updatedRow ? mapSchoolStaffRow(updatedRow) : updatedStaff;
+      set((curr) => ({
+        staffList: curr.staffList.map((m) => (m.id === staffId ? confirmed : m)),
+        currentStaff: curr.currentStaff?.id === staffId ? confirmed : curr.currentStaff,
+        syncError: null,
+      }));
+      broadcastAdminSyncEvent('STAFF_UPDATED', schoolId, null, {
+        operation: 'UPDATED',
+        staff: confirmed,
+      });
+      return { success: true, staff: confirmed };
+    }
+
+    set((curr) => ({
+      staffList: curr.staffList.map((m) => (m.id === staffId ? updatedStaff : m)),
+      currentStaff: curr.currentStaff?.id === staffId ? updatedStaff : curr.currentStaff,
+      syncError: null,
+    }));
+    return { success: true, staff: updatedStaff };
+  },
+
   setStaffPassword: (staffId, passwordHash) => {
     const state = get();
     const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
@@ -1518,7 +1639,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     const annualFee =
       payload.annualFee ||
-      (cleanClass.includes('10')
+      (isPrePrimaryClass(cleanClass)
+        ? 28000
+        : cleanClass.includes('10')
         ? 48000
         : cleanClass.includes('9')
         ? 44000
@@ -1678,6 +1801,162 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         studentId,
       });
     }
+  },
+
+  updateStudent: (studentId, payload) => {
+    const state = get();
+    const target = state.students.find((s) => s.id === studentId);
+    if (!target) {
+      return { success: false, error: 'Student not found.' };
+    }
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const isPrincipal = state.currentStaff?.department === 'ADM';
+    const cleanName = payload.fullName.trim();
+    const cleanClass = payload.classGrade.trim() || target.classGrade;
+    const cleanParentName = payload.parentName.trim();
+    const cleanParentPhone = payload.parentPhone.trim();
+    if (!cleanName || !cleanParentName || !cleanParentPhone) {
+      return { success: false, error: 'Student name, parent name, and phone are required.' };
+    }
+    const section = cleanClass.includes('-')
+      ? cleanClass.split('-')[1].trim().toUpperCase()
+      : 'A';
+    const nextPin = (payload.parentPin || target.parentPin || '1234').trim();
+
+    const stuInstallments = state.feeInstallments.filter((f) => f.studentId === studentId);
+    const paidInstallments = stuInstallments.filter((f) => f.status === 'PAID');
+    const pendingInstallments = stuInstallments.filter((f) => f.status !== 'PAID');
+    const paidTotal = paidInstallments.reduce((sum, f) => sum + f.amount, 0);
+
+    const requestedAnnualFee =
+      isPrincipal && typeof payload.annualFee === 'number' && payload.annualFee > 0
+        ? Math.round(payload.annualFee)
+        : target.annualFee;
+
+    const changedFee = isPrincipal && requestedAnnualFee !== target.annualFee;
+    const updatedPendingMap = new Map<string, number>();
+
+    if (changedFee && pendingInstallments.length > 0) {
+      const pendingPool = Math.max(0, requestedAnnualFee - paidTotal);
+      const count = pendingInstallments.length;
+      const baseQ = Math.floor(pendingPool / count);
+      const rem = pendingPool - baseQ * count;
+      pendingInstallments.forEach((inst, idx) => {
+        updatedPendingMap.set(inst.id, idx === count - 1 ? baseQ + rem : baseQ);
+      });
+    }
+
+    const updatedStuInstallments = stuInstallments.map((inst) => ({
+      ...inst,
+      studentName: cleanName,
+      classGrade: cleanClass,
+      amount: updatedPendingMap.has(inst.id) ? (updatedPendingMap.get(inst.id) as number) : inst.amount,
+    }));
+
+    const finalPaid = updatedStuInstallments
+      .filter((f) => f.status === 'PAID')
+      .reduce((sum, f) => sum + f.amount, 0);
+    const finalPending = updatedStuInstallments
+      .filter((f) => f.status !== 'PAID')
+      .reduce((sum, f) => sum + f.amount, 0);
+    const finalAnnual = updatedStuInstallments.length > 0 ? finalPaid + finalPending : requestedAnnualFee;
+
+    const patchedStudent: StudentRecord = {
+      ...target,
+      name: cleanName,
+      classGrade: cleanClass,
+      section,
+      parentName: cleanParentName,
+      parentPhone: cleanParentPhone,
+      parentPin: nextPin,
+      annualFee: finalAnnual,
+      totalPaid: finalPaid,
+      totalPending: updatedStuInstallments.length > 0 ? finalPending : Math.max(0, finalAnnual - finalPaid),
+    };
+
+    const nextStudentsInput = state.students.map((s) => (s.id === studentId ? patchedStudent : s));
+    const { sortedStudents, rollUpdates } = resequenceStudentsAlphabeticallyByClass(nextStudentsInput);
+    const finalStudent = sortedStudents.find((s) => s.id === studentId) || patchedStudent;
+
+    set((curr) => {
+      const mergedStudents = curr.students.map((s) => (s.id === studentId ? patchedStudent : s));
+      const reseq = resequenceStudentsAlphabeticallyByClass(mergedStudents);
+      return {
+        students: reseq.sortedStudents,
+        feeInstallments: curr.feeInstallments.map((f) =>
+          f.studentId === studentId
+            ? updatedStuInstallments.find((u) => u.id === f.id) || {
+                ...f,
+                studentName: cleanName,
+                classGrade: cleanClass,
+              }
+            : f
+        ),
+        examMarks: curr.examMarks.map((m) =>
+          m.studentId === studentId
+            ? {
+                ...m,
+                studentName: cleanName,
+                classGrade: cleanClass,
+                rollNo: finalStudent.rollNo,
+              }
+            : m
+        ),
+      };
+    });
+
+    if (isLiveSupabaseConfigured) {
+      const nowIso = new Date().toISOString();
+      supabase
+        .from('students')
+        .update({
+          roll_number: finalStudent.rollNo,
+          full_name: finalStudent.name,
+          class_grade: finalStudent.classGrade,
+          section: finalStudent.section,
+          parent_name: finalStudent.parentName,
+          parent_phone: finalStudent.parentPhone,
+          parent_pin: finalStudent.parentPin,
+          total_fee: finalStudent.annualFee,
+          paid_fee: finalStudent.totalPaid,
+          balance_due: finalStudent.totalPending,
+          updated_at: nowIso,
+        })
+        .eq('id', studentId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] updateStudent error:', error.code, error.message);
+            get().setSyncError(`Student Update Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      for (const upd of rollUpdates) {
+        if (upd.id === studentId) continue;
+        supabase
+          .from('students')
+          .update({ roll_number: upd.rollNo, updated_at: nowIso })
+          .eq('id', upd.id)
+          .then(() => {});
+      }
+
+      if (updatedPendingMap.size > 0) {
+        updatedPendingMap.forEach((nextAmt, instId) => {
+          supabase
+            .from('fee_ledger')
+            .update({ amount: nextAmt, updated_at: nowIso })
+            .eq('id', instId)
+            .then(() => {});
+        });
+      }
+
+      broadcastAdminSyncEvent('STUDENT_UPDATED', schoolId, studentId, {
+        operation: 'UPDATED',
+        student: finalStudent,
+        installments: updatedStuInstallments,
+      });
+    }
+
+    return { success: true, student: finalStudent };
   },
 
   lookupEmployeeById: async (employeeId) => {
@@ -2058,6 +2337,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 ? state.staffList
                 : [...state.staffList, incoming],
             }));
+          } else if (data.operation === 'UPDATED' && data.staff) {
+            const incoming = data.staff as SchoolStaff;
+            set((state) => ({
+              staffList: state.staffList.map((m) => (m.id === incoming.id ? incoming : m)),
+              currentStaff: state.currentStaff?.id === incoming.id ? incoming : state.currentStaff,
+            }));
           } else if (data.operation === 'REMOVED' && data.staffId) {
             set((state) => {
               const shouldLogout = state.currentStaff?.id === data.staffId;
@@ -2081,12 +2366,46 @@ export const useAdminStore = create<AdminState>((set, get) => ({
                 ...insts.filter((ni) => !state.feeInstallments.some((fi) => fi.id === ni.id)),
               ],
             }));
+          } else if (data.operation === 'UPDATED' && data.student) {
+            const incoming = data.student as StudentRecord;
+            const insts = (data.installments || []) as FeeInstallmentRecord[];
+            set((state) => {
+              const merged = state.students.map((s) => (s.id === incoming.id ? incoming : s));
+              const reseq = resequenceStudentsAlphabeticallyByClass(merged);
+              return {
+                students: reseq.sortedStudents,
+                feeInstallments:
+                  insts.length > 0
+                    ? state.feeInstallments.map((f) => insts.find((u) => u.id === f.id) || f)
+                    : state.feeInstallments,
+              };
+            });
           } else if (data.operation === 'REMOVED' && data.studentId) {
             set((state) => ({
               students: state.students.filter((s) => s.id !== data.studentId),
               feeInstallments: state.feeInstallments.filter((f) => f.studentId !== data.studentId),
             }));
           }
+        } else if (action === 'CIRCULAR_ADDED') {
+          const incoming = (data.circular || payload.circular) as AdminCircular | undefined;
+          if (incoming?.id) {
+            set((state) => ({
+              circulars: state.circulars.some((c) => c.id === incoming.id)
+                ? state.circulars
+                : [incoming, ...state.circulars],
+            }));
+          }
+        } else if (action === 'CIRCULAR_UPDATED') {
+          const incoming = (data.circular || payload.circular) as AdminCircular | undefined;
+          if (incoming?.id) {
+            set((state) => ({
+              circulars: state.circulars.map((c) => (c.id === incoming.id ? { ...c, ...incoming } : c)),
+            }));
+          }
+        } else if (action === 'CIRCULAR_DELETED' && data.circularId) {
+          set((state) => ({
+            circulars: state.circulars.filter((c) => c.id !== data.circularId),
+          }));
         }
       };
 
@@ -2443,6 +2762,15 @@ export const useAdminStore = create<AdminState>((set, get) => ({
             filter: `school_id=eq.${activeSchoolId}`,
           },
           (payload) => {
+            if (payload.eventType === 'DELETE') {
+              const deletedId = (payload.old as any)?.id;
+              if (deletedId) {
+                set((state) => ({
+                  circulars: state.circulars.filter((c) => c.id !== deletedId),
+                }));
+              }
+              return;
+            }
             const row: any = payload.new;
             if (!row || !row.id) return;
             set((state) => {
@@ -2967,28 +3295,38 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         (e) => e.studentId === studentId && e.term === term
       );
 
-      const subjects = [
-        'Science & Lab',
-        'Mathematics',
-        'English Communicative',
-        'Social Science',
-        'Computer Applications',
-      ];
+      const campusSubjects = getCampusSubjects(state.campusConfig);
+      const baseSubjects = campusSubjects.slice(0, 5);
+      const subjects = baseSubjects.includes(subject) ? baseSubjects : [...baseSubjects, subject];
 
       let scoresList: StudentSubjectScore[] = [];
 
       if (existingRecord) {
-        scoresList = existingRecord.scores.map((sc) => {
-          if (sc.subject === subject) {
-            return {
-              ...sc,
+        const hasSubject = existingRecord.scores.some((sc) => sc.subject === subject);
+        if (hasSubject) {
+          scoresList = existingRecord.scores.map((sc) => {
+            if (sc.subject === subject) {
+              return {
+                ...sc,
+                marksObtained,
+                grade: calculateCbseGrade((marksObtained / sc.maxMarks) * 100),
+                remarks: remarks || sc.remarks,
+              };
+            }
+            return sc;
+          });
+        } else {
+          scoresList = [
+            ...existingRecord.scores,
+            {
+              subject,
               marksObtained,
-              grade: calculateCbseGrade((marksObtained / sc.maxMarks) * 100),
-              remarks: remarks || sc.remarks,
-            };
-          }
-          return sc;
-        });
+              maxMarks: 100,
+              grade: calculateCbseGrade(marksObtained),
+              remarks: remarks || 'Good consistency.',
+            },
+          ];
+        }
       } else {
         scoresList = subjects.map((sub) => {
           const isTarget = sub === subject;
@@ -3023,7 +3361,15 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
       if (isLiveSupabaseConfigured) {
         const examType =
-          term === 'PRE_BOARD' ? 'Pre-Board' : term === 'MIDTERM' ? 'Midterm' : 'Unit Test 1';
+          term === 'PRE_BOARD'
+            ? 'Pre-Board'
+            : term === 'MIDTERM'
+            ? 'Midterm'
+            : term === 'UNIT_TEST_1'
+            ? 'Unit Test 1'
+            : term === 'ANNUAL'
+            ? 'Annual Exam'
+            : String(term).replace(/_/g, ' ');
         const markRowId = `${studentId}-${examType}-${subject}`;
         const grade = calculateCbseGrade(marksObtained);
         const dbMarkRow = {
@@ -3314,6 +3660,80 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
       broadcastAdminSyncEvent('CIRCULAR_ADDED', schoolId, null, newCircular, {
         circular: newCircular,
+      });
+    }
+  },
+
+  updateCircular: (circularId, updates) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    const existing = state.circulars.find((c) => c.id === circularId);
+    if (!existing) return;
+
+    const normalizedTargetClass =
+      !updates.targetClass || updates.targetClass === 'All Classes' || updates.targetClass === 'All'
+        ? 'All'
+        : updates.targetClass.trim();
+    const cleanTitle = updates.title.trim();
+    const cleanMessage = updates.message.trim();
+    const cleanCategory = String(updates.category || existing.category).trim().toUpperCase();
+
+    const updatedCircular: AdminCircular = {
+      ...existing,
+      title: cleanTitle,
+      category: cleanCategory,
+      targetClass: normalizedTargetClass,
+      message: cleanMessage,
+    };
+
+    set((curr) => ({
+      circulars: curr.circulars.map((c) => (c.id === circularId ? updatedCircular : c)),
+    }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('school_circulars')
+        .update({
+          title: updatedCircular.title,
+          category: updatedCircular.category,
+          target_class: updatedCircular.targetClass,
+          message: updatedCircular.message,
+        })
+        .eq('id', circularId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] school_circulars update error:', error.code, error.message);
+            get().setSyncError(`Circular Update Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      broadcastAdminSyncEvent('CIRCULAR_UPDATED', schoolId, null, {
+        circular: updatedCircular,
+      });
+    }
+  },
+
+  deleteCircular: (circularId) => {
+    const state = get();
+    const schoolId = state.activeSchoolId || state.schoolProfile.code || 'SCH-01';
+    set((curr) => ({
+      circulars: curr.circulars.filter((c) => c.id !== circularId),
+    }));
+
+    if (isLiveSupabaseConfigured) {
+      supabase
+        .from('school_circulars')
+        .delete()
+        .eq('id', circularId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('[Edzy Cloud Web] school_circulars delete error:', error.code, error.message);
+            get().setSyncError(`Circular Delete Error: ${error.message} (${error.code})`);
+          }
+        });
+
+      broadcastAdminSyncEvent('CIRCULAR_DELETED', schoolId, null, {
+        circularId,
       });
     }
   },

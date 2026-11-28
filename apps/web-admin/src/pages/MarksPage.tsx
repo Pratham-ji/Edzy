@@ -8,10 +8,16 @@ import {
   Percent,
   Lock,
   ArrowUpDown,
+  Plus,
+  Sparkles,
 } from 'lucide-react';
 import { useAdminStore, ExamTerm } from '../store/useAdminStore';
 import { sortStudentsAlphabetically } from '../lib/idGenerator';
-import { getDynamicCampusClasses } from '../lib/classScope';
+import {
+  formatBoardLabel,
+  getDynamicCampusClasses,
+  isPrePrimaryClass,
+} from '../lib/classScope';
 
 export default function MarksPage() {
   const {
@@ -21,21 +27,26 @@ export default function MarksPage() {
     examMarks,
     updateStudentMark,
     schoolProfile,
+    campusConfig,
+    updateCampusConfig,
   } = useAdminStore();
 
-  const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
+  const schoolBoard = formatBoardLabel(schoolProfile.board).split(' ')[0].toUpperCase();
   const isTeacher = currentStaff?.department === 'TCH';
   const lockedClass = isTeacher && currentStaff?.assignedClass ? currentStaff.assignedClass : null;
 
   const classOptions = useMemo(
-    () => getDynamicCampusClasses(students, staffList, lockedClass),
-    [students, staffList, lockedClass]
+    () => getDynamicCampusClasses(students, staffList, lockedClass, campusConfig.customClasses || []),
+    [students, staffList, lockedClass, campusConfig.customClasses]
   );
 
   const [selectedClass, setSelectedClass] = useState<string>(
     lockedClass || classOptions[0] || 'Class 10-A'
   );
   const [selectedTerm, setSelectedTerm] = useState<ExamTerm>('PRE_BOARD');
+  const [customTermInput, setCustomTermInput] = useState('');
+  const [isAddingTerm, setIsAddingTerm] = useState(false);
+  const [newSubjectInput, setNewSubjectInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [savedNotification, setSavedNotification] = useState<string | null>(null);
 
@@ -46,14 +57,63 @@ export default function MarksPage() {
   }, [lockedClass]);
 
   const effectiveClass = lockedClass || selectedClass;
+  const isPrePrimary = isPrePrimaryClass(effectiveClass);
 
-  const subjects = [
+  // Compute Class Stats (for selected term & class)
+  const baseSubjects = [
     'Science & Lab',
     'Mathematics',
     'English Communicative',
     'Social Science',
     'Computer Applications',
   ];
+
+  const subjects = useMemo(() => {
+    const merged = [...baseSubjects, ...(campusConfig.customSubjects || [])];
+    for (const rec of examMarks) {
+      if (rec.classGrade === effectiveClass) {
+        for (const sc of rec.scores) {
+          if (sc.subject && !merged.some((m) => m.toLowerCase() === sc.subject.toLowerCase())) {
+            merged.push(sc.subject);
+          }
+        }
+      }
+    }
+    return merged;
+  }, [campusConfig.customSubjects, examMarks, effectiveClass]);
+
+  const customTerms = useMemo(() => {
+    const standard = new Set(['PRE_BOARD', 'MIDTERM', 'UNIT_TEST_1', 'ANNUAL']);
+    const extra = new Set<string>();
+    for (const rec of examMarks) {
+      if (rec.term && !standard.has(rec.term)) extra.add(rec.term);
+    }
+    if (selectedTerm && !standard.has(selectedTerm)) extra.add(selectedTerm);
+    return Array.from(extra);
+  }, [examMarks, selectedTerm]);
+
+  const handleAddSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = newSubjectInput.trim();
+    if (!clean) return;
+    if (!subjects.some((s) => s.toLowerCase() === clean.toLowerCase())) {
+      await updateCampusConfig({
+        customSubjects: [...(campusConfig.customSubjects || []), clean],
+      });
+    }
+    setNewSubjectInput('');
+    setSavedNotification(`Added "${clean}" subject column!`);
+    setTimeout(() => setSavedNotification(null), 2500);
+  };
+
+  const handleApplyCustomTerm = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = customTermInput.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    if (!clean) return;
+    setSelectedTerm(clean);
+    setCustomTermInput('');
+    setIsAddingTerm(false);
+  };
 
   // Sorted A -> Z roster for effectiveClass
   const classStudents = useMemo(
@@ -211,11 +271,21 @@ export default function MarksPage() {
           </div>
 
           {/* Term Select */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-[#475569] dark:text-[#94A3B8]">Term:</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <label htmlFor="marks-term-select" className="text-xs font-semibold text-[#475569] dark:text-[#94A3B8]">
+              Term:
+            </label>
             <select
-              value={selectedTerm}
-              onChange={(e) => setSelectedTerm(e.target.value as ExamTerm)}
+              id="marks-term-select"
+              value={isAddingTerm ? '__CUSTOM__' : selectedTerm}
+              onChange={(e) => {
+                if (e.target.value === '__CUSTOM__') {
+                  setIsAddingTerm(true);
+                } else {
+                  setIsAddingTerm(false);
+                  setSelectedTerm(e.target.value as ExamTerm);
+                }
+              }}
               className="px-3 py-1.5 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="PRE_BOARD">
@@ -223,8 +293,59 @@ export default function MarksPage() {
               </option>
               <option value="MIDTERM">Midterm Assessment</option>
               <option value="UNIT_TEST_1">Unit Test 1</option>
+              <option value="ANNUAL">Annual Final Exam</option>
+              {customTerms.map((ct) => (
+                <option key={ct} value={ct}>
+                  {ct.replace(/_/g, ' ')}
+                </option>
+              ))}
+              <option value="__CUSTOM__">+ Custom Exam Term...</option>
             </select>
+            {isAddingTerm && (
+              <form onSubmit={handleApplyCustomTerm} className="inline-flex items-center gap-1">
+                <label htmlFor="custom-term-input" className="visually-hidden">
+                  Custom exam term name
+                </label>
+                <input
+                  id="custom-term-input"
+                  type="text"
+                  value={customTermInput}
+                  onChange={(e) => setCustomTermInput(e.target.value)}
+                  placeholder="e.g. Unit Test 2"
+                  className="h-8 px-2.5 rounded-lg bg-white dark:bg-[#0D1322] border border-[#4F46E5] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC]"
+                />
+                <button
+                  type="submit"
+                  className="h-8 px-2.5 rounded-lg bg-[#4F46E5] text-white text-xs font-bold cursor-pointer"
+                >
+                  Apply
+                </button>
+              </form>
+            )}
           </div>
+
+          {!isPrePrimary && (
+            <form onSubmit={handleAddSubject} className="flex items-center gap-1.5">
+              <label htmlFor="marks-add-subject-input" className="visually-hidden">
+                Add custom subject column
+              </label>
+              <input
+                id="marks-add-subject-input"
+                type="text"
+                value={newSubjectInput}
+                onChange={(e) => setNewSubjectInput(e.target.value)}
+                placeholder="+ Subject (e.g. Sanskrit)"
+                className="h-8 w-36 px-2.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC]"
+              />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3] text-xs font-bold cursor-pointer"
+              >
+                <Plus className="w-3 h-3" aria-hidden="true" />
+                <span>Add Subject</span>
+              </button>
+            </form>
+          )}
 
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399]">
             <ArrowUpDown className="w-3 h-3" />
@@ -245,7 +366,47 @@ export default function MarksPage() {
         </div>
       </div>
 
-      {/* Spreadsheet Table */}
+      {/* Pre-Primary Wing Notice OR Spreadsheet Table */}
+      {isPrePrimary ? (
+        <div className="bg-white dark:bg-[#121826] rounded-xl border border-emerald-200 dark:border-emerald-800/60 shadow-xs p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] border border-emerald-200 dark:border-emerald-800 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-base font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                {effectiveClass} — Pre-Primary Fee &amp; Observation Wing
+              </h2>
+              <p className="text-xs text-[#475569] dark:text-[#94A3B8] leading-relaxed">
+                Pre-Primary classes (Playgroup, Nursery, LKG, UKG) intentionally skip numerical mark sheets and high-stakes exam tables. Manage <strong>{effectiveClass}</strong> parent circulars &amp; daily attendance on the Attendance desk, or fees on the Fee Counter. Formal exam ledgers begin from <strong>Class 1</strong>.
+              </p>
+            </div>
+          </div>
+
+          {classStudents.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2 border-t border-slate-100 dark:border-[#232E44]">
+              {classStudents.map((stu, idx) => (
+                <div
+                  key={stu.id}
+                  className="p-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                      #{String(idx + 1).padStart(2, '0')} {stu.name}
+                    </div>
+                    <div className="text-[11px] font-mono text-[#4F46E5] dark:text-[#818CF8]">
+                      {stu.id}
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399]">
+                    Att. {stu.attendancePercent}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -366,6 +527,7 @@ export default function MarksPage() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

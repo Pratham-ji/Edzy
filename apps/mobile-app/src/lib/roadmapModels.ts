@@ -69,12 +69,17 @@ export interface RelatedChapterRef {
 }
 
 export function cleanBoardCode(rawBoard?: string): string {
-  const b = (rawBoard || 'CBSE').toUpperCase();
-  if (b.includes('ICSE')) return 'ICSE';
-  if (b.includes('ISC')) return 'ISC';
-  if (b.includes('STATE')) return 'STATE_BOARD';
-  if (b.includes('CAMBRIDGE') || b.includes('IB')) return 'IB/IGCSE';
-  return 'CBSE';
+  const trimmed = (rawBoard || '').trim();
+  if (!trimmed) return 'CBSE';
+  const b = trimmed.toUpperCase();
+  if (b === 'CBSE') return 'CBSE';
+  if (b === 'ICSE') return 'ICSE';
+  if (b === 'ISC') return 'ISC';
+  if (b === 'STATE_BOARD' || b === 'STATE BOARD') return 'State Board';
+  if (b === 'CAMBRIDGE' || b.includes('IGCSE')) return 'Cambridge (IGCSE)';
+  if (b === 'IB') return 'IB';
+  if (b === 'NIOS') return 'NIOS';
+  return trimmed;
 }
 
 export function normalizeArModelId(raw?: string): string {

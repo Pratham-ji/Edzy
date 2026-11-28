@@ -15,13 +15,16 @@ import {
   Plus,
   Receipt,
   AlertTriangle,
+  BookOpen,
 } from 'lucide-react';
 import { useAdminStore } from '../store/useAdminStore';
 import { isLiveSupabaseConfigured } from '../lib/supabase';
 import { downloadCsvFile, formatReceiptNumber } from '../lib/feeMetrics';
 import { processBrandImageUpload } from '../lib/imageUpload';
 import { CampusConfig, FeeHeadConfig } from '../lib/campusConfig';
+import { STANDARD_BOARDS, STANDARD_SUBJECTS, formatBoardLabel } from '../lib/classScope';
 import { ReceiptStampSignoffBlock } from '../components/OfficialSchoolSeal';
+import CustomizableSelect from '../components/CustomizableSelect';
 
 interface SettingsPageProps {
   onOpenAccountsExport?: () => void;
@@ -41,7 +44,10 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
 
   const isPrincipalAdmin = currentStaff?.department === 'ADM';
 
-  const [formData, setFormData] = useState({ ...schoolProfile });
+  const [formData, setFormData] = useState({
+    ...schoolProfile,
+    board: formatBoardLabel(schoolProfile.board),
+  });
   const [brandDraft, setBrandDraft] = useState<CampusConfig>({
     ...campusConfig,
     feeHeads: campusConfig.feeHeads.map((h) => ({ ...h })),
@@ -49,10 +55,15 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [customSubjectDraft, setCustomSubjectDraft] = useState('');
+  const [customClassDraft, setCustomClassDraft] = useState('');
 
   // Sync forms whenever active school profile or config updates
   useEffect(() => {
-    setFormData({ ...schoolProfile });
+    setFormData({
+      ...schoolProfile,
+      board: formatBoardLabel(schoolProfile.board),
+    });
   }, [schoolProfile]);
 
   useEffect(() => {
@@ -67,6 +78,49 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
       ...formData,
       [e.target.name]: e.target.value,
     });
+  };
+
+  const handleAddCampusSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = customSubjectDraft.trim();
+    if (!clean) return;
+    const existing = campusConfig.customSubjects || [];
+    if (
+      STANDARD_SUBJECTS.some((s) => s.toLowerCase() === clean.toLowerCase()) ||
+      existing.some((s) => s.toLowerCase() === clean.toLowerCase())
+    ) {
+      setCustomSubjectDraft('');
+      return;
+    }
+    await updateCampusConfig({ customSubjects: [...existing, clean] });
+    setCustomSubjectDraft('');
+    setSaveToast(`Added "${clean}" to school subjects across Marks & Syllabus.`);
+    setTimeout(() => setSaveToast(null), 2800);
+  };
+
+  const handleRemoveCampusSubject = async (subjectName: string) => {
+    const next = (campusConfig.customSubjects || []).filter((s) => s !== subjectName);
+    await updateCampusConfig({ customSubjects: next });
+  };
+
+  const handleAddCampusClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = customClassDraft.trim();
+    if (!clean) return;
+    const existing = campusConfig.customClasses || [];
+    if (existing.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+      setCustomClassDraft('');
+      return;
+    }
+    await updateCampusConfig({ customClasses: [...existing, clean] });
+    setCustomClassDraft('');
+    setSaveToast(`Added "${clean}" to campus class pickers.`);
+    setTimeout(() => setSaveToast(null), 2800);
+  };
+
+  const handleRemoveCampusClass = async (className: string) => {
+    const next = (campusConfig.customClasses || []).filter((c) => c !== className);
+    await updateCampusConfig({ customClasses: next });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -339,19 +393,23 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Education Board
-              </label>
-              <input
-                type="text"
-                name="board"
-                value={formData.board}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
+            <CustomizableSelect
+              id="settings-education-board"
+              name="board"
+              label={
+                <span className="text-xs font-semibold normal-case tracking-normal text-slate-600 dark:text-slate-300">
+                  Education Board
+                </span>
+              }
+              value={formData.board}
+              onChange={(nextBoard) => setFormData((prev) => ({ ...prev, board: nextBoard }))}
+              options={[...STANDARD_BOARDS]}
+              customOptionLabel="Other Board (Specify)..."
+              customPlaceholder="e.g. Maharashtra State Board / Waldorf / NIOS"
+              required
+              selectClassName="w-full px-3 py-2 bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+              inputClassName="w-full px-3 py-2 bg-white dark:bg-[#0D1322] border border-[#4F46E5] dark:border-[#6366F1] rounded-lg text-sm text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+            />
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -904,6 +962,125 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
               </button>
             </div>
           </form>
+
+          {/* Principal-Only Campus Subjects & Classes Registry */}
+          <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-[#232E44]">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-[#F8FAFC] font-bold text-base">
+                <BookOpen className="w-5 h-5 text-[#4F46E5] dark:text-[#6366F1]" aria-hidden="true" />
+                <span>Campus Subjects, Wings &amp; Custom Classes</span>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-[#94A3B8]">
+                Instant dropdown sync across Syllabus, Marks, Staff &amp; Admissions
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Custom Subjects */}
+              <div className="space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#94A3B8]">
+                  School Custom Subjects ({(campusConfig.customSubjects || []).length})
+                </div>
+                <form onSubmit={handleAddCampusSubject} className="flex items-center gap-2">
+                  <label htmlFor="custom-subject-input" className="visually-hidden">
+                    Add custom school subject
+                  </label>
+                  <input
+                    id="custom-subject-input"
+                    type="text"
+                    value={customSubjectDraft}
+                    onChange={(e) => setCustomSubjectDraft(e.target.value)}
+                    placeholder="e.g. Sanskrit, French, AI & Robotics"
+                    className="flex-1 h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium text-slate-900 dark:text-[#F8FAFC]"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1 h-9 px-3.5 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Add Subject</span>
+                  </button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {(campusConfig.customSubjects || []).length === 0 ? (
+                    <span className="text-xs text-slate-500 dark:text-[#94A3B8]">
+                      All {STANDARD_SUBJECTS.length} standard subjects are active. Add electives above if needed.
+                    </span>
+                  ) : (
+                    (campusConfig.customSubjects || []).map((sub) => (
+                      <span
+                        key={sub}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#3730A3] dark:text-indigo-200 border border-[#C7D2FE] dark:border-[#3730A3]"
+                      >
+                        <span>{sub}</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleRemoveCampusSubject(sub)}
+                          aria-label={`Remove custom subject ${sub}`}
+                          className="text-indigo-500 hover:text-rose-600 font-bold cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Custom Classes / Sections */}
+              <div className="space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#94A3B8]">
+                  Additional Campus Classes / Sections ({(campusConfig.customClasses || []).length})
+                </div>
+                <form onSubmit={handleAddCampusClass} className="flex items-center gap-2">
+                  <label htmlFor="custom-class-input" className="visually-hidden">
+                    Add custom class or wing
+                  </label>
+                  <input
+                    id="custom-class-input"
+                    type="text"
+                    value={customClassDraft}
+                    onChange={(e) => setCustomClassDraft(e.target.value)}
+                    placeholder="e.g. Playgroup-B, LKG-A, Class 11-Commerce"
+                    className="flex-1 h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-medium text-slate-900 dark:text-[#F8FAFC]"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1 h-9 px-3.5 rounded-lg bg-[#059669] hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Add Class</span>
+                  </button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {(campusConfig.customClasses || []).length === 0 ? (
+                    <span className="text-xs text-slate-500 dark:text-[#94A3B8]">
+                      Playgroup–UKG and Class 1–12 are built-in. Add custom streams or extra sections here.
+                    </span>
+                  ) : (
+                    (campusConfig.customClasses || []).map((cls) => (
+                      <span
+                        key={cls}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] border border-emerald-200 dark:border-emerald-800/60"
+                      >
+                        <span>{cls}</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleRemoveCampusClass(cls)}
+                          aria-label={`Remove custom class ${cls}`}
+                          className="text-emerald-600 hover:text-rose-600 font-bold cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </>
       )}
 

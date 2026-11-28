@@ -12,43 +12,52 @@ import {
   CheckCheck,
   Lock,
   ArrowUpDown,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
-import { useAdminStore } from '../store/useAdminStore';
+import { AdminCircular, useAdminStore } from '../store/useAdminStore';
 import { sortStudentsAlphabetically } from '../lib/idGenerator';
 import { getDynamicCampusClasses } from '../lib/classScope';
+import CustomizableSelect from '../components/CustomizableSelect';
 
 export const CircularsAttendancePage: React.FC = () => {
   const {
     circulars,
     addCircular,
+    updateCircular,
+    deleteCircular,
     students,
     staffList,
     currentStaff,
+    campusConfig,
     attendanceRegister,
     toggleStudentAttendance,
     markAllAttendance,
   } = useAdminStore();
 
+  const isPrincipal = currentStaff?.department === 'ADM';
   const isTeacher = currentStaff?.department === 'TCH';
   const lockedClass = isTeacher && currentStaff?.assignedClass ? currentStaff.assignedClass : null;
 
   const classOptions = useMemo(
-    () => getDynamicCampusClasses(students, staffList, lockedClass),
-    [students, staffList, lockedClass]
+    () => getDynamicCampusClasses(students, staffList, lockedClass, campusConfig.customClasses || []),
+    [students, staffList, lockedClass, campusConfig.customClasses]
   );
 
   const [activeSubTab, setActiveSubTab] = useState<'circulars' | 'attendance'>('circulars');
 
   // Circular form state
+  const [editingCircularId, setEditingCircularId] = useState<string | null>(null);
+  const [circularToDelete, setCircularToDelete] = useState<AdminCircular | null>(null);
   const [title, setTitle] = useState('');
   const [targetClass, setTargetClass] = useState(lockedClass || 'All Classes');
-  const [category, setCategory] = useState<'ACADEMIC' | 'EXAM' | 'HOLIDAY' | 'SPORTS' | 'GENERAL'>('ACADEMIC');
+  const [category, setCategory] = useState<string>('ACADEMIC');
   const [author, setAuthor] = useState(
     lockedClass && currentStaff ? `${currentStaff.fullName} (${lockedClass})` : 'Principal Office'
   );
   const [message, setMessage] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
-  const [broadcastSuccess, setBroadcastSuccess] = useState(false);
+  const [broadcastSuccess, setBroadcastSuccess] = useState<string | null>(null);
 
   // Attendance state
   const [selectedClass, setSelectedClass] = useState<string>(
@@ -72,24 +81,60 @@ export const CircularsAttendancePage: React.FC = () => {
   const effectiveClass = lockedClass || selectedClass;
   const effectiveTargetClass = lockedClass || targetClass;
 
+  const startEditCircular = (circ: AdminCircular) => {
+    setEditingCircularId(circ.id);
+    setTitle(circ.title);
+    setTargetClass(
+      circ.targetClass === 'All' ? 'All Classes' : circ.targetClass
+    );
+    setCategory(circ.category);
+    setMessage(circ.message);
+    setAttachmentName(circ.attachmentName || '');
+    setActiveSubTab('circulars');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEditCircular = () => {
+    setEditingCircularId(null);
+    setTitle('');
+    setTargetClass(lockedClass || 'All Classes');
+    setCategory('ACADEMIC');
+    setMessage('');
+    setAttachmentName('');
+  };
+
   const handleBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !message.trim()) return;
+    const resolvedCategory = (category.trim() || 'GENERAL').toUpperCase();
 
-    addCircular({
-      title: title.trim(),
-      targetClass: effectiveTargetClass,
-      category,
-      author: author.trim() || (lockedClass ? currentStaff?.fullName || 'Class Teacher' : 'Principal Office'),
-      message: message.trim(),
-      attachmentName: attachmentName.trim() || undefined,
-    });
+    if (editingCircularId) {
+      updateCircular(editingCircularId, {
+        title: title.trim(),
+        category: resolvedCategory,
+        targetClass: effectiveTargetClass,
+        message: message.trim(),
+      });
+      setBroadcastSuccess(`Circular updated and synced for ${effectiveTargetClass}.`);
+      cancelEditCircular();
+    } else {
+      addCircular({
+        title: title.trim(),
+        targetClass: effectiveTargetClass,
+        category: resolvedCategory,
+        author: author.trim() || (lockedClass ? currentStaff?.fullName || 'Class Teacher' : 'Principal Office'),
+        message: message.trim(),
+        attachmentName: attachmentName.trim() || undefined,
+      });
+      setBroadcastSuccess(
+        `Circular successfully broadcasted to ${effectiveTargetClass}! Parent devices updated.`
+      );
+      setTitle('');
+      setMessage('');
+      setAttachmentName('');
+    }
 
-    setBroadcastSuccess(true);
-    setTitle('');
-    setMessage('');
-    setAttachmentName('');
-    setTimeout(() => setBroadcastSuccess(false), 3500);
+    setTimeout(() => setBroadcastSuccess(null), 3500);
   };
 
   const classRosterSorted = useMemo(
@@ -221,22 +266,38 @@ export const CircularsAttendancePage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC] text-base">
-                    {lockedClass ? `New ${lockedClass} Circular` : 'New School Circular'}
+                    {editingCircularId
+                      ? 'Edit Published Notice'
+                      : lockedClass
+                      ? `New ${lockedClass} Circular`
+                      : 'New School Circular'}
                   </h3>
                   <p className="text-xs text-[#475569] dark:text-[#94A3B8]">
-                    Instant push to Parent Mobile App
+                    {editingCircularId
+                      ? 'Updates reflect instantly in Parent Mobile App'
+                      : 'Instant push to Parent Mobile App'}
                   </p>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#059669] dark:text-[#34D399] bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
-                <Check className="w-3 h-3" /> Live Channel
-              </span>
+              {editingCircularId ? (
+                <button
+                  type="button"
+                  onClick={cancelEditCircular}
+                  className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                >
+                  Cancel Edit
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#059669] dark:text-[#34D399] bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
+                  <Check className="w-3 h-3" /> Live Channel
+                </span>
+              )}
             </div>
 
             {broadcastSuccess && (
               <div className="flex items-center gap-2 p-3.5 rounded-xl bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] border border-emerald-200 dark:border-emerald-800 text-[#059669] dark:text-[#34D399] text-xs font-semibold animate-fadeIn">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                Circular successfully broadcasted to {effectiveTargetClass}! Parent devices updated.
+                <span>{broadcastSuccess}</span>
               </div>
             )}
 
@@ -255,9 +316,12 @@ export const CircularsAttendancePage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                 <div>
-                  <label className="block text-xs font-semibold text-[#0F172A] dark:text-slate-300 mb-1.5">
+                  <label
+                    htmlFor="circular-target-class"
+                    className="block text-xs font-semibold text-[#0F172A] dark:text-slate-300 mb-2"
+                  >
                     Target Class
                   </label>
                   {lockedClass ? (
@@ -267,11 +331,13 @@ export const CircularsAttendancePage: React.FC = () => {
                     </div>
                   ) : (
                     <select
+                      id="circular-target-class"
                       value={targetClass}
                       onChange={(e) => setTargetClass(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
                       <option value="All Classes">All Classes</option>
+                      <option value="Pre-Primary (Nursery–UKG)">Pre-Primary (Nursery–UKG)</option>
                       {classOptions.map((cls) => (
                         <option key={cls} value={cls}>
                           {cls}
@@ -280,22 +346,30 @@ export const CircularsAttendancePage: React.FC = () => {
                     </select>
                   )}
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#0F172A] dark:text-slate-300 mb-1.5">
-                    Category
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="ACADEMIC">Academic</option>
-                    <option value="EXAM">Examination</option>
-                    <option value="HOLIDAY">Holiday Notice</option>
-                    <option value="SPORTS">Sports & Events</option>
-                    <option value="GENERAL">General Notice</option>
-                  </select>
-                </div>
+
+                <CustomizableSelect
+                  id="circular-category"
+                  name="category"
+                  label={
+                    <span className="text-xs font-semibold normal-case tracking-normal text-[#0F172A] dark:text-slate-300">
+                      Category
+                    </span>
+                  }
+                  value={category}
+                  onChange={setCategory}
+                  options={[
+                    { value: 'ACADEMIC', label: 'Academic' },
+                    { value: 'EXAM', label: 'Examination' },
+                    { value: 'HOLIDAY', label: 'Holiday Notice' },
+                    { value: 'SPORTS', label: 'Sports & Events' },
+                    { value: 'GENERAL', label: 'General Notice' },
+                  ]}
+                  customOptionLabel="Other Category (Specify)..."
+                  customPlaceholder="e.g. PTM Notice, Transport Alert"
+                  required
+                  selectClassName="w-full px-3 py-2.5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-white dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  inputClassName="w-full px-3 py-2 rounded-xl border border-[#4F46E5] bg-white dark:bg-[#0D1322] text-[#0F172A] dark:text-[#F8FAFC] text-xs font-semibold"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -344,7 +418,9 @@ export const CircularsAttendancePage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white font-semibold text-sm transition-all shadow-sm cursor-pointer"
               >
                 <Send className="w-4 h-4" />
-                Publish & Broadcast to {effectiveTargetClass}
+                {editingCircularId
+                  ? `Save Updated Circular (${effectiveTargetClass})`
+                  : `Publish & Broadcast to ${effectiveTargetClass}`}
               </button>
             </form>
           </div>
@@ -391,6 +467,28 @@ export const CircularsAttendancePage: React.FC = () => {
                         {circ.title}
                       </h4>
                     </div>
+
+                    {(isPrincipal || (lockedClass && circ.targetClass === lockedClass)) && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEditCircular(circ)}
+                          aria-label={`Edit circular ${circ.title}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#232E44] text-[11px] font-bold cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" aria-hidden="true" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCircularToDelete(circ)}
+                          aria-label={`Delete circular ${circ.title}`}
+                          className="inline-flex items-center justify-center p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
@@ -641,6 +739,53 @@ export const CircularsAttendancePage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {circularToDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setCircularToDelete(null)}
+        >
+          <div
+            className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-md w-full border border-[#E2E8F0] dark:border-[#232E44] p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1.5">
+              <h3 className="text-base font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
+                Delete School Circular?
+              </h3>
+              <p className="text-xs text-[#475569] dark:text-[#94A3B8] leading-relaxed">
+                This will permanently remove{' '}
+                <strong className="text-[#0F172A] dark:text-[#F8FAFC]">
+                  {circularToDelete.title}
+                </strong>{' '}
+                from all teacher dashboards and parent mobile devices.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setCircularToDelete(null)}
+                className="px-4 py-2 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteCircular(circularToDelete.id);
+                  if (editingCircularId === circularToDelete.id) {
+                    cancelEditCircular();
+                  }
+                  setCircularToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer"
+              >
+                Confirm Delete
+              </button>
             </div>
           </div>
         </div>

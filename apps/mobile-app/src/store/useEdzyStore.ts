@@ -719,11 +719,18 @@ const INITIAL_EXAMS: ExamTermRecord[] = [
 let mobileRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let mobileBroadcastChannel: ReturnType<typeof supabase.channel> | null = null;
 
+export function isPrePrimaryGrade(classGrade?: string | null): boolean {
+  const clean = String(classGrade || '').trim().toLowerCase();
+  if (!clean) return false;
+  return /^(playgroup|nursery|lkg|ukg|pre-nursery|pre\s*primary|kg\b)/.test(clean);
+}
+
 export function isCircularForStudent(targetClass?: string, studentClassGrade?: string): boolean {
   if (!targetClass) return true;
   const tc = String(targetClass).trim().toLowerCase();
   if (tc === 'all' || tc === 'all classes' || tc === 'all class' || tc === 'general') return true;
   if (!studentClassGrade) return true;
+  if (tc.includes('pre-primary') && isPrePrimaryGrade(studentClassGrade)) return true;
   const sc = String(studentClassGrade).trim().toLowerCase();
   return tc === sc || tc.includes(sc) || sc.includes(tc);
 }
