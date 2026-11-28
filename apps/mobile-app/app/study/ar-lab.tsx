@@ -1,115 +1,197 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
   Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  BookOpen,
   Boxes,
+  ChevronRight,
+  Focus,
+  Layers,
+  Minimize2,
   RotateCw,
-  Maximize2,
+  SlidersHorizontal,
   Users,
   Volume2,
-  Share2,
   X,
-  Check,
-  ChevronRight,
-  Sparkles,
-  Info,
-  Heart,
-  Eye,
-  Layers,
 } from 'lucide-react-native';
 import { useEdzyStore } from '@/store/useEdzyStore';
-import { colors, useAppTheme } from '@/theme/colors';
+import { colors, getCardShadow, useAppTheme } from '@/theme/colors';
+import {
+  GLModelViewer,
+  GLModelViewerHandle,
+} from '@/sections/3d-model-viewer/components/GLModelViewer';
+import { ModelCatalogModal } from '@/sections/3d-model-viewer/components/ModelCatalogModal';
+import {
+  MODEL_CATALOG,
+  MODEL_SUBJECTS,
+  ModelComponentNode,
+  ModelEntry,
+  ModelSubject,
+  resolveModelByIdOrName,
+} from '@/sections/3d-model-viewer/data/models';
+import { BadgeTone, ExplorerViewMode } from '@/sections/3d-model-viewer/interactions/types';
 
-const ANATOMICAL_NODES = [
-  {
-    id: 'Aorta',
-    label: 'Aorta',
-    role: 'Systemic Circulation',
-    description: 'Main systemic arterial arch delivering high-pressure oxygenated blood to the body.',
-    oxygenated: true,
-    pressure: '120 mmHg',
-  },
-  {
-    id: 'Left Ventricle',
-    label: 'Left Ventricle',
-    role: 'High-Pressure Pump',
-    description: 'Features a 3x thicker muscular wall (myocardium) to overcome systemic vascular resistance.',
-    oxygenated: true,
-    pressure: '120 mmHg',
-  },
-  {
-    id: 'Pulmonary Vein',
-    label: 'Pulmonary Vein',
-    role: 'Oxygen Inflow',
-    description: 'Crucial exception: only vein carrying oxygen-rich blood directly from lungs to left atrium.',
-    oxygenated: true,
-    pressure: '8-10 mmHg',
-  },
-  {
-    id: 'Bicuspid Valve',
-    label: 'Bicuspid Valve',
-    role: 'Atrioventricular Gate',
-    description: 'Also called the Mitral Valve. Prevents backflow of oxygenated blood into left atrium.',
-    oxygenated: true,
-    pressure: 'One-Way Flap',
-  },
-];
+const BADGE_TONE_HEX: Record<BadgeTone, string> = {
+  danger: colors.status.error,
+  info: '#0284C7',
+  success: colors.status.success,
+  warning: colors.status.warning,
+  brand: colors.brand.primary,
+};
 
 export default function ArLabScreen() {
   const insets = useSafeAreaInsets();
-  const { theme } = useAppTheme();
-  const { activeArDirective, updateArDirective } = useEdzyStore();
+  const { theme, isDark } = useAppTheme();
+  const { activeArDirective, updateArDirective, studentProfile } = useEdzyStore();
+  const viewerRef = useRef<GLModelViewerHandle | null>(null);
+
+  // Resolve initial model from AI / Roadmap directive (defaults to Human Heart)
+  const [activeModel, setActiveModel] = useState<ModelEntry>(() =>
+    resolveModelByIdOrName(activeArDirective.modelName),
+  );
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(
+    () => {
+      const initial = resolveModelByIdOrName(activeArDirective.modelName);
+      const matched = initial.components.find(
+        (c) => c.id.toLowerCase() === (activeArDirective.targetNode || '').toLowerCase(),
+      );
+      return matched?.id ?? null;
+    },
+  );
 
   const [rotationAngle, setRotationAngle] = useState(45);
-  const [explodeLevel, setExplodeLevel] = useState(activeArDirective.explodeFactor || 0.15);
+  const [viewMode, setViewMode] = useState<ExplorerViewMode>('solid');
+  const [isolateSelected, setIsolateSelected] = useState(false);
   const [audioNarration, setAudioNarration] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [showCoStudyModal, setShowCoStudyModal] = useState(false);
 
-  const activeNodeData =
-    ANATOMICAL_NODES.find((n) => n.id === activeArDirective.targetNode) || ANATOMICAL_NODES[0];
+  // Sync if an external AI Tutor or Roadmap directive changes the active model/node
+  useEffect(() => {
+    const resolved = resolveModelByIdOrName(activeArDirective.modelName);
+    setActiveModel(resolved);
 
-  const handleSelectNode = (nodeId: string) => {
-    const node = ANATOMICAL_NODES.find((n) => n.id === nodeId);
-    if (!node) return;
-    updateArDirective({
-      targetNode: node.id,
-      highlight: true,
-      note: node.description,
-      rotation: `0°, ${rotationAngle}°, 0°`,
-    });
-  };
+    const matchedNode = resolved.components.find(
+      (c) =>
+        c.id.toLowerCase() === (activeArDirective.targetNode || '').toLowerCase() ||
+        c.label.toLowerCase() === (activeArDirective.targetNode || '').toLowerCase(),
+    );
+    if (matchedNode) {
+      setSelectedComponentId(matchedNode.id);
+    } else {
+      setSelectedComponentId(null);
+    }
+  }, [activeArDirective.modelName, activeArDirective.targetNode]);
 
-  const handleRotate = () => {
+  const activeComponent: ModelComponentNode | undefined = useMemo(
+    () => activeModel.components.find((c) => c.id === selectedComponentId),
+    [activeModel, selectedComponentId],
+  );
+
+  const handleSelectModel = useCallback(
+    (model: ModelEntry) => {
+      setActiveModel(model);
+      setSelectedComponentId(null);
+      setViewMode('solid');
+      setIsolateSelected(false);
+      setRotationAngle(45);
+      setAudioNarration(false);
+      updateArDirective({
+        modelName: model.name,
+        targetNode: '',
+        highlight: false,
+        explodeFactor: 0,
+        note: model.description,
+      });
+    },
+    [updateArDirective],
+  );
+
+  const handleQuickSubjectSwitch = useCallback(
+    (subject: ModelSubject) => {
+      if (activeModel.subject === subject) {
+        setShowCatalogModal(true);
+        return;
+      }
+      const firstInSubject = MODEL_CATALOG.find((m) => m.subject === subject);
+      if (firstInSubject) {
+        handleSelectModel(firstInSubject);
+      }
+    },
+    [activeModel.subject, handleSelectModel],
+  );
+
+  const handleSelectComponent = useCallback(
+    (node: ModelComponentNode | null) => {
+      if (!node) {
+        setSelectedComponentId(null);
+        setIsolateSelected(false);
+        return;
+      }
+      setSelectedComponentId(node.id);
+      updateArDirective({
+        targetNode: node.id,
+        highlight: true,
+        note: node.fullDesc,
+        rotation: `0°, ${rotationAngle}°, 0°`,
+      });
+    },
+    [rotationAngle, updateArDirective],
+  );
+
+  const handleRotate = useCallback(() => {
     const nextAngle = (rotationAngle + 45) % 360;
     setRotationAngle(nextAngle);
+    viewerRef.current?.rotateBy(45);
     updateArDirective({
       rotation: `0°, ${nextAngle}°, 0°`,
     });
-  };
+  }, [rotationAngle, updateArDirective]);
 
-  const handleExplodeToggle = (level: number) => {
-    setExplodeLevel(level);
+  const handleCycleViewMode = useCallback(() => {
+    const allowed: ExplorerViewMode[] = ['solid'];
+    if (activeModel.capabilities.supportsCrossSection) allowed.push('cross-section');
+    if (activeModel.capabilities.supportsExplode) allowed.push('exploded');
+
+    const idx = allowed.indexOf(viewMode);
+    const nextMode = allowed[(idx + 1) % allowed.length];
+    setViewMode(nextMode);
     updateArDirective({
-      explodeFactor: level,
-      note: level === 0 ? 'Model assembled.' : level === 0.5 ? 'Cross-section slice view.' : 'Fully exploded assembly view.',
+      explodeFactor: nextMode === 'solid' ? 0 : nextMode === 'cross-section' ? 0.5 : 1,
+      note:
+        nextMode === 'solid'
+          ? 'Model assembled.'
+          : nextMode === 'cross-section'
+            ? 'Cross-section slice view.'
+            : 'Exploded assembly view.',
     });
-  };
+  }, [activeModel.capabilities, viewMode, updateArDirective]);
+
+  const cardShadow = getCardShadow(isDark);
+  const metricBadgeColor = activeComponent
+    ? BADGE_TONE_HEX[activeComponent.badgeTone] ?? theme.brandPrimary
+    : theme.brandPrimary;
 
   return (
-    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.canvas }]} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.safeContainer, { backgroundColor: theme.canvas }]}
+      edges={['bottom', 'left', 'right']}
+    >
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: 16,
+            paddingTop: 12,
             paddingHorizontal: 16,
             paddingBottom: Math.max(insets.bottom, 24) + 16,
           },
@@ -117,86 +199,236 @@ export default function ArLabScreen() {
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="never"
       >
-        {/* ─── 3D VIEWPORT CONTAINER (Dark Charcoal inside only) ─── */}
-        <View style={styles.viewportOuterCard}>
-          <View style={styles.viewport3D}>
-            {/* Model Title Overlay */}
-            <View style={styles.viewportTopOverlay}>
-              <View style={styles.modelTagBadge}>
-                <Boxes size={12} color="#FFFFFF" />
-                <Text style={styles.modelTagText}>3D Interactive Lab</Text>
+        {/* ─── WORKSPACE DISCOVERY BAR (Class 6-10 / Subject / Chapter) ─── */}
+        <View
+          style={[
+            styles.workspaceHeaderCard,
+            cardShadow,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.workspaceTopRow}>
+            <View style={styles.workspaceMetaCol}>
+              <View style={styles.curriculumBadgeRow}>
+                <View style={[styles.subjectChip, { backgroundColor: `${activeModel.accentColor}1A` }]}>
+                  <BookOpen size={11} color={activeModel.accentColor} />
+                  <Text style={[styles.subjectChipText, { color: activeModel.accentColor }]}>
+                    {activeModel.subject} • Class {activeModel.classes.join('/')}
+                  </Text>
+                </View>
+                <Text style={[styles.chapterMetaText, { color: theme.textMuted }]} numberOfLines={1}>
+                  {activeModel.chapter}
+                </Text>
               </View>
-              <View style={styles.focusPill}>
-                <Text style={styles.focusPillText}>Target: {activeNodeData.label}</Text>
-              </View>
-            </View>
-
-            {/* Visual Placeholder for 3D model */}
-            <View style={styles.centerGraphic}>
-              <View style={styles.graphicCircle}>
-                <Heart size={54} color="#EF4444" fill="rgba(239, 68, 68, 0.2)" />
-              </View>
-              <Text style={styles.graphicTitle}>{activeArDirective.modelName}</Text>
-              <Text style={styles.graphicSubtitle}>
-                Interactive 3D GLB viewport ready for AR rendering
+              <Text style={[styles.activeModelHeading, { color: theme.textPrimary }]} numberOfLines={1}>
+                {activeModel.name}
               </Text>
             </View>
 
-            {/* Viewport Control Bar */}
+            <TouchableOpacity
+              style={[styles.catalogBtn, { backgroundColor: theme.brandTint, borderColor: theme.brandBorder }]}
+              onPress={() => setShowCatalogModal(true)}
+              activeOpacity={0.8}
+            >
+              <SlidersHorizontal size={14} color={theme.brandPrimary} />
+              <Text style={[styles.catalogBtnText, { color: theme.brandPrimary }]}>
+                Catalog ({MODEL_CATALOG.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Subject Switcher Pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.subjectSwitcherRow}
+          >
+            {MODEL_SUBJECTS.map((subj) => {
+              const isSelected = activeModel.subject === subj;
+              return (
+                <TouchableOpacity
+                  key={subj}
+                  style={[
+                    styles.quickSubjectPill,
+                    {
+                      backgroundColor: isSelected ? theme.brandPrimary : theme.canvas,
+                      borderColor: isSelected ? theme.brandPrimary : theme.border,
+                    },
+                  ]}
+                  onPress={() => handleQuickSubjectSwitch(subj)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.quickSubjectText,
+                      { color: isSelected ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    {subj}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* ─── 3D VIEWPORT CONTAINER (Dark Charcoal Element) ─── */}
+        <View style={styles.viewportOuterCard}>
+          <View style={styles.viewport3D}>
+            {/* Interactive Reusable GL Model Viewer (single active GLView at a time) */}
+            <View style={styles.glCanvasContainer}>
+              {!isFullscreen ? (
+                <GLModelViewer
+                  ref={viewerRef}
+                  modelEntry={activeModel}
+                  selectedComponentId={selectedComponentId}
+                  onSelectComponent={handleSelectComponent}
+                  viewMode={viewMode}
+                  isolateSelected={isolateSelected}
+                  onToggleIsolate={() => setIsolateSelected((v) => !v)}
+                  isFullscreen={false}
+                  onToggleFullscreen={() => setIsFullscreen(true)}
+                  compact
+                  showInlineInfoPanel={false}
+                />
+              ) : (
+                <View style={styles.fullscreenSuspendedBox}>
+                  <Boxes size={28} color="#94A3B8" />
+                  <Text style={styles.fullscreenSuspendedText}>
+                    Fullscreen 3D Workspace Active
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Top Overlay Badges — left-aligned to avoid covering the GL expand FAB */}
+            <View style={styles.viewportTopOverlay} pointerEvents="box-none">
+              <View style={styles.modelTagBadge}>
+                <Boxes size={12} color="#FFFFFF" />
+                <Text style={styles.modelTagText}>
+                  {activeModel.asset !== undefined ? '3D GLB Lab' : '3D Spatial Lab'}
+                </Text>
+              </View>
+              {activeComponent && (
+                <View style={[styles.focusPill, { backgroundColor: activeModel.accentColor }]}>
+                  <Text style={styles.focusPillText} numberOfLines={1}>
+                    Target: {activeComponent.label}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Bottom Viewport Action Bar */}
             <View style={styles.viewportControlsBar}>
               <TouchableOpacity
                 style={styles.vpButton}
                 onPress={handleRotate}
                 activeOpacity={0.8}
               >
-                <RotateCw size={14} color="#FFFFFF" />
+                <RotateCw size={13} color="#FFFFFF" />
                 <Text style={styles.vpButtonText}>Rotate {rotationAngle}°</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.vpButton}
-                onPress={() => handleExplodeToggle(explodeLevel === 0 ? 0.5 : explodeLevel === 0.5 ? 1 : 0)}
-                activeOpacity={0.8}
-              >
-                <Layers size={14} color="#FFFFFF" />
-                <Text style={styles.vpButtonText}>
-                  {explodeLevel === 0 ? 'Solid' : explodeLevel === 0.5 ? 'Cross-Section' : 'Exploded'}
-                </Text>
-              </TouchableOpacity>
+              {(activeModel.capabilities.supportsCrossSection ||
+                activeModel.capabilities.supportsExplode) && (
+                  <TouchableOpacity
+                    style={[
+                      styles.vpButton,
+                      viewMode !== 'solid' && { backgroundColor: activeModel.accentColor },
+                    ]}
+                    onPress={handleCycleViewMode}
+                    activeOpacity={0.8}
+                  >
+                    <Layers size={13} color="#FFFFFF" />
+                    <Text style={styles.vpButtonText}>
+                      {viewMode === 'solid'
+                        ? 'Solid'
+                        : viewMode === 'cross-section'
+                          ? 'Cross-Section'
+                          : 'Exploded'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+              {activeModel.capabilities.supportsPartIsolation && activeComponent && (
+                <TouchableOpacity
+                  style={[
+                    styles.vpButton,
+                    isolateSelected && { backgroundColor: activeModel.accentColor },
+                  ]}
+                  onPress={() => setIsolateSelected((v) => !v)}
+                  activeOpacity={0.8}
+                >
+                  <Focus size={13} color="#FFFFFF" />
+                  <Text style={styles.vpButtonText}>
+                    {isolateSelected ? 'Isolated' : 'Isolate'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={[styles.vpButton, audioNarration && styles.vpButtonActive]}
                 onPress={() => {
-                  setAudioNarration(!audioNarration);
+                  const next = !audioNarration;
+                  setAudioNarration(next);
                   Alert.alert(
-                    audioNarration ? 'Audio Paused' : 'Voice Explainer',
-                    audioNarration ? 'Narrator stopped.' : `Playing audio explanation for ${activeNodeData.label}.`
+                    next ? 'Voice Explainer' : 'Audio Paused',
+                    next
+                      ? `${activeModel.name} — ${activeComponent?.label ?? ''}: ${activeComponent?.fullDesc ?? activeModel.description}`
+                      : 'Narrator stopped.',
                   );
                 }}
                 activeOpacity={0.8}
               >
-                <Volume2 size={14} color="#FFFFFF" />
-                <Text style={styles.vpButtonText}>{audioNarration ? 'Audio ON' : 'Audio'}</Text>
+                <Volume2 size={13} color="#FFFFFF" />
+                <Text style={styles.vpButtonText}>
+                  {audioNarration ? 'Audio ON' : 'Audio'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* ─── ANATOMICAL PART SELECTOR (Blinkit Style Chips) ─── */}
-        <View style={styles.selectorCard}>
-          <Text style={styles.sectionTitle}>Select Organ Component</Text>
+        {/* ─── INTERACTIVE COMPONENT SELECTOR ─── */}
+        <View
+          style={[
+            styles.selectorCard,
+            cardShadow,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.selectorHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>
+              Select {activeModel.subject} Component
+            </Text>
+            <Text style={[styles.gestureHint, { color: theme.textMuted }]}>
+              Drag to orbit • Pinch to zoom • Double-tap reset
+            </Text>
+          </View>
           <View style={styles.nodesRow}>
-            {ANATOMICAL_NODES.map((node) => {
-              const isSelected = node.id === activeNodeData.id;
+            {activeModel.components.map((node) => {
+              const isSelected = node.id === activeComponent?.id;
               return (
                 <TouchableOpacity
                   key={node.id}
-                  style={[styles.nodeChip, isSelected && styles.nodeChipActive]}
-                  onPress={() => handleSelectNode(node.id)}
+                  style={[
+                    styles.nodeChip,
+                    {
+                      backgroundColor: isSelected ? activeModel.accentColor : theme.canvas,
+                      borderColor: isSelected ? activeModel.accentColor : theme.border,
+                    },
+                  ]}
+                  onPress={() => handleSelectComponent(node)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.nodeChipText, isSelected && styles.nodeChipTextActive]}>
-                    {node.label}
+                  <Text
+                    style={[
+                      styles.nodeChipText,
+                      { color: isSelected ? '#FFFFFF' : theme.textSecondary },
+                      isSelected && styles.nodeChipTextActive,
+                    ]}
+                  >
+                    {node.number}. {node.label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -205,116 +437,218 @@ export default function ArLabScreen() {
         </View>
 
         {/* ─── COMPONENT DETAIL CARD ─── */}
-        <View style={styles.detailCard}>
-          <View style={styles.detailCardHeader}>
-            <View>
-              <Text style={styles.detailTitle}>{activeNodeData.label}</Text>
-              <Text style={styles.detailRole}>{activeNodeData.role}</Text>
+        {activeComponent && (
+          <View
+            style={[
+              styles.detailCard,
+              cardShadow,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.detailCardHeader}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[styles.detailTitle, { color: theme.textPrimary }]}>
+                  {activeComponent.label}
+                </Text>
+                <Text style={[styles.detailRole, { color: theme.textSecondary }]}>
+                  {activeComponent.role} • {activeComponent.category}
+                </Text>
+              </View>
+              <View style={[styles.pressureBadge, { backgroundColor: theme.brandTint }]}>
+                <Text style={[styles.pressureBadgeText, { color: theme.brandPrimary }]}>
+                  {activeComponent.keyMetricValue}
+                </Text>
+              </View>
             </View>
-            <View style={styles.pressureBadge}>
-              <Text style={styles.pressureBadgeText}>{activeNodeData.pressure}</Text>
+
+            <Text style={[styles.detailDescription, { color: theme.textSecondary }]}>
+              {activeComponent.fullDesc}
+            </Text>
+
+            <View style={[styles.detailStatsRow, { backgroundColor: theme.canvas }]}>
+              <View style={styles.statBox}>
+                <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>
+                  {activeComponent.keyMetricLabel}
+                </Text>
+                <Text style={[styles.statBoxValue, { color: metricBadgeColor }]}>
+                  {activeComponent.badgeLabel}
+                </Text>
+              </View>
+              <View style={[styles.statBoxDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.statBox}>
+                <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>
+                  BOARD EXAM RELEVANCE
+                </Text>
+                <Text style={[styles.statBoxValue, { color: theme.brandPrimary }]}>
+                  {activeComponent.examRelevance ?? activeModel.boardRelevance}
+                </Text>
+              </View>
             </View>
           </View>
-
-          <Text style={styles.detailDescription}>{activeNodeData.description}</Text>
-
-          <View style={styles.detailStatsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>BLOOD TYPE</Text>
-              <Text style={[styles.statBoxValue, { color: colors.status.error }]}>
-                Oxygen-Rich (O₂)
-              </Text>
-            </View>
-            <View style={styles.statBoxDivider} />
-            <View style={styles.statBox}>
-              <Text style={[styles.statBoxLabel, { color: theme.textMuted }]}>BOARD EXAM RELEVANCE</Text>
-              <Text style={[styles.statBoxValue, { color: theme.brandPrimary }]}>
-                Very High (5 Marks)
-              </Text>
-            </View>
-          </View>
-        </View>
+        )}
 
         {/* ─── CO-STUDY PEER SESSION CARD ─── */}
         <TouchableOpacity
-          style={styles.coStudyCard}
+          style={[
+            styles.coStudyCard,
+            cardShadow,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
           onPress={() => setShowCoStudyModal(true)}
           activeOpacity={0.85}
         >
           <View style={styles.coStudyLeft}>
-            <View style={styles.iconCircleIndigo}>
-              <Users size={18} color={colors.brand.primary} />
+            <View style={[styles.iconCircleIndigo, { backgroundColor: theme.brandTint }]}>
+              <Users size={18} color={theme.brandPrimary} />
             </View>
-            <View>
-              <Text style={styles.coStudyTitle}>Collaborative Classroom Session</Text>
-              <Text style={styles.coStudySub}>Sync 3D model orientation with classmates</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.coStudyTitle, { color: theme.textPrimary }]}>
+                Collaborative Classroom Session
+              </Text>
+              <Text style={[styles.coStudySub, { color: theme.textSecondary }]}>
+                Sync {activeModel.name} orientation with classmates
+              </Text>
             </View>
           </View>
-          <ChevronRight size={16} color={colors.brand.primary} />
+          <ChevronRight size={16} color={theme.brandPrimary} />
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ─── FULLSCREEN 3D VIEWER MODAL ─── */}
+      <Modal
+        visible={isFullscreen}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setIsFullscreen(false)}
+      >
+        <View style={styles.fullscreenRoot}>
+          {isFullscreen && (
+            <GLModelViewer
+              modelEntry={activeModel}
+              selectedComponentId={selectedComponentId}
+              onSelectComponent={handleSelectComponent}
+              viewMode={viewMode}
+              isolateSelected={isolateSelected}
+              onToggleIsolate={() => setIsolateSelected((v) => !v)}
+              isFullscreen
+              onToggleFullscreen={() => setIsFullscreen(false)}
+              showInlineInfoPanel
+            />
+          )}
+
+          {/* Slim top-left header — doesn't cover the GLView's top-right FAB */}
+          <View
+            style={[
+              styles.fullscreenHeader,
+              { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 4) },
+            ]}
+            pointerEvents="box-none"
+          >
+            <View style={styles.fullscreenHeaderInfo}>
+              <Text style={styles.fullscreenSubLabel}>
+                {activeModel.subject} • Class {activeModel.classLevel} • {activeModel.chapter}
+              </Text>
+              <Text style={styles.fullscreenTitle} numberOfLines={1}>
+                {activeModel.name}
+              </Text>
+            </View>
+            {/* Close button positioned at left side only — FAB handles right side */}
+            <TouchableOpacity
+              style={styles.fullscreenCloseBtn}
+              onPress={() => setIsFullscreen(false)}
+              activeOpacity={0.75}
+              accessibilityLabel="Exit fullscreen"
+            >
+              <Minimize2 size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── CLASS 6-10 CATALOG BROWSER MODAL ─── */}
+      <ModelCatalogModal
+        visible={showCatalogModal}
+        activeModelId={activeModel.id}
+        onSelectModel={handleSelectModel}
+        onClose={() => setShowCatalogModal(false)}
+      />
 
       {/* ─── CO-STUDY MODAL ─── */}
       <Modal visible={showCoStudyModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
             <View style={styles.modalHeader}>
-              <View style={styles.iconCircleIndigo}>
-                <Users size={20} color={colors.brand.primary} />
+              <View style={[styles.iconCircleIndigo, { backgroundColor: theme.brandTint }]}>
+                <Users size={20} color={theme.brandPrimary} />
               </View>
               <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>Class 10-A Lab Session</Text>
-                <Text style={styles.modalSubtitle}>Doon Valley Public School</Text>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                  {studentProfile?.classGrade || 'Class 10-A'} Lab Session
+                </Text>
+                <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
+                  {studentProfile?.schoolName || 'Doon Valley Public School'}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setShowCoStudyModal(false)}
-                style={styles.closeBtn}
+                style={[styles.closeBtn, { backgroundColor: theme.canvas }]}
                 activeOpacity={0.7}
               >
-                <X size={18} color={colors.text.secondary} />
+                <X size={18} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.peerList}>
-              <View style={styles.peerRow}>
-                <View style={styles.peerAvatar}>
+              <View style={[styles.peerRow, { backgroundColor: theme.canvas }]}>
+                <View style={[styles.peerAvatar, { backgroundColor: theme.brandPrimary }]}>
                   <Text style={styles.peerAvatarText}>AS</Text>
                 </View>
                 <View style={styles.peerInfo}>
-                  <Text style={styles.peerName}>Aarav Sharma (You)</Text>
-                  <Text style={styles.peerStatus}>Active Presenter</Text>
+                  <Text style={[styles.peerName, { color: theme.textPrimary }]}>
+                    {studentProfile?.name || 'Aarav Sharma'} (You)
+                  </Text>
+                  <Text style={[styles.peerStatus, { color: theme.textMuted }]}>
+                    Inspecting {activeComponent?.label ?? activeModel.name}
+                  </Text>
                 </View>
-                <View style={styles.hostBadge}>
-                  <Text style={styles.hostBadgeText}>Host</Text>
+                <View style={[styles.hostBadge, { backgroundColor: theme.brandTint }]}>
+                  <Text style={[styles.hostBadgeText, { color: theme.brandPrimary }]}>Host</Text>
                 </View>
               </View>
 
-              <View style={styles.peerRow}>
+              <View style={[styles.peerRow, { backgroundColor: theme.canvas }]}>
                 <View style={[styles.peerAvatar, { backgroundColor: colors.parent.primary }]}>
                   <Text style={styles.peerAvatarText}>AG</Text>
                 </View>
                 <View style={styles.peerInfo}>
-                  <Text style={styles.peerName}>Ananya Gupta</Text>
-                  <Text style={styles.peerStatus}>Viewing Aorta section</Text>
+                  <Text style={[styles.peerName, { color: theme.textPrimary }]}>Ananya Gupta</Text>
+                  <Text style={[styles.peerStatus, { color: theme.textMuted }]}>
+                    Synced to {activeModel.name}
+                  </Text>
                 </View>
               </View>
 
-              <View style={styles.peerRow}>
+              <View style={[styles.peerRow, { backgroundColor: theme.canvas }]}>
                 <View style={[styles.peerAvatar, { backgroundColor: colors.streak.primary }]}>
                   <Text style={styles.peerAvatarText}>RM</Text>
                 </View>
                 <View style={styles.peerInfo}>
-                  <Text style={styles.peerName}>Rohan Mehra</Text>
-                  <Text style={styles.peerStatus}>Viewing Left Ventricle</Text>
+                  <Text style={[styles.peerName, { color: theme.textPrimary }]}>Rohan Mehra</Text>
+                  <Text style={[styles.peerStatus, { color: theme.textMuted }]}>
+                    Following {activeModel.chapter}
+                  </Text>
                 </View>
               </View>
             </View>
 
             <TouchableOpacity
-              style={styles.modalActionBtn}
+              style={[styles.modalActionBtn, { backgroundColor: theme.brandPrimary }]}
               onPress={() => {
                 setShowCoStudyModal(false);
-                Alert.alert('Session Synced', 'Your 3D model perspective is now broadcasted to 2 peers.');
+                Alert.alert(
+                  'Session Synced',
+                  `Your ${activeModel.name} (${activeComponent?.label ?? 'full view'}) perspective is now broadcasted to 2 peers.`,
+                );
               }}
               activeOpacity={0.85}
             >
@@ -330,37 +664,132 @@ export default function ArLabScreen() {
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   scrollContent: {
-    gap: 14,
+    gap: 12,
   },
+
+  // Workspace Discovery Header
+  workspaceHeaderCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    gap: 10,
+  },
+  workspaceTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  workspaceMetaCol: {
+    flex: 1,
+    gap: 4,
+  },
+  curriculumBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  subjectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  subjectChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  chapterMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  activeModelHeading: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  catalogBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  catalogBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  subjectSwitcherRow: {
+    gap: 8,
+  },
+  quickSubjectPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  quickSubjectText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // 3D Viewport Card
   viewportOuterCard: {
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: 0.12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
     shadowRadius: 10,
     elevation: 4,
   },
   viewport3D: {
-    height: 280,
-    backgroundColor: '#111827', // Only dark charcoal element
+    height: 330,
+    backgroundColor: '#0B101B',
     justifyContent: 'space-between',
-    padding: 14,
+  },
+  glCanvasContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 48,
+  },
+  fullscreenSuspendedBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fullscreenSuspendedText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   viewportTopOverlay: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingRight: 54,   // leave room for the GLModelViewer expand FAB (36px + 10px gap + 8px buffer)
+    gap: 8,
   },
   modelTagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
   },
@@ -370,51 +799,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   focusPill: {
-    backgroundColor: colors.brand.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    maxWidth: '58%',
   },
   focusPillText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
   },
-  centerGraphic: {
-    alignItems: 'center',
-  },
-  graphicCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  graphicTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  graphicSubtitle: {
-    color: '#9CA3AF',
-    fontSize: 11,
-    marginTop: 2,
-  },
   viewportControlsBar: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   vpButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 14,
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   vpButtonActive: {
     backgroundColor: colors.brand.primary,
@@ -425,25 +839,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Selector Card
+  // Component Selector
   selectorCard: {
-    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: 16,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: 2,
+    padding: 14,
+  },
+  selectorHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.text.muted,
-    letterSpacing: 0.5,
-    marginBottom: 10,
+    letterSpacing: 0.4,
+  },
+  gestureHint: {
+    fontSize: 10,
+    fontWeight: '500',
   },
   nodesRow: {
     flexDirection: 'row',
@@ -451,39 +867,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nodeChip: {
-    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  nodeChipActive: {
-    backgroundColor: colors.brand.primary,
-    borderColor: colors.brand.primary,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
   nodeChipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.text.secondary,
   },
   nodeChipTextActive: {
-    color: '#FFFFFF',
     fontWeight: '700',
   },
 
   // Detail Card
   detailCard: {
-    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
     padding: 16,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: 2,
   },
   detailCardHeader: {
     flexDirection: 'row',
@@ -492,57 +893,52 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   detailTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
-    color: colors.text.primary,
   },
   detailRole: {
     fontSize: 12,
-    color: colors.text.secondary,
     marginTop: 2,
     fontWeight: '500',
   },
   pressureBadge: {
-    backgroundColor: colors.brand.tint,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
   },
   pressureBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   detailDescription: {
     fontSize: 13,
-    color: colors.text.secondary,
-    lineHeight: 18,
+    lineHeight: 19,
     marginBottom: 14,
   },
   detailStatsRow: {
     flexDirection: 'row',
-    backgroundColor: colors.background,
     borderRadius: 10,
     paddingVertical: 10,
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 6,
   },
   statBoxDivider: {
     width: 1,
-    backgroundColor: colors.surfaceBorder,
   },
   statBoxLabel: {
     fontSize: 9,
     fontWeight: '700',
-    color: colors.text.muted,
     letterSpacing: 0.5,
     marginBottom: 2,
+    textAlign: 'center',
   },
   statBoxValue: {
     fontSize: 12,
     fontWeight: '700',
+    textAlign: 'center',
   },
 
   // Co-Study Card
@@ -550,16 +946,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
     padding: 14,
-    shadowColor: colors.shadow.color,
-    shadowOffset: colors.shadow.offset,
-    shadowOpacity: colors.shadow.opacity,
-    shadowRadius: colors.shadow.radius,
-    elevation: 2,
   },
   coStudyLeft: {
     flexDirection: 'row',
@@ -571,22 +960,64 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.brand.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   coStudyTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.text.primary,
   },
   coStudySub: {
     fontSize: 11,
-    color: colors.text.secondary,
     marginTop: 1,
   },
 
-  // Modal
+  // Fullscreen Modal
+  fullscreenRoot: {
+    flex: 1,
+    backgroundColor: '#0B101B',
+  },
+  fullscreenHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(11, 16, 27, 0.72)',
+    gap: 12,
+  },
+  fullscreenHeaderInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  fullscreenSubLabel: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  fullscreenTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  fullscreenCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Co-Study Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
@@ -595,7 +1026,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     width: '100%',
@@ -613,17 +1043,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.text.primary,
   },
   modalSubtitle: {
     fontSize: 11,
-    color: colors.text.muted,
   },
   closeBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -635,7 +1062,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: colors.background,
     padding: 10,
     borderRadius: 12,
   },
@@ -643,7 +1069,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -658,14 +1083,11 @@ const styles = StyleSheet.create({
   peerName: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.text.primary,
   },
   peerStatus: {
     fontSize: 11,
-    color: colors.text.muted,
   },
   hostBadge: {
-    backgroundColor: colors.brand.tint,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -673,10 +1095,8 @@ const styles = StyleSheet.create({
   hostBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   modalActionBtn: {
-    backgroundColor: colors.brand.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
