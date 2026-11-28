@@ -153,11 +153,11 @@ export const EditInstallmentModal: React.FC<EditInstallmentModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-2xl w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-6"
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92dvh] flex flex-col border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 bg-white dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between gap-3">
@@ -184,7 +184,7 @@ export const EditInstallmentModal: React.FC<EditInstallmentModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 space-y-5">
+        <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
           {/* Itemized Fee Heads */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">

@@ -173,11 +173,11 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({ onClose, onSucce
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-3xl w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-6"
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92dvh] flex flex-col border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -213,7 +213,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({ onClose, onSucce
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
           {/* Pitch Banner & Fast Load */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#EEF2FF]/70 dark:bg-[#1B2440]/50 border border-[#C7D2FE] dark:border-[#3730A3] rounded-xl">
             <div>

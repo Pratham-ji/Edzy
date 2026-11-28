@@ -150,11 +150,11 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-lg w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-6"
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-lg w-full max-h-[92dvh] flex flex-col border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -191,11 +191,11 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {createdStudent ? (
             <div className="space-y-4">
               <div className="rounded-xl bg-[#F6F8FC] dark:bg-[#090D16] border border-[#E2E8F0] dark:border-[#232E44] p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-base font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
                       {createdStudent.name}
@@ -210,7 +210,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-[#E2E8F0] dark:border-[#232E44] text-xs">
                   <div className="bg-white dark:bg-[#121826] p-2.5 rounded-lg border border-[#E2E8F0] dark:border-[#232E44]">
                     <div className="text-[10px] font-bold uppercase text-[#94A3B8]">Student ID</div>
                     <div className="font-mono font-extrabold text-[#4F46E5] dark:text-[#6366F1] mt-0.5">

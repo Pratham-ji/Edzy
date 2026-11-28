@@ -165,38 +165,39 @@ export default function StaffLoginPage({ onNavigatePath }: StaffLoginPageProps) 
   return (
     <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col justify-between transition-colors font-sans">
       {/* Subtle Top Utility Header */}
-      <header className="w-full max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <header className="w-full max-w-6xl mx-auto px-3.5 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => onNavigatePath('/')}
-          className="flex items-center gap-3 text-left cursor-pointer group"
+          className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer group min-w-0"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#4F46E5] to-[#6366F1] flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
             <School className="w-5 h-5 text-white" aria-hidden="true" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg tracking-wider text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#4F46E5] dark:group-hover:text-[#818CF8] transition-colors">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="font-extrabold text-base sm:text-lg tracking-wider text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#4F46E5] dark:group-hover:text-[#818CF8] transition-colors">
                 EDZY
               </span>
-              <span className="text-[10px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] font-bold px-2 py-0.5 rounded border border-[#C7D2FE] dark:border-[#3730A3]">
+              <span className="hidden sm:inline-block text-[10px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] font-bold px-2 py-0.5 rounded border border-[#C7D2FE] dark:border-[#3730A3]">
                 SCHOOL PORTAL
               </span>
             </div>
-            <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+            <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium truncate">
               Education Made Easy
             </p>
           </div>
         </button>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => onNavigatePath('/')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#4F46E5] dark:text-[#818CF8] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#4F46E5] dark:text-[#818CF8] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Back to Edzy.in</span>
+            <span className="hidden sm:inline">Back to Edzy.in</span>
+            <span className="sm:hidden">Website</span>
           </button>
 
           <button
@@ -226,7 +227,7 @@ export default function StaffLoginPage({ onNavigatePath }: StaffLoginPageProps) 
           </div>
 
           {/* Auth Card */}
-          <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl shadow-xl shadow-slate-900/5 dark:shadow-black/30 p-7 space-y-6">
+          <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl shadow-xl shadow-slate-900/5 dark:shadow-black/30 p-5 sm:p-7 space-y-6">
             {/* STEP 1: IDENTIFY EMPLOYEE ID */}
             {step === 'IDENTIFY' && (
               <form onSubmit={handleIdentifySubmit} className="space-y-5">

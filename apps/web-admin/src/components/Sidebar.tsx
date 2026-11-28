@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   UserCog,
@@ -11,6 +11,7 @@ import {
   School,
   ShieldCheck,
   Bell,
+  X,
 } from 'lucide-react';
 import { useAdminStore } from '../store/useAdminStore';
 import {
@@ -37,10 +38,21 @@ interface SidebarProps {
   activeTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   onNavigatePath?: (path: string) => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+  drawerId?: string;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavigatePath }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  onSelectTab,
+  onNavigatePath,
+  mobileOpen = false,
+  onCloseMobile,
+  drawerId = 'erp-mobile-drawer',
+}) => {
   const { schoolProfile, campusConfig, feeInstallments, currentStaff } = useAdminStore();
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const pendingDuesCount = feeInstallments.filter(
     (f) => f.status === 'PENDING' || f.status === 'OVERDUE'
@@ -51,12 +63,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
   const roleNav = getRoleNavigation(department);
   const classTag = extractClassShortTag(currentStaff?.assignedClass);
 
-  return (
-    <aside className="w-64 bg-white dark:bg-[#0D1320] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col justify-between shrink-0 min-h-screen border-r border-[#E2E8F0] dark:border-[#232E44] transition-colors">
+  // Move focus to Close button on drawer open and allow Escape to dismiss cleanly
+  useEffect(() => {
+    if (!mobileOpen) return;
+    closeBtnRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseMobile?.();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen, onCloseMobile]);
+
+  const handleNavSelect = (tab: NavTab) => {
+    onSelectTab(tab);
+    onCloseMobile?.();
+  };
+
+  const renderInnerContent = (isDrawer: boolean) => (
+    <>
       <div>
         {/* Brand Header */}
-        <div className="p-5 border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="p-5 border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             {campusConfig.logoDataUrl ? (
               <img
                 src={campusConfig.logoDataUrl}
@@ -68,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
                 <School className="w-5 h-5 text-white" aria-hidden="true" />
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-lg tracking-wider text-[#0F172A] dark:text-[#F8FAFC]">
                   EDZY
@@ -77,20 +107,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
                   ERP
                 </span>
               </div>
-              <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
+              <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium truncate">
                 Education Made Easy
               </p>
             </div>
           </div>
+
+          {isDrawer && (
+            <button
+              ref={closeBtnRef}
+              type="button"
+              onClick={onCloseMobile}
+              aria-label="Close navigation menu"
+              className="w-10 h-10 inline-flex items-center justify-center rounded-xl text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] cursor-pointer shrink-0"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
         {/* Institution Context Card */}
         <div className="mx-4 my-4 p-3 rounded-xl bg-[#F6F8FC] dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44]">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1 gap-2">
             <span className="text-[10px] font-bold text-[#4F46E5] dark:text-[#818CF8] tracking-wider uppercase">
               Authorized School
             </span>
-            <span className="text-[10px] bg-[#EEF2F7] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8] font-mono px-1.5 py-0.5 rounded border border-[#E2E8F0] dark:border-[#232E44]">
+            <span className="text-[10px] bg-[#EEF2F7] dark:bg-[#1A2336] text-[#475569] dark:text-[#94A3B8] font-mono px-1.5 py-0.5 rounded border border-[#E2E8F0] dark:border-[#232E44] shrink-0">
               {schoolProfile.code}
             </span>
           </div>
@@ -104,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
         </div>
 
         {/* Role-Scoped Navigation Items */}
-        <nav aria-label="Campus modules" className="px-3 space-y-1">
+        <nav aria-label={isDrawer ? 'Mobile campus modules' : 'Campus modules'} className="px-3 space-y-1">
           <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider">
             {roleNav.sectionLabel}
           </p>
@@ -118,8 +160,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onSelectTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-xs transition-all cursor-pointer ${
+                onClick={() => handleNavSelect(item.id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[42px] rounded-xl font-medium text-xs transition-all cursor-pointer ${
                   isActive
                     ? 'bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE]/80 dark:border-[#3730A3] font-semibold shadow-2xs'
                     : 'text-[#475569] dark:text-[#94A3B8] hover:bg-[#EEF2F7] dark:hover:bg-[#1A2336] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] border border-transparent'
@@ -165,8 +207,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
         </nav>
       </div>
 
-      {/* Clean Minimal Status & Privacy Footer (No Duplicate Profile Card or Sales Links) */}
-      <div className="p-4 border-t border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#090D16]/60 space-y-2.5">
+      {/* Clean Minimal Status & Privacy Footer */}
+      <div className="p-4 border-t border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#090D16]/60 space-y-2.5 mt-4">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -179,14 +221,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onNavi
 
         <button
           type="button"
-          onClick={() =>
-            onNavigatePath ? onNavigatePath('/privacy-policy') : (window.location.href = '/privacy-policy')
-          }
+          onClick={() => {
+            onCloseMobile?.();
+            if (onNavigatePath) {
+              onNavigatePath('/privacy-policy');
+            } else {
+              window.location.href = '/privacy-policy';
+            }
+          }}
           className="text-[11px] font-medium text-[#475569] dark:text-[#94A3B8] hover:text-[#4F46E5] dark:hover:text-[#F8FAFC] transition-colors cursor-pointer"
         >
           Privacy &amp; Security Policy
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Fixed Sidebar (>= 1024px) */}
+      <aside className="hidden lg:flex w-64 bg-white dark:bg-[#0D1320] text-[#0F172A] dark:text-[#F8FAFC] flex-col justify-between shrink-0 min-h-dvh border-r border-[#E2E8F0] dark:border-[#232E44] transition-colors">
+        {renderInnerContent(false)}
+      </aside>
+
+      {/* Mobile & Tablet Slide-Over Navigation Drawer (< 1024px) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            aria-hidden="true"
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
+          />
+          <aside
+            id={drawerId}
+            role="dialog"
+            aria-modal="true"
+            aria-label="School ERP Navigation Menu"
+            className="relative z-10 w-[280px] max-w-[85vw] h-svh bg-white dark:bg-[#0D1320] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col justify-between overflow-y-auto overscroll-contain border-r border-[#E2E8F0] dark:border-[#232E44] shadow-2xl"
+          >
+            {renderInnerContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

@@ -43,6 +43,7 @@ export default function App() {
 
   const initialDept = currentStaff?.department || 'ADM';
   const [activeTab, setActiveTab] = useState<NavTab>(getRoleNavigation(initialDept).defaultTab);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Global Quick Modals
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
@@ -69,6 +70,21 @@ export default function App() {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
+  }, []);
+
+  // Close mobile nav drawer automatically on desktop breakpoint resize or route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname, currentStaff?.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const handleChange = () => {
+      if (mq.matches) setMobileMenuOpen(false);
+    };
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
   }, []);
 
   // Synchronize light/dark DOM class and <meta name="color-scheme">
@@ -256,16 +272,29 @@ export default function App() {
   const headerInfo = getHeaderInfo();
 
   return (
-    <div className="flex h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] antialiased overflow-hidden font-sans transition-colors">
-      {/* Role-Filtered Navigation Sidebar */}
-      <Sidebar activeTab={safeTab} onSelectTab={handleSelectTab} onNavigatePath={navigateTo} />
+    <div className="flex h-dvh bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] antialiased overflow-hidden font-sans transition-colors">
+      {/* Role-Filtered Navigation Sidebar & Mobile Drawer */}
+      <Sidebar
+        activeTab={safeTab}
+        onSelectTab={handleSelectTab}
+        onNavigatePath={navigateTo}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+        drawerId="erp-mobile-drawer"
+      />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div
+        inert={mobileMenuOpen || undefined}
+        className="flex-1 flex flex-col min-w-0 overflow-hidden"
+      >
         {/* Sticky Role-Filtered Top Header */}
         <TopHeader
           title={headerInfo.title}
           subtitle={headerInfo.subtitle}
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          isMobileMenuOpen={mobileMenuOpen}
+          mobileDrawerId="erp-mobile-drawer"
           onOpenFeeModal={
             currentStaff.department === 'ADM' || currentStaff.department === 'ACT'
               ? () => setIsFeeModalOpen(true)
@@ -288,7 +317,7 @@ export default function App() {
         />
 
         {/* Dynamic Role-Scoped Page Scroll Area */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto pb-12">
             {safeTab === 'dashboard' && (
               <DashboardPage

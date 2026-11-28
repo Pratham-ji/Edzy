@@ -164,7 +164,7 @@ export default function SyllabusPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-semibold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider">Subject:</span>
             {['ALL', 'Science', 'Physics', 'Biology', 'Mathematics'].map((s) => (
               <button

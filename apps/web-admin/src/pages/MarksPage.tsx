@@ -202,7 +202,7 @@ export default function MarksPage() {
       </div>
 
       {/* Aggregate Metric Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3] flex items-center justify-center text-[#4F46E5] dark:text-[#6366F1]">
             <Percent className="w-5 h-5" />
@@ -408,12 +408,22 @@ export default function MarksPage() {
         </div>
       ) : (
       <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Exam Marks Spreadsheet"
+          className="overflow-x-auto"
+        >
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-[#475569] dark:text-slate-300 font-semibold uppercase tracking-wider">
-                <th className="py-3 px-4 w-16">Roll #</th>
-                <th className="py-3 px-4 min-w-[170px]">Student & Permanent ID</th>
+                <th scope="col" className="py-3 px-3 sm:px-4 w-14">Roll #</th>
+                <th
+                  scope="col"
+                  className="sticky left-0 z-10 bg-[#EEF2F7] dark:bg-[#1A2336] py-3 px-3 sm:px-4 min-w-[155px] shadow-[2px_0_6px_-2px_rgba(15,23,42,0.08)]"
+                >
+                  Student &amp; ID
+                </th>
                 {subjects.map((sub) => (
                   <th key={sub} className="py-3 px-3 text-center min-w-[100px]">
                     <div>{sub}</div>
@@ -448,17 +458,22 @@ export default function MarksPage() {
                     className="hover:bg-[#F6F8FC] dark:hover:bg-[#1A2336]/40 transition-colors"
                   >
                     {/* Alphabetical Roll No */}
-                    <td className="py-3 px-4 font-mono font-bold text-[#0F172A] dark:text-slate-300">
+                    <td className="py-3 px-3 sm:px-4 font-mono font-bold text-[#0F172A] dark:text-slate-300">
                       #{alphaPos}
                     </td>
 
-                    {/* Name & ID */}
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{s.name}</div>
+                    {/* Name & ID (Sticky Left Column for Smooth Mobile Entry) */}
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 bg-white dark:bg-[#121826] py-3 px-3 sm:px-4 font-normal text-left shadow-[2px_0_6px_-2px_rgba(15,23,42,0.08)]"
+                    >
+                      <div className="font-semibold text-[#0F172A] dark:text-[#F8FAFC] whitespace-nowrap">
+                        {s.name}
+                      </div>
                       <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1]">
                         {s.id}
                       </span>
-                    </td>
+                    </th>
 
                     {/* Subject Marks Input Columns */}
                     {subjects.map((sub) => {

@@ -206,7 +206,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       )}
 
       {/* 4 CORE EXECUTIVE KPI CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {/* KPI 1: Total Expected Revenue */}
         <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-5 shadow-xs hover:shadow-md transition">
           <div className="flex items-center justify-between">
@@ -292,10 +292,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* RECHARTS DATA VISUALIZATIONS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         {/* Chart 1: Monthly Fee Collection (Online UPI vs Offline Cash/Cheque) */}
-        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-4 sm:p-6 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">
                 Quarterly Fee Collection Stream (FY 2026-27)
@@ -344,8 +344,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Chart 2: Class-Wise Syllabus Mastery & AR Engagement */}
-        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-4 sm:p-6 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">
                 Syllabus Mastery & At-Home AR Engagement
@@ -413,23 +413,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* Recent Fee & Activity Feed */}
-      <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">
+      <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl p-4 sm:p-6 shadow-xs">
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC] truncate">
               Recent Fee & Activity Feed
             </h3>
           </div>
           <button
+            type="button"
             onClick={() => onNavigate?.('fees')}
-            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1"
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 shrink-0 cursor-pointer"
           >
             View Full Ledger <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile Activity Cards (< md) */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-[#232E44]">
+          {recentPayments.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+              No fee transactions recorded for {schoolProfile.name} yet.
+            </div>
+          ) : (
+            recentPayments.map((inst) => {
+              const st = students.find((s) => s.id === inst.studentId);
+              const isOnline = inst.paymentMethod === 'ONLINE_UPI';
+              return (
+                <div key={inst.id} className="py-3 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      {inst.receiptNumber?.startsWith('#') ? inst.receiptNumber : `#${inst.receiptNumber || 'REC'}`}
+                    </span>
+                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      ₹{inst.amount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">
+                      {inst.studentName}
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-[#94A3B8]">
+                      {inst.classGrade} • Roll #{st?.rollNo || '--'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-[#94A3B8]">
+                    <span>
+                      {inst.quarter.split(' ')[0]} •{' '}
+                      {isOnline ? 'Online UPI' : inst.paymentMethod === 'OFFLINE_CHEQUE' ? 'Cheque' : 'Cash'}
+                    </span>
+                    <span>{inst.paidDate || 'Paid'}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-[#F6F8FC] dark:bg-[#1A2336]/80 border-b border-slate-100 dark:border-[#232E44] text-slate-500 dark:text-[#94A3B8] font-semibold uppercase">

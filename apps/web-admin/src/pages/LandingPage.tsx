@@ -231,7 +231,7 @@ export default function LandingPage({
               <span>Built for CBSE, ICSE &amp; State Board Schools Across India</span>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08] text-[#0F172A] dark:text-[#F8FAFC]">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1] text-[#0F172A] dark:text-[#F8FAFC]">
               EDZY:{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-indigo-500 dark:from-[#818CF8] dark:to-cyan-300">
                 Education Made Easy.
@@ -641,14 +641,14 @@ export default function LandingPage({
 
               {/* Slider Control */}
               <div className="space-y-3.5">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label
                     htmlFor="campus-student-slider"
                     className="text-sm font-bold text-[#0F172A] dark:text-[#F8FAFC]"
                   >
                     Enrolled Student Strength:
                   </label>
-                  <span className="text-2xl font-extrabold font-mono text-[#4F46E5] dark:text-[#818CF8]">
+                  <span className="text-xl sm:text-2xl font-extrabold font-mono text-[#4F46E5] dark:text-[#818CF8]">
                     {studentCount.toLocaleString('en-IN')} Students
                   </span>
                 </div>
@@ -667,8 +667,8 @@ export default function LandingPage({
 
                 <div className="flex justify-between text-[11px] text-[#475569] dark:text-[#94A3B8] font-mono">
                   <span>200 (Pilot)</span>
-                  <span>800 (Mid Campus)</span>
-                  <span>1,500 (Senior School)</span>
+                  <span className="hidden sm:inline">800 (Mid Campus)</span>
+                  <span className="hidden sm:inline">1,500 (Senior School)</span>
                   <span>3,000 (K-12 Group)</span>
                 </div>
               </div>

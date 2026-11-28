@@ -199,11 +199,11 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-3xl w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-4"
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92dvh] flex flex-col border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -298,8 +298,8 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-3">
-              <div className="col-span-1">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="sm:col-span-1">
                 <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1">
                   Chapter # *
                 </label>
@@ -314,7 +314,7 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
                 />
               </div>
 
-              <div className="col-span-3">
+              <div className="sm:col-span-3">
                 <label className="block text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] mb-1">
                   Chapter Title ({board} Syllabus) *
                 </label>

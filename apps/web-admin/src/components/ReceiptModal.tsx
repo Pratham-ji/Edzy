@@ -144,16 +144,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
   return (
     <div
       id="edzy-receipt-dialog-backdrop"
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
         id="edzy-printable-receipt-shell"
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-[#E2E8F0] overflow-hidden my-6"
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[94dvh] flex flex-col border border-[#E2E8F0] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Action Bar (Hidden when printing) */}
-        <div className="no-print px-5 py-3 bg-[#0F172A] text-white flex flex-wrap items-center justify-between gap-3">
+        <div className="no-print px-3.5 sm:px-5 py-3 bg-[#0F172A] text-white flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
             <span className="text-xs font-bold tracking-wide">
@@ -199,7 +199,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
         {/* Always Crisp White Ink-Safe Printable Paper Sheet */}
         <div
           id="edzy-printable-receipt"
-          className="relative p-6 sm:p-8 font-sans bg-white text-slate-900 select-text"
+          className="relative p-4 sm:p-8 font-sans bg-white text-slate-900 select-text overflow-y-auto flex-1"
         >
           {/* Optional Diagonal DUPLICATE COPY Watermark */}
           {isDuplicateCopy && (
@@ -214,7 +214,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
           )}
 
           {/* Institutional Letterhead */}
-          <div className="border-b-2 border-slate-900 pb-4 mb-4 flex items-start justify-between gap-4 relative z-20">
+          <div className="border-b-2 border-slate-900 pb-4 mb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 relative z-20">
             <div className="flex items-start gap-3.5">
               {campusConfig.logoDataUrl ? (
                 <img
@@ -251,7 +251,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
               </div>
             </div>
 
-            <div className="text-right shrink-0">
+            <div className="sm:text-right shrink-0 flex sm:block items-center justify-between gap-2">
               <div className="inline-block px-2.5 py-1 rounded-md bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider">
                 OFFICIAL FEE RECEIPT
               </div>
@@ -313,7 +313,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
           </div>
 
           {/* Itemized Audit-Grade Head-Wise Fee Table */}
-          <div className="border border-slate-300 rounded-xl overflow-hidden mb-3 relative z-20">
+          <div className="border border-slate-300 rounded-xl overflow-x-auto mb-3 relative z-20">
             <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-slate-100 border-b border-slate-300 text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
                 <tr>

@@ -167,11 +167,11 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-xl w-full border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-6"
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl max-w-xl w-full max-h-[92dvh] flex flex-col border border-[#E2E8F0] dark:border-[#232E44] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -213,7 +213,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {createdStaff ? (
             <div className="space-y-4">
               <StaffActivationCard

@@ -884,25 +884,27 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
     <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
       {/* Sticky Top Header */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-[#0D1320]/90 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#232E44]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm shrink-0">
               <ShieldCheck className="w-5 h-5" aria-hidden="true" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base tracking-tight">EDZY HQ</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3]">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-extrabold text-sm sm:text-base tracking-tight whitespace-nowrap">
+                  EDZY HQ
+                </span>
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] whitespace-nowrap">
                   FOUNDER CONSOLE
                 </span>
               </div>
-              <p className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+              <p className="hidden sm:block text-[11px] text-[#475569] dark:text-[#94A3B8] truncate">
                 EDZY: Education Made Easy • Aggregate SaaS Governance
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={fetchEcosystemData}
@@ -961,9 +963,9 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
         {/* Founder Quick Links & Operations Command Dock */}
         <nav
           aria-label="Founder quick actions"
-          className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 shadow-2xs"
+          className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-2.5 flex flex-nowrap sm:flex-wrap items-center justify-between gap-2 overflow-x-auto shadow-2xs"
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => navTo('/')}
@@ -1180,13 +1182,119 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
           </span>
         </div>
 
-        {/* Partner Schools Directory Table */}
+        {/* Partner Schools Mobile Cards (< md) & Directory Table (>= md) */}
         <div className="bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
+          {/* Mobile School Cards (< md) */}
+          <div className="md:hidden divide-y divide-[#E2E8F0] dark:divide-[#232E44]">
+            {filteredSummaries.length === 0 ? (
+              <div className="py-12 px-4 text-center text-xs text-[#94A3B8]">
+                No partner schools match this filter.
+              </div>
+            ) : (
+              filteredSummaries.map((item) => {
+                const sch = item.school;
+                const isProtectedDemo = sch.schoolCode === 'SCH-01';
+                const billingMeta = BILLING_STATUS_META[item.billingStatus];
+                const kitPayload: OnboardingKitData = {
+                  schoolCode: sch.schoolCode,
+                  schoolName: sch.name,
+                  city: sch.city,
+                  board: sch.board,
+                  academicSession: sch.academicSession,
+                  principalName: sch.principalName,
+                  principalEmployeeId: item.principalEmployeeId,
+                  principalPhone: item.principalPhone,
+                  isPasswordSet: item.isPrincipalActivated,
+                };
+
+                return (
+                  <div key={sch.id} className="p-4 space-y-3 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC] truncate">
+                          {sch.name}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-md font-mono font-extrabold text-[11px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3]">
+                            {sch.schoolCode}
+                          </span>
+                          <span className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                            {sch.city} • {sch.board}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setInspectedSchoolCode(sch.schoolCode)}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 cursor-pointer ${billingMeta.badgeClass}`}
+                      >
+                        {billingMeta.label}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44]">
+                      <div>
+                        <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">MRR</div>
+                        <div className="font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                          ₹{item.monthlySaaSRevenue.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">GMV</div>
+                        <div className="font-mono font-bold text-[#059669] dark:text-[#34D399]">
+                          ₹{item.totalFeeVolumeProcessed.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">Staff / Stu</div>
+                        <div className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                          {item.totalStaffCount} / {item.studentCount}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setInspectedSchoolCode(sch.schoolCode)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white font-bold text-xs cursor-pointer"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Inspect</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInspectKit(kitPayload)}
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Kit</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isProtectedDemo}
+                        onClick={() => setSchoolToDelete(sch)}
+                        aria-label={isProtectedDemo ? `${sch.name} protected` : `Remove ${sch.name}`}
+                        className={`p-2 rounded-lg border ${
+                          isProtectedDemo
+                            ? 'bg-[#F6F8FC] dark:bg-[#1A2336] text-[#94A3B8] border-[#E2E8F0] dark:border-[#232E44] opacity-45 cursor-not-allowed'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50 cursor-pointer'
+                        }`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           <div
             tabIndex={0}
             role="region"
             aria-labelledby={tableCaptionId}
-            className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5]"
+            className="hidden md:block overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5]"
           >
             <table className="w-full text-left border-collapse text-xs">
               <caption id={tableCaptionId} className="sr-only">

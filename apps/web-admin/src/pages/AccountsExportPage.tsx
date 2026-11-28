@@ -200,7 +200,7 @@ export default function AccountsExportPage() {
       </div>
 
       {/* Daily & Mode Breakdown Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-1">
           <div className="flex items-center justify-between text-xs font-bold text-[#475569] dark:text-[#94A3B8]">
             <span>Today ({todayDisplay})</span>
@@ -327,7 +327,7 @@ export default function AccountsExportPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Class Collection Bars (6 cols) */}
         <div className="lg:col-span-6 bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0] dark:border-[#232E44]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0] dark:border-[#232E44]">
             <div>
               <h3 className="text-base font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
                 Class-Wise Collection Progress
@@ -349,7 +349,7 @@ export default function AccountsExportPage() {
             ) : (
               classReports.map((cls) => (
               <div key={cls.classGrade} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">{cls.classGrade}</span>
                     <span className="text-[11px] text-[#94A3B8]">({cls.studentCount} students)</span>
@@ -382,7 +382,7 @@ export default function AccountsExportPage() {
 
         {/* Pending Defaulters Follow-Up Preview (6 cols) */}
         <div className="lg:col-span-6 bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0] dark:border-[#232E44]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0] dark:border-[#232E44]">
             <div>
               <h3 className="text-base font-extrabold text-[#0F172A] dark:text-[#F8FAFC]">
                 Pending Follow-Up Queue

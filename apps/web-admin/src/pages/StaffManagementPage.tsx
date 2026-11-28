@@ -92,7 +92,7 @@ export default function StaffManagementPage() {
       </div>
 
       {/* 4-Card KPI Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3] flex items-center justify-center text-[#4F46E5] dark:text-[#6366F1]">
             <Users className="w-5 h-5" />
@@ -180,9 +180,120 @@ export default function StaffManagementPage() {
         </div>
       </div>
 
-      {/* Staff Directory Table */}
+      {/* Mobile Staff Cards (< md) & Desktop Staff Directory Table (>= md) */}
       <div className="bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Touch Cards */}
+        <div className="md:hidden divide-y divide-[#E2E8F0] dark:divide-[#232E44]">
+          {filteredStaff.length === 0 ? (
+            <div className="py-12 px-4 text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+              No staff accounts match your filter or search query.
+            </div>
+          ) : (
+            filteredStaff.map((member) => {
+              const deptMeta = STAFF_DEPARTMENT_META[member.department];
+              const isSelf = member.id === currentStaff?.id;
+
+              return (
+                <div key={member.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#0F172A] dark:text-[#F8FAFC] text-sm">
+                          {member.fullName}
+                        </span>
+                        {isSelf && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1]">
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md font-mono font-extrabold text-[11px] bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                          {member.id}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${deptMeta.badgeClass}`}>
+                          {member.department} • {member.designation}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                        member.isPasswordSet
+                          ? 'bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] border border-emerald-200 dark:border-emerald-800/50'
+                          : 'bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)] text-[#D97706] dark:text-[#FBBF24] border border-amber-200 dark:border-amber-500/30'
+                      }`}
+                    >
+                      {member.isPasswordSet ? 'Active' : 'Pending'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+                    <div className="text-[#475569] dark:text-[#94A3B8]">
+                      {member.assignedClass ? (
+                        <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+                          {member.assignedClass}
+                          {member.subject ? ` • ${member.subject}` : ''}
+                        </span>
+                      ) : (
+                        <span>
+                          {member.department === 'ACT' ? 'Finance & Receipts' : 'All Campus Modules'}
+                        </span>
+                      )}
+                    </div>
+                    {member.phone && (
+                      <a
+                        href={`tel:${member.phone}`}
+                        className="inline-flex items-center gap-1 font-mono font-semibold text-[#4F46E5] dark:text-[#818CF8]"
+                      >
+                        <Phone className="w-3 h-3" aria-hidden="true" />
+                        +91 {member.phone}
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setStaffToEdit(member)}
+                      aria-label={`Edit ${member.fullName}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#232E44] font-bold text-xs cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSlipStaff(member)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs cursor-pointer"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Onboarding Slip</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSelf}
+                      onClick={() => setStaffToRemove(member)}
+                      className={`ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border ${
+                        isSelf
+                          ? 'bg-[#F6F8FC] dark:bg-[#1A2336] text-[#94A3B8] border-[#E2E8F0] dark:border-[#232E44] opacity-50 cursor-not-allowed'
+                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50 cursor-pointer'
+                      }`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Data Table (>= md) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">

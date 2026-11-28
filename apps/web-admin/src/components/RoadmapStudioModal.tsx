@@ -68,6 +68,7 @@ export const RoadmapStudioModal: React.FC<RoadmapStudioModalProps> = ({ chapter,
   );
 
   const [activeTab, setActiveTab] = useState<StudioTab>('flowchart');
+  const [mobilePane, setMobilePane] = useState<'preview' | 'editor'>('preview');
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>(
     chapter.generatedMilestones?.[0]?.nodeId || ''
   );
@@ -288,11 +289,11 @@ export const RoadmapStudioModal: React.FC<RoadmapStudioModalProps> = ({ chapter,
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl w-full max-w-7xl h-[92vh] border border-[#E2E8F0] dark:border-[#232E44] flex flex-col overflow-hidden"
+        className="bg-white dark:bg-[#121826] rounded-2xl shadow-2xl w-full max-w-7xl h-[94dvh] max-h-[94dvh] border border-[#E2E8F0] dark:border-[#232E44] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Studio Bar */}
@@ -332,10 +333,40 @@ export const RoadmapStudioModal: React.FC<RoadmapStudioModalProps> = ({ chapter,
           </div>
         </div>
 
+        {/* Mobile & Tablet Pane Switcher (< 1024px) */}
+        <div className="lg:hidden px-4 py-2 bg-[#F6F8FC] dark:bg-[#0D1320] border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobilePane('preview')}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              mobilePane === 'preview'
+                ? 'bg-white dark:bg-[#121826] text-[#4F46E5] dark:text-[#6366F1] shadow-xs border border-[#E2E8F0] dark:border-[#232E44]'
+                : 'text-[#475569] dark:text-[#94A3B8]'
+            }`}
+          >
+            Flowchart Preview
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobilePane('editor')}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              mobilePane === 'editor'
+                ? 'bg-white dark:bg-[#121826] text-[#4F46E5] dark:text-[#6366F1] shadow-xs border border-[#E2E8F0] dark:border-[#232E44]'
+                : 'text-[#475569] dark:text-[#94A3B8]'
+            }`}
+          >
+            Studio Editor
+          </button>
+        </div>
+
         {/* Split Screen Workspace */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
           {/* LEFT PANE: LIVE ROADMAP.SH-STYLE FLOWCHART PREVIEW */}
-          <div className="w-full lg:w-[48%] bg-[#F6F8FC] dark:bg-[#090D16] border-b lg:border-b-0 lg:border-r border-[#E2E8F0] dark:border-[#232E44] overflow-y-auto p-5 relative">
+          <div
+            className={`w-full lg:w-[48%] bg-[#F6F8FC] dark:bg-[#090D16] border-b lg:border-b-0 lg:border-r border-[#E2E8F0] dark:border-[#232E44] overflow-y-auto p-4 sm:p-5 relative ${
+              mobilePane === 'preview' ? 'flex-1 lg:flex-initial' : 'hidden lg:block'
+            }`}
+          >
             {/* Top Preview Header + Related Chapters Box */}
             <div className="flex items-start justify-between gap-3 mb-6">
               <div className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-3 shadow-2xs max-w-[230px]">
@@ -517,10 +548,14 @@ export const RoadmapStudioModal: React.FC<RoadmapStudioModalProps> = ({ chapter,
           </div>
 
           {/* RIGHT PANE: 3-TAB EDITOR */}
-          <div className="w-full lg:w-[52%] flex flex-col min-h-0 bg-white dark:bg-[#121826]">
+          <div
+            className={`w-full lg:w-[52%] flex-col min-h-0 bg-white dark:bg-[#121826] ${
+              mobilePane === 'editor' ? 'flex flex-1 lg:flex-initial' : 'hidden lg:flex'
+            }`}
+          >
             {/* Tab Bar */}
-            <div className="px-5 pt-3 border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between gap-2">
-              <div className="flex items-center gap-4">
+            <div className="px-4 sm:px-5 pt-3 border-b border-[#E2E8F0] dark:border-[#232E44] flex items-center justify-between gap-2 overflow-x-auto shrink-0">
+              <div className="flex items-center gap-4 whitespace-nowrap">
                 {[
                   { id: 'flowchart' as StudioTab, label: 'Flowchart Builder', icon: GitBranch },
                   { id: 'notes' as StudioTab, label: `AI Revision Notes (${revisionNotes.length})`, icon: BookOpen },

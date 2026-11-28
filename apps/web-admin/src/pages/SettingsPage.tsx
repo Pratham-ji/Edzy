@@ -871,7 +871,7 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
 
             {/* Fee Head Breakup Editor */}
             <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-[#232E44]">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#0F172A] dark:text-[#F8FAFC]">
                     School Default Fee Head Breakup

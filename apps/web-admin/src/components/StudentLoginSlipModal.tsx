@@ -48,11 +48,11 @@ export const StudentLoginSlipModal: React.FC<StudentLoginSlipModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-6"
+        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92dvh] flex flex-col border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Control Bar */}
@@ -81,8 +81,8 @@ export const StudentLoginSlipModal: React.FC<StudentLoginSlipModalProps> = ({
         </div>
 
         {/* Printable Slip Body */}
-        <div className="p-6 bg-white text-slate-900">
-          <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/30 rounded-2xl p-6 relative">
+        <div className="p-4 sm:p-6 bg-white text-slate-900 overflow-y-auto flex-1">
+          <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/30 rounded-2xl p-4 sm:p-6 relative">
             {/* Header */}
             <div className="text-center border-b border-indigo-100 pb-4 mb-4">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full">

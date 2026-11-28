@@ -208,7 +208,7 @@ export default function StudentsPage() {
       </div>
 
       {/* Metric Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] border border-[#C7D2FE] dark:border-[#3730A3] flex items-center justify-center text-[#4F46E5] dark:text-[#6366F1]">
             <GraduationCap className="w-5 h-5" />
@@ -305,7 +305,7 @@ export default function StudentsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1">
           {teacherClass ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3] shrink-0">
               <Lock className="w-3.5 h-3.5" />
@@ -335,9 +335,146 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* Student Table */}
+      {/* Mobile Student Cards (< md) & Desktop Table (>= md) */}
       <div className="bg-white dark:bg-[#121826] rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Touch Card View */}
+        <div className="md:hidden divide-y divide-[#E2E8F0] dark:divide-[#232E44]">
+          {filteredSortedStudents.length === 0 ? (
+            <div className="py-12 px-4 text-center text-xs text-[#94A3B8]">
+              No students match your filter or search query.
+            </div>
+          ) : (
+            filteredSortedStudents.map((s) => {
+              const isFullyPaid = s.totalPending === 0;
+              const alphaPos = alphaPositionByStudentId.get(s.id) || parseInt(s.rollNo, 10) || 1;
+              const rollDisplay = String(alphaPos).padStart(2, '0');
+              const isPrePrimary = isPrePrimaryClass(s.classGrade);
+
+              return (
+                <div key={s.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md font-mono font-bold text-xs bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1]">
+                          #{rollDisplay}
+                        </span>
+                        <span className="font-bold text-[#0F172A] dark:text-[#F8FAFC] text-sm truncate">
+                          {s.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
+                          {s.id}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-[#EEF2F7] dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] font-semibold text-xs border border-[#E2E8F0] dark:border-[#232E44]">
+                          {s.classGrade}
+                        </span>
+                      </div>
+                    </div>
+
+                    {canManageFees && (
+                      <div className="shrink-0 text-right">
+                        {isFullyPaid ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] border border-emerald-200 dark:border-emerald-800">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Paid
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)] text-[#D97706] dark:text-[#FBBF24] border border-amber-200 dark:border-amber-800">
+                            <AlertCircle className="w-3 h-3" />
+                            ₹{s.totalPending.toLocaleString('en-IN')} Due
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <span className="text-[#475569] dark:text-[#94A3B8]">Parent: </span>
+                      <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+                        {s.parentName}
+                      </span>
+                    </div>
+                    <a
+                      href={`tel:${s.parentPhone}`}
+                      className="inline-flex items-center gap-1 font-mono font-semibold text-[#4F46E5] dark:text-[#818CF8] shrink-0"
+                    >
+                      <Phone className="w-3 h-3" aria-hidden="true" />
+                      {s.parentPhone}
+                    </a>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {isPrePrimary ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] border border-emerald-200 dark:border-emerald-800/50">
+                        <Sparkles className="w-3 h-3" aria-hidden="true" />
+                        Pre-Primary • Fee &amp; Notices Only
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="inline-flex items-center gap-1 font-medium text-[#0F172A] dark:text-[#F8FAFC]">
+                          <Clock className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#6366F1]" />
+                          {s.atHomeHoursThisWeek}h/wk
+                        </span>
+                        <span className="inline-flex items-center gap-1 font-medium text-[#D97706] dark:text-[#FBBF24]">
+                          <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                          {s.streakDays}d streak
+                        </span>
+                      </div>
+                    )}
+                    <span className="text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                      Att. {s.attendancePercent}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSlipStudent(s)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] font-semibold text-xs cursor-pointer"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Login Slip</span>
+                    </button>
+
+                    {canManageFees && !isFullyPaid && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFeeStudent(s)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] font-semibold text-xs cursor-pointer"
+                      >
+                        <IndianRupee className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Collect</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setStudentToEdit(s)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#232E44] font-semibold text-xs cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStudentToRemove(s)}
+                      aria-label={`Remove ${s.name}`}
+                      className="ml-auto inline-flex items-center justify-center p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Data Table (>= md) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-[#475569] dark:text-[#94A3B8] text-xs font-semibold uppercase tracking-wider">

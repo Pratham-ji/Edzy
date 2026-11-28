@@ -215,7 +215,7 @@ export const CircularsAttendancePage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-1 bg-[#EEF2F7] dark:bg-[#1A2336]/80 p-1 rounded-xl self-start sm:self-auto border border-[#E2E8F0]/80 dark:border-[#232E44]/60">
+        <div className="flex items-center gap-1 bg-[#EEF2F7] dark:bg-[#1A2336]/80 p-1 rounded-xl w-full sm:w-auto border border-[#E2E8F0]/80 dark:border-[#232E44]/60 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveSubTab('circulars')}
@@ -372,7 +372,7 @@ export const CircularsAttendancePage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#0F172A] dark:text-slate-300 mb-1.5">
                     Issuing Authority
@@ -514,7 +514,7 @@ export const CircularsAttendancePage: React.FC = () => {
         /* Daily Attendance Register View */
         <div className="space-y-6">
           {/* Top Controls & Metrics Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-4 rounded-2xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase text-[#475569] dark:text-[#94A3B8] tracking-wider">
@@ -603,23 +603,23 @@ export const CircularsAttendancePage: React.FC = () => {
                 A → Z
               </span>
 
-              <div className="relative">
+              <div className="relative w-full sm:w-56">
                 <input
                   type="text"
                   placeholder="Search student, ID, roll #..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-indigo-500 w-44 sm:w-56"
+                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-[#E2E8F0] dark:border-[#232E44] bg-[#F6F8FC] dark:bg-[#1A2336] text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full"
                 />
                 <Filter className="w-3.5 h-3.5 text-[#94A3B8] absolute left-2.5 top-2.5" />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end md:self-auto">
+            <div className="flex items-center gap-2 flex-wrap sm:self-end md:self-auto">
               <button
                 type="button"
                 onClick={() => markAllAttendance(effectiveClass, 'PRESENT')}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] hover:opacity-90 border border-emerald-200 dark:border-emerald-800 transition-all cursor-pointer"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#ECFDF5] dark:bg-[rgba(16,185,129,0.14)] text-[#059669] dark:text-[#34D399] hover:opacity-90 border border-emerald-200 dark:border-emerald-800 transition-all cursor-pointer"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 Mark All Present
@@ -627,7 +627,7 @@ export const CircularsAttendancePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => markAllAttendance(effectiveClass, 'ABSENT')}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition-all cursor-pointer"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition-all cursor-pointer"
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Mark All Absent
@@ -635,9 +635,73 @@ export const CircularsAttendancePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Register Table */}
+          {/* Mobile Attendance Cards (< md) & Desktop Register Table (>= md) */}
           <div className="bg-white dark:bg-[#121826] rounded-2xl border border-[#E2E8F0] dark:border-[#232E44] shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile Touch Register */}
+            <div className="md:hidden divide-y divide-[#E2E8F0] dark:divide-[#232E44]">
+              {filteredStudents.length === 0 ? (
+                <div className="py-10 px-4 text-center text-xs text-[#475569] dark:text-[#94A3B8]">
+                  No students enrolled in {effectiveClass} yet.
+                </div>
+              ) : (
+                filteredStudents.map((st) => {
+                  const isPresent = attendanceRegister[st.id] !== 'ABSENT';
+                  const alphaPos = String(alphaPosByStudentId.get(st.id) || st.rollNo).padStart(2, '0');
+                  return (
+                    <div key={st.id} className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-[#4F46E5] dark:text-[#818CF8]">
+                            #{alphaPos}
+                          </span>
+                          <span className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC] truncate">
+                            {st.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono text-[#475569] dark:text-[#94A3B8]">
+                          {st.id} • Att. {st.attendancePercent}%
+                        </div>
+                        <a
+                          href={`tel:${st.parentPhone}`}
+                          className="inline-block text-[11px] font-mono text-[#4F46E5] dark:text-[#818CF8]"
+                        >
+                          {st.parentName} (+91 {st.parentPhone})
+                        </a>
+                      </div>
+
+                      <div className="inline-flex rounded-xl border border-[#E2E8F0] dark:border-[#232E44] p-0.5 bg-[#F6F8FC] dark:bg-[#1A2336] shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentAttendance(st.id, 'PRESENT')}
+                          aria-label={`Mark ${st.name} Present`}
+                          className={`w-10 h-10 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                            isPresent
+                              ? 'bg-[#059669] text-white shadow-xs'
+                              : 'text-[#475569] dark:text-[#94A3B8]'
+                          }`}
+                        >
+                          P
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentAttendance(st.id, 'ABSENT')}
+                          aria-label={`Mark ${st.name} Absent`}
+                          className={`w-10 h-10 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                            !isPresent
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'text-[#475569] dark:text-[#94A3B8]'
+                          }`}
+                        >
+                          A
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-[#EEF2F7]/80 dark:bg-[#1A2336]/80 border-b border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider">
