@@ -572,7 +572,7 @@ export const GLModelViewer = forwardRef<GLModelViewerHandle, GLModelViewerProps>
           />
         )}
 
-        {modelEntry.attribution && !showInfoCard && !compact && (
+        {modelEntry.attribution && modelEntry.name !== 'Human Heart' && !showInfoCard && !compact && (
           <View style={styles.attributionPill} pointerEvents="none">
             <Text style={styles.attributionText}>
               {modelEntry.attribution.title} • {modelEntry.attribution.author} (
@@ -590,7 +590,7 @@ export const GLModelViewer = forwardRef<GLModelViewerHandle, GLModelViewerProps>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B101B',
+    backgroundColor: '#777777',
     overflow: 'hidden',
   },
   glSurface: {
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0B101B',
+    backgroundColor: '#777777',
     gap: 8,
     padding: 24,
   },
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(11, 16, 27, 0.92)',
+    backgroundColor: 'rgba(80, 80, 80, 0.92)',
     gap: 8,
     padding: 24,
   },

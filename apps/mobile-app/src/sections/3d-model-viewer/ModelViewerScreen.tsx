@@ -66,7 +66,7 @@ export default function ModelViewerScreen({ modelId, onClose }: ModelViewerScree
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0B101B',
+    backgroundColor: '#777777',
   },
   header: {
     position: 'absolute',
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 12,
-    backgroundColor: 'rgba(11, 16, 27, 0.68)',
+    backgroundColor: 'rgba(70, 70, 70, 0.52)',
   },
   backButton: {
     width: 36,

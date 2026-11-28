@@ -101,7 +101,19 @@ export function createThreeScene(gl: ExpoWebGLRenderingContext): ThreeScene {
 
   // ── Scene ─────────────────────────────────────────────────────────────────
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b101b);
+  // Radial neutral studio backdrop; shader-free so Expo GL interaction stays unchanged.
+  scene.background = new THREE.Color(0x777777);
+  const backgroundGeometry = new THREE.PlaneGeometry(2, 2);
+  const backgroundMaterial = new THREE.ShaderMaterial({
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }',
+    fragmentShader: 'varying vec2 vUv; void main(){ float d=length((vUv-vec2(0.5))*vec2(1.0,0.78)); float t=smoothstep(0.08,0.72,d); vec3 c=mix(vec3(0.58),vec3(0.29),t); gl_FragColor=vec4(c,1.0); }',
+  });
+  const background = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+  background.renderOrder = -1000;
+  background.frustumCulled = false;
+  scene.add(background);
 
   // ── Camera ────────────────────────────────────────────────────────────────
   const camera = new THREE.PerspectiveCamera(55, width / height, 0.01, 1000);
@@ -134,6 +146,8 @@ export function createThreeScene(gl: ExpoWebGLRenderingContext): ThreeScene {
       }
     });
     scene.clear();
+    backgroundGeometry.dispose();
+    backgroundMaterial.dispose();
     renderer.dispose();
   }
 
