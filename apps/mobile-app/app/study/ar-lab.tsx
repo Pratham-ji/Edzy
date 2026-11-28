@@ -58,13 +58,13 @@ export default function ArLabScreen() {
   const [activeModel, setActiveModel] = useState<ModelEntry>(() =>
     resolveModelByIdOrName(activeArDirective.modelName),
   );
-  const [selectedComponentId, setSelectedComponentId] = useState<string>(
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(
     () => {
       const initial = resolveModelByIdOrName(activeArDirective.modelName);
       const matched = initial.components.find(
         (c) => c.id.toLowerCase() === (activeArDirective.targetNode || '').toLowerCase(),
       );
-      return matched?.id ?? initial.components[0]?.id ?? '';
+      return matched?.id ?? null;
     },
   );
 
@@ -88,31 +88,28 @@ export default function ArLabScreen() {
     );
     if (matchedNode) {
       setSelectedComponentId(matchedNode.id);
-    } else if (resolved.components[0]) {
-      setSelectedComponentId(resolved.components[0].id);
+    } else {
+      setSelectedComponentId(null);
     }
   }, [activeArDirective.modelName, activeArDirective.targetNode]);
 
   const activeComponent: ModelComponentNode | undefined = useMemo(
-    () =>
-      activeModel.components.find((c) => c.id === selectedComponentId) ??
-      activeModel.components[0],
+    () => activeModel.components.find((c) => c.id === selectedComponentId),
     [activeModel, selectedComponentId],
   );
 
   const handleSelectModel = useCallback(
     (model: ModelEntry) => {
-      const firstComp = model.components[0];
       setActiveModel(model);
-      setSelectedComponentId(firstComp?.id ?? '');
+      setSelectedComponentId(null);
       setViewMode('solid');
       setIsolateSelected(false);
       setRotationAngle(45);
       setAudioNarration(false);
       updateArDirective({
         modelName: model.name,
-        targetNode: firstComp?.id ?? '',
-        highlight: true,
+        targetNode: '',
+        highlight: false,
         explodeFactor: 0,
         note: model.description,
       });
@@ -137,6 +134,7 @@ export default function ArLabScreen() {
   const handleSelectComponent = useCallback(
     (node: ModelComponentNode | null) => {
       if (!node) {
+        setSelectedComponentId(null);
         setIsolateSelected(false);
         return;
       }
@@ -174,8 +172,8 @@ export default function ArLabScreen() {
         nextMode === 'solid'
           ? 'Model assembled.'
           : nextMode === 'cross-section'
-          ? 'Cross-section slice view.'
-          : 'Exploded assembly view.',
+            ? 'Cross-section slice view.'
+            : 'Exploded assembly view.',
     });
   }, [activeModel.capabilities, viewMode, updateArDirective]);
 
@@ -283,7 +281,7 @@ export default function ArLabScreen() {
                 <GLModelViewer
                   ref={viewerRef}
                   modelEntry={activeModel}
-                  selectedComponentId={activeComponent?.id ?? null}
+                  selectedComponentId={selectedComponentId}
                   onSelectComponent={handleSelectComponent}
                   viewMode={viewMode}
                   isolateSelected={isolateSelected}
@@ -333,24 +331,24 @@ export default function ArLabScreen() {
 
               {(activeModel.capabilities.supportsCrossSection ||
                 activeModel.capabilities.supportsExplode) && (
-                <TouchableOpacity
-                  style={[
-                    styles.vpButton,
-                    viewMode !== 'solid' && { backgroundColor: activeModel.accentColor },
-                  ]}
-                  onPress={handleCycleViewMode}
-                  activeOpacity={0.8}
-                >
-                  <Layers size={13} color="#FFFFFF" />
-                  <Text style={styles.vpButtonText}>
-                    {viewMode === 'solid'
-                      ? 'Solid'
-                      : viewMode === 'cross-section'
-                      ? 'Cross-Section'
-                      : 'Exploded'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+                  <TouchableOpacity
+                    style={[
+                      styles.vpButton,
+                      viewMode !== 'solid' && { backgroundColor: activeModel.accentColor },
+                    ]}
+                    onPress={handleCycleViewMode}
+                    activeOpacity={0.8}
+                  >
+                    <Layers size={13} color="#FFFFFF" />
+                    <Text style={styles.vpButtonText}>
+                      {viewMode === 'solid'
+                        ? 'Solid'
+                        : viewMode === 'cross-section'
+                          ? 'Cross-Section'
+                          : 'Exploded'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
               {activeModel.capabilities.supportsPartIsolation && activeComponent && (
                 <TouchableOpacity
@@ -527,7 +525,7 @@ export default function ArLabScreen() {
           {isFullscreen && (
             <GLModelViewer
               modelEntry={activeModel}
-              selectedComponentId={activeComponent?.id ?? null}
+              selectedComponentId={selectedComponentId}
               onSelectComponent={handleSelectComponent}
               viewMode={viewMode}
               isolateSelected={isolateSelected}
