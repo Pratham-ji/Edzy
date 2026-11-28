@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --edzy-canvas: #F6F8FC;
   --edzy-surface: #FFFFFF;
   --edzy-subtle: #EEF2F7;
@@ -14,6 +14,13 @@
   --edzy-brand-deep: #3730A3;
   --edzy-brand-soft: #EEF2FF;
   --edzy-brand-border: #C7D2FE;
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+  }
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+  }
 }
 
 .dark {
@@ -37,10 +44,19 @@
 }
 
 @layer base {
+  html,
   body {
+    min-height: 100%;
     background-color: var(--edzy-canvas);
     color: var(--edzy-ink);
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: clip;
+  }
+
+  html.dark,
+  html.dark body {
+    background-color: #090D16 !important;
+    color: #F8FAFC;
   }
 }
 
@@ -129,27 +145,48 @@
   background: #94A3B8;
 }
 
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
 @media print {
-  aside, header, .no-print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  aside,
+  header,
+  .no-print {
     display: none !important;
   }
+
   main {
     margin: 0 !important;
     padding: 0 !important;
   }
-  #edzy-receipt-dialog-backdrop {
-    position: static !important;
-    inset: auto !important;
-    background: #ffffff !important;
-    padding: 0 !important;
-    overflow: visible !important;
+
+  body:has(#edzy-receipt-print-sheet) #root {
+    display: none !important;
   }
-  #edzy-printable-receipt-shell {
-    max-width: 100% !important;
+
+  #edzy-receipt-print-sheet {
+    display: block !important;
+    position: static !important;
     width: 100% !important;
     margin: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 

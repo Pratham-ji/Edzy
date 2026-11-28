@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Upload,
@@ -79,6 +79,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({ onClose, onSucce
   const [previewRows, setPreviewRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -254,15 +255,25 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({ onClose, onSucce
             <Upload className="w-8 h-8 text-[#94A3B8] mx-auto mb-2" />
             <p className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">
               Drag & Drop your School Excel/CSV File here, or{' '}
-              <label className="text-[#4F46E5] dark:text-[#6366F1] hover:underline cursor-pointer">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[#4F46E5] dark:text-[#6366F1] hover:underline font-extrabold cursor-pointer"
+              >
                 Browse Files
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(e) => {
+                  handleFileUpload(e);
+                  e.target.value = '';
+                }}
+                className="hidden"
+              />
             </p>
             <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] mt-1">
               Supports standard column headers: Name, ClassGrade, RollNo, ParentName, ParentPhone, AnnualFee

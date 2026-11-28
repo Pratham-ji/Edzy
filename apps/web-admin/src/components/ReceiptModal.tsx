@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Printer, ShieldCheck, AlertCircle, Building2 } from 'lucide-react';
 import { useAdminStore, FeeInstallmentRecord } from '../store/useAdminStore';
 import { computeHeadAmountsFromTotal } from '../lib/campusConfig';
@@ -141,334 +142,353 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ installment, onClose
       ? 'Online Parent App (Verified UPI)'
       : `${schoolProfile.accountantName}`);
 
-  return (
-    <div
-      id="edzy-receipt-dialog-backdrop"
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
-      onClick={onClose}
-    >
-      <div
-        id="edzy-printable-receipt-shell"
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[94dvh] flex flex-col border border-[#E2E8F0] overflow-hidden my-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Top Action Bar (Hidden when printing) */}
-        <div className="no-print px-3.5 sm:px-5 py-3 bg-[#0F172A] text-white flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-            <span className="text-xs font-bold tracking-wide">
-              Receipt Preview • {schoolProfile.code}
-            </span>
-          </div>
+  const receiptDocumentContent = (
+    <div className="relative font-sans text-slate-900 select-text">
+      {/* Optional Diagonal DUPLICATE COPY Watermark */}
+      {isDuplicateCopy && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-10"
+        >
+          <span className="text-5xl sm:text-6xl font-black uppercase tracking-[0.22em] text-slate-900/10 -rotate-24 border-4 border-slate-900/10 px-6 py-2 rounded-xl">
+            DUPLICATE COPY
+          </span>
+        </div>
+      )}
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <label
-              htmlFor={duplicateCheckId}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-200 cursor-pointer select-none"
-            >
-              <input
-                id={duplicateCheckId}
-                type="checkbox"
-                checked={isDuplicateCopy}
-                onChange={(e) => setIsDuplicateCopy(e.target.checked)}
-                className="accent-[#4F46E5] w-3.5 h-3.5 rounded cursor-pointer"
-              />
-              <span>Mark as Duplicate Copy</span>
-            </label>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#4F46E5] hover:bg-[#3730A3] text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
-            >
-              <Printer className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Print / Save Official PDF</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close receipt modal"
-              className="p-1 text-slate-400 hover:text-white transition rounded-md cursor-pointer"
-            >
-              <X className="w-5 h-5" aria-hidden="true" />
-            </button>
+      {/* Institutional Letterhead */}
+      <div className="border-b-2 border-slate-900 pb-4 print:pb-2.5 mb-4 print:mb-2.5 flex flex-col sm:flex-row print:flex-row sm:items-start print:items-start justify-between gap-3 sm:gap-4 print:gap-3 relative z-20">
+        <div className="flex items-start gap-3.5 print:gap-3">
+          {campusConfig.logoDataUrl ? (
+            <img
+              src={campusConfig.logoDataUrl}
+              alt={`${schoolProfile.name} logo`}
+              className="w-14 h-14 print:w-12 print:h-12 object-contain rounded-xl border border-slate-200 bg-white p-1 shrink-0"
+            />
+          ) : (
+            <div className="w-14 h-14 print:w-12 print:h-12 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-[#4F46E5] shrink-0">
+              <Building2 className="w-7 h-7 print:w-6 print:h-6" aria-hidden="true" />
+            </div>
+          )}
+          <div>
+            <h1 className="text-lg sm:text-xl print:text-base font-black text-slate-900 tracking-tight uppercase leading-snug">
+              {schoolProfile.name}
+            </h1>
+            <p className="text-xs print:text-[11px] text-slate-600 font-medium mt-0.5">
+              {[schoolProfile.address, schoolProfile.city, schoolProfile.state]
+                .filter(Boolean)
+                .join(', ')}
+            </p>
+            <p className="text-[11px] print:text-[10px] text-slate-600 font-medium mt-0.5">
+              Affiliated to <strong className="text-slate-800">{schoolProfile.board}</strong> • Reg/Affil. No:{' '}
+              <strong className="font-mono text-slate-800">{schoolProfile.affiliationNumber}</strong>
+            </p>
+            <p className="text-[11px] print:text-[10px] text-slate-500 font-medium">
+              {[
+                schoolProfile.phone ? `Tel: ${schoolProfile.phone}` : null,
+                schoolProfile.email ? `Email: ${schoolProfile.email}` : null,
+              ]
+                .filter(Boolean)
+                .join(' • ')}
+            </p>
           </div>
         </div>
 
-        {/* Always Crisp White Ink-Safe Printable Paper Sheet */}
-        <div
-          id="edzy-printable-receipt"
-          className="relative p-4 sm:p-8 font-sans bg-white text-slate-900 select-text overflow-y-auto flex-1"
-        >
-          {/* Optional Diagonal DUPLICATE COPY Watermark */}
-          {isDuplicateCopy && (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-10"
-            >
-              <span className="text-5xl sm:text-6xl font-black uppercase tracking-[0.22em] text-slate-900/10 -rotate-24 border-4 border-slate-900/10 px-6 py-2 rounded-xl">
-                DUPLICATE COPY
-              </span>
-            </div>
-          )}
-
-          {/* Institutional Letterhead */}
-          <div className="border-b-2 border-slate-900 pb-4 mb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 relative z-20">
-            <div className="flex items-start gap-3.5">
-              {campusConfig.logoDataUrl ? (
-                <img
-                  src={campusConfig.logoDataUrl}
-                  alt={`${schoolProfile.name} logo`}
-                  className="w-14 h-14 object-contain rounded-xl border border-slate-200 bg-white p-1 shrink-0"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-[#4F46E5] shrink-0">
-                  <Building2 className="w-7 h-7" aria-hidden="true" />
-                </div>
-              )}
-              <div>
-                <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase leading-snug">
-                  {schoolProfile.name}
-                </h1>
-                <p className="text-xs text-slate-600 font-medium mt-0.5">
-                  {[schoolProfile.address, schoolProfile.city, schoolProfile.state]
-                    .filter(Boolean)
-                    .join(', ')}
-                </p>
-                <p className="text-[11px] text-slate-600 font-medium mt-0.5">
-                  Affiliated to <strong className="text-slate-800">{schoolProfile.board}</strong> • Reg/Affil. No:{' '}
-                  <strong className="font-mono text-slate-800">{schoolProfile.affiliationNumber}</strong>
-                </p>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  {[
-                    schoolProfile.phone ? `Tel: ${schoolProfile.phone}` : null,
-                    schoolProfile.email ? `Email: ${schoolProfile.email}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' • ')}
-                </p>
-              </div>
-            </div>
-
-            <div className="sm:text-right shrink-0 flex sm:block items-center justify-between gap-2">
-              <div className="inline-block px-2.5 py-1 rounded-md bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider">
-                OFFICIAL FEE RECEIPT
-              </div>
-              <div className="text-[11px] font-bold text-slate-700 mt-1.5">
-                Session {schoolProfile.session}
-              </div>
-            </div>
+        <div className="sm:text-right print:text-right shrink-0 flex sm:block print:block items-center justify-between gap-2">
+          <div className="inline-block px-2.5 py-1 rounded-md bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider">
+            OFFICIAL FEE RECEIPT
           </div>
-
-          {/* Receipt & Student Meta Grid (2 Clean Columns) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 text-xs relative z-20">
-            <div className="space-y-2">
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Student Name</span>
-                <span className="font-bold text-slate-900 text-right">{installment.studentName}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Admission / Student ID</span>
-                <span className="font-mono font-extrabold text-[#4F46E5] text-right">
-                  {installment.studentId}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Class &amp; Section</span>
-                <span className="font-semibold text-slate-800 text-right">
-                  {installment.classGrade} • Roll #{student?.rollNo || '--'}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Father / Guardian Name</span>
-                <span className="font-semibold text-slate-800 text-right">
-                  {student?.parentName || 'Parent / Guardian'}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2 sm:border-l sm:border-slate-200 sm:pl-4">
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Receipt No.</span>
-                <span className="font-mono font-extrabold text-slate-900 text-right">
-                  {formattedReceiptNo}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Payment Date &amp; Time</span>
-                <span className="font-semibold text-slate-800 text-right">
-                  {installment.paidTimestamp || installment.paidDate || printedOnStr}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Printed On</span>
-                <span className="font-medium text-slate-700 text-right">{printedOnStr}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500 font-medium">Period Covered</span>
-                <span className="font-semibold text-slate-800 text-right">{installment.quarter}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Itemized Audit-Grade Head-Wise Fee Table */}
-          <div className="border border-slate-300 rounded-xl overflow-x-auto mb-3 relative z-20">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead className="bg-slate-100 border-b border-slate-300 text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
-                <tr>
-                  <th scope="col" className="px-4 py-2.5 w-12">S.No</th>
-                  <th scope="col" className="px-4 py-2.5">Fee Head Description</th>
-                  <th scope="col" className="px-4 py-2.5 text-right">Amount (INR)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800 tabular-nums">
-                {grossHeads.map((head, idx) => (
-                  <tr key={head.id || idx}>
-                    <td className="px-4 py-2 font-mono text-slate-500">{idx + 1}</td>
-                    <td className="px-4 py-2 font-semibold">
-                      <span>{head.label}</span>
-                      {head.eligible80C && (
-                        <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9.5px] font-bold">
-                          Sec. 80C Eligible
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-right font-mono font-semibold">
-                      ₹{head.amount.toLocaleString('en-IN')}.00
-                    </td>
-                  </tr>
-                ))}
-
-                {customHeadsSum > 0 && (concessionAmount > 0 || lateFee > 0) && (
-                  <tr className="bg-slate-50/70">
-                    <td className="px-4 py-1.5" />
-                    <td className="px-4 py-1.5 text-[11px] font-bold text-slate-600">
-                      Gross Fee Total
-                    </td>
-                    <td className="px-4 py-1.5 text-right font-mono font-bold text-slate-700">
-                      ₹{customHeadsSum.toLocaleString('en-IN')}.00
-                    </td>
-                  </tr>
-                )}
-
-                {concessionAmount > 0 && (
-                  <tr className="bg-emerald-50/60 text-emerald-800">
-                    <td className="px-4 py-2 font-mono">—</td>
-                    <td className="px-4 py-2 font-bold">
-                      Less: Concession / Scholarship ({installment.concessionReason || 'Approved Discount'})
-                    </td>
-                    <td className="px-4 py-2 text-right font-mono font-bold">
-                      (-₹{concessionAmount.toLocaleString('en-IN')}.00)
-                    </td>
-                  </tr>
-                )}
-
-                {lateFee > 0 && (
-                  <tr className="bg-amber-50/70 text-amber-900">
-                    <td className="px-4 py-2 font-mono">+</td>
-                    <td className="px-4 py-2 font-bold">Add: Late Payment Fee</td>
-                    <td className="px-4 py-2 text-right font-mono font-bold">
-                      (+₹{lateFee.toLocaleString('en-IN')}.00)
-                    </td>
-                  </tr>
-                )}
-
-                <tr className="bg-slate-900 text-white font-bold">
-                  <td colSpan={2} className="px-4 py-2.5 text-right uppercase tracking-wider text-[11px]">
-                    Net Amount Received
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-mono text-sm">
-                    ₹{netReceived.toLocaleString('en-IN')}.00
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <p className="text-[11px] font-semibold text-slate-700 mb-4 relative z-20">
-            Amount in Words:{' '}
-            <span className="italic font-bold text-slate-900">
-              {amountToIndianWords(netReceived)}
-            </span>
-            {has80CEligibleHead && (
-              <span className="ml-1.5 text-emerald-700 font-medium">
-                (Tuition component valid for Section 80C rebate.)
-              </span>
-            )}
-          </p>
-
-          {/* Payment Settlement & Student Balance Strip */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px] relative z-20">
-            <div>
-              <span className="text-slate-500 font-medium">Payment Mode: </span>
-              <strong className="text-slate-900">
-                {formatPaymentModeLabel(installment.paymentMethod)}
-              </strong>
-            </div>
-
-            {hasMeaningfulRef && (
-              <div>
-                <span className="text-slate-500 font-medium">
-                  {isChequePayment ? 'Cheque / Bank Ref: ' : 'Transaction Ref: '}
-                </span>
-                <strong className="font-mono text-slate-900">{installment.paymentRef}</strong>
-              </div>
-            )}
-
-            <div>
-              <span className="text-slate-500 font-medium">Received By: </span>
-              <strong className="text-slate-900">{receivedByLabel}</strong>
-            </div>
-
-            <div>
-              <span className="text-slate-500 font-medium">Total Student Balance Remaining: </span>
-              <strong
-                className={`font-mono ${
-                  studentBalanceRemaining === 0 ? 'text-emerald-700' : 'text-amber-700'
-                }`}
-              >
-                {studentBalanceRemaining === 0
-                  ? '₹0.00 (All Dues Cleared)'
-                  : `₹${studentBalanceRemaining.toLocaleString('en-IN')}.00`}
-              </strong>
-            </div>
-
-            {isChequePayment && (
-              <div className="sm:col-span-2 mt-1 flex items-center gap-1.5 text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg font-semibold">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span>Cheque/DD payments are subject to bank realisation.</span>
-              </div>
-            )}
-          </div>
-
-          {/* Official Digital Stamp, Statutory Note & Signatory Footer */}
-          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-end justify-between gap-4 relative z-20">
-            <div className="space-y-1 max-w-xs">
-              <p className="text-[10px] font-semibold text-slate-600 leading-relaxed">
-                {campusConfig.receiptFooterNote}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Computer-generated receipt verified via Edzy School Cloud ({schoolProfile.code})
-              </p>
-            </div>
-
-            <ReceiptStampSignoffBlock
-              schoolName={schoolProfile.name}
-              schoolCode={schoolProfile.code}
-              signatoryLabel={campusConfig.signatoryLabel || 'Authorized Signatory / Accounts Officer'}
-              signatoryName={schoolProfile.accountantName}
-              dateLabel={(installment.paidDate || printedOnStr).toUpperCase()}
-              stampDataUrl={campusConfig.stampDataUrl}
-              signatureDataUrl={campusConfig.signatureDataUrl}
-              useAutoGeneratedSeal={campusConfig.useAutoGeneratedSeal}
-              stampBlendMode={campusConfig.stampBlendMode}
-              isPaid={installment.status === 'PAID'}
-            />
+          <div className="text-[11px] print:text-[10px] font-bold text-slate-700 mt-1.5 print:mt-1">
+            Session {schoolProfile.session}
           </div>
         </div>
       </div>
+
+      {/* Receipt & Student Meta Grid (2 Clean Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 print:gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 print:p-2.5 mb-4 print:mb-2.5 text-xs print:text-[11px] relative z-20">
+        <div className="space-y-2 print:space-y-1">
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Student Name</span>
+            <span className="font-bold text-slate-900 text-right">{installment.studentName}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Admission / Student ID</span>
+            <span className="font-mono font-extrabold text-[#4F46E5] text-right">
+              {installment.studentId}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Class &amp; Section</span>
+            <span className="font-semibold text-slate-800 text-right">
+              {installment.classGrade} • Roll #{student?.rollNo || '--'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Father / Guardian Name</span>
+            <span className="font-semibold text-slate-800 text-right">
+              {student?.parentName || 'Parent / Guardian'}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 print:space-y-1 sm:border-l print:border-l sm:border-slate-200 print:border-slate-200 sm:pl-4 print:pl-3">
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Receipt No.</span>
+            <span className="font-mono font-extrabold text-slate-900 text-right">
+              {formattedReceiptNo}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Payment Date &amp; Time</span>
+            <span className="font-semibold text-slate-800 text-right">
+              {installment.paidTimestamp || installment.paidDate || printedOnStr}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Printed On</span>
+            <span className="font-medium text-slate-700 text-right">{printedOnStr}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-slate-500 font-medium">Period Covered</span>
+            <span className="font-semibold text-slate-800 text-right">{installment.quarter}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Itemized Audit-Grade Head-Wise Fee Table */}
+      <div className="border border-slate-300 rounded-xl overflow-x-auto print:overflow-visible mb-3 print:mb-2 relative z-20">
+        <table className="w-full text-xs print:text-[11px] text-left border-collapse">
+          <thead className="bg-slate-100 border-b border-slate-300 text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
+            <tr>
+              <th scope="col" className="px-4 print:px-3 py-2.5 print:py-1.5 w-12">S.No</th>
+              <th scope="col" className="px-4 print:px-3 py-2.5 print:py-1.5">Fee Head Description</th>
+              <th scope="col" className="px-4 print:px-3 py-2.5 print:py-1.5 text-right">Amount (INR)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 text-slate-800 tabular-nums">
+            {grossHeads.map((head, idx) => (
+              <tr key={head.id || idx}>
+                <td className="px-4 print:px-3 py-2 print:py-1 font-mono text-slate-500">{idx + 1}</td>
+                <td className="px-4 print:px-3 py-2 print:py-1 font-semibold">
+                  <span>{head.label}</span>
+                  {head.eligible80C && (
+                    <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9.5px] font-bold">
+                      Sec. 80C Eligible
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 print:px-3 py-2 print:py-1 text-right font-mono font-semibold">
+                  ₹{head.amount.toLocaleString('en-IN')}.00
+                </td>
+              </tr>
+            ))}
+
+            {customHeadsSum > 0 && (concessionAmount > 0 || lateFee > 0) && (
+              <tr className="bg-slate-50/70">
+                <td className="px-4 print:px-3 py-1.5 print:py-1" />
+                <td className="px-4 print:px-3 py-1.5 print:py-1 text-[11px] font-bold text-slate-600">
+                  Gross Fee Total
+                </td>
+                <td className="px-4 print:px-3 py-1.5 print:py-1 text-right font-mono font-bold text-slate-700">
+                  ₹{customHeadsSum.toLocaleString('en-IN')}.00
+                </td>
+              </tr>
+            )}
+
+            {concessionAmount > 0 && (
+              <tr className="bg-emerald-50/60 text-emerald-800">
+                <td className="px-4 print:px-3 py-2 print:py-1 font-mono">—</td>
+                <td className="px-4 print:px-3 py-2 print:py-1 font-bold">
+                  Less: Concession / Scholarship ({installment.concessionReason || 'Approved Discount'})
+                </td>
+                <td className="px-4 print:px-3 py-2 print:py-1 text-right font-mono font-bold">
+                  (-₹{concessionAmount.toLocaleString('en-IN')}.00)
+                </td>
+              </tr>
+            )}
+
+            {lateFee > 0 && (
+              <tr className="bg-amber-50/70 text-amber-900">
+                <td className="px-4 print:px-3 py-2 print:py-1 font-mono">+</td>
+                <td className="px-4 print:px-3 py-2 print:py-1 font-bold">Add: Late Payment Fee</td>
+                <td className="px-4 print:px-3 py-2 print:py-1 text-right font-mono font-bold">
+                  (+₹{lateFee.toLocaleString('en-IN')}.00)
+                </td>
+              </tr>
+            )}
+
+            <tr className="bg-slate-900 text-white font-bold">
+              <td colSpan={2} className="px-4 print:px-3 py-2.5 print:py-1.5 text-right uppercase tracking-wider text-[11px]">
+                Net Amount Received
+              </td>
+              <td className="px-4 print:px-3 py-2.5 print:py-1.5 text-right font-mono text-sm print:text-xs">
+                ₹{netReceived.toLocaleString('en-IN')}.00
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-[11px] print:text-[10.5px] font-semibold text-slate-700 mb-4 print:mb-2 relative z-20">
+        Amount in Words:{' '}
+        <span className="italic font-bold text-slate-900">
+          {amountToIndianWords(netReceived)}
+        </span>
+        {has80CEligibleHead && (
+          <span className="ml-1.5 text-emerald-700 font-medium">
+            (Tuition component valid for Section 80C rebate.)
+          </span>
+        )}
+      </p>
+
+      {/* Payment Settlement & Student Balance Strip */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 print:px-3 print:py-2 mb-5 print:mb-2.5 grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-2.5 print:gap-1.5 text-[11px] print:text-[10.5px] relative z-20">
+        <div>
+          <span className="text-slate-500 font-medium">Payment Mode: </span>
+          <strong className="text-slate-900">
+            {formatPaymentModeLabel(installment.paymentMethod)}
+          </strong>
+        </div>
+
+        {hasMeaningfulRef && (
+          <div>
+            <span className="text-slate-500 font-medium">
+              {isChequePayment ? 'Cheque / Bank Ref: ' : 'Transaction Ref: '}
+            </span>
+            <strong className="font-mono text-slate-900">{installment.paymentRef}</strong>
+          </div>
+        )}
+
+        <div>
+          <span className="text-slate-500 font-medium">Received By: </span>
+          <strong className="text-slate-900">{receivedByLabel}</strong>
+        </div>
+
+        <div>
+          <span className="text-slate-500 font-medium">Total Student Balance Remaining: </span>
+          <strong
+            className={`font-mono ${
+              studentBalanceRemaining === 0 ? 'text-emerald-700' : 'text-amber-700'
+            }`}
+          >
+            {studentBalanceRemaining === 0
+              ? '₹0.00 (All Dues Cleared)'
+              : `₹${studentBalanceRemaining.toLocaleString('en-IN')}.00`}
+          </strong>
+        </div>
+
+        {isChequePayment && (
+          <div className="sm:col-span-2 print:col-span-2 mt-1 flex items-center gap-1.5 text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg font-semibold">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Cheque/DD payments are subject to bank realisation.</span>
+          </div>
+        )}
+      </div>
+
+      {/* Official Digital Stamp, Statutory Note & Signatory Footer */}
+      <div className="pt-4 print:pt-2.5 border-t border-slate-200 flex flex-col sm:flex-row print:flex-row sm:items-end print:items-end justify-between gap-4 print:gap-3 relative z-20">
+        <div className="space-y-1 max-w-xs">
+          <p className="text-[10px] font-semibold text-slate-600 leading-relaxed">
+            {campusConfig.receiptFooterNote}
+          </p>
+          <p className="text-[10px] text-slate-400">
+            Computer-generated receipt verified via Edzy School Cloud ({schoolProfile.code})
+          </p>
+        </div>
+
+        <ReceiptStampSignoffBlock
+          schoolName={schoolProfile.name}
+          schoolCode={schoolProfile.code}
+          signatoryLabel={campusConfig.signatoryLabel || 'Authorized Signatory / Accounts Officer'}
+          signatoryName={schoolProfile.accountantName}
+          dateLabel={(installment.paidDate || printedOnStr).toUpperCase()}
+          stampDataUrl={campusConfig.stampDataUrl}
+          signatureDataUrl={campusConfig.signatureDataUrl}
+          useAutoGeneratedSeal={campusConfig.useAutoGeneratedSeal}
+          stampBlendMode={campusConfig.stampBlendMode}
+          isPaid={installment.status === 'PAID'}
+        />
+      </div>
     </div>
+  );
+
+  return (
+    <>
+      <div
+        id="edzy-receipt-dialog-backdrop"
+        className="no-print fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+        onClick={onClose}
+      >
+        <div
+          id="edzy-printable-receipt-shell"
+          className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[94dvh] flex flex-col border border-[#E2E8F0] overflow-hidden my-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Top Action Bar (Hidden when printing) */}
+          <div className="no-print px-3.5 sm:px-5 py-3 bg-[#0F172A] text-white flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+              <span className="text-xs font-bold tracking-wide">
+                Receipt Preview • {schoolProfile.code}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <label
+                htmlFor={duplicateCheckId}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-200 cursor-pointer select-none"
+              >
+                <input
+                  id={duplicateCheckId}
+                  type="checkbox"
+                  checked={isDuplicateCopy}
+                  onChange={(e) => setIsDuplicateCopy(e.target.checked)}
+                  className="accent-[#4F46E5] w-3.5 h-3.5 rounded cursor-pointer"
+                />
+                <span>Mark as Duplicate Copy</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#4F46E5] hover:bg-[#3730A3] text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Print / Save Official PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close receipt modal"
+                className="p-1 text-slate-400 hover:text-white transition rounded-md cursor-pointer"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          {/* Always Crisp White Ink-Safe Printable Paper Sheet */}
+          <div
+            id="edzy-printable-receipt"
+            className="p-4 sm:p-8 bg-white overflow-y-auto flex-1"
+          >
+            {receiptDocumentContent}
+          </div>
+        </div>
+      </div>
+
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            id="edzy-receipt-print-sheet"
+            className="hidden print:block bg-white text-slate-900 font-sans p-2"
+          >
+            {receiptDocumentContent}
+          </div>,
+          document.body
+        )}
+    </>
   );
 };
 

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { SchoolProfile, SchoolStaff } from '../store/useAdminStore';
 import { STAFF_DEPARTMENT_META } from '../lib/classScope';
+import { getPortalUrl } from '../lib/siteConfig';
 
 interface StaffActivationCardProps {
   staff: SchoolStaff;
@@ -25,10 +26,7 @@ export const StaffActivationCard: React.FC<StaffActivationCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const deptMeta = STAFF_DEPARTMENT_META[staff.department];
-  const portalUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/portal`
-      : 'https://edzy-admin.pages.dev/portal';
+  const portalUrl = getPortalUrl();
   const schoolBoard = (schoolProfile.board || 'CBSE').split(' ')[0].toUpperCase();
 
   const whatsappInvite = `Hello ${staff.fullName},\n\nWelcome to *${schoolProfile.name}* Campus ERP on *Edzy*!\n\nYour official Employee Login ID has been issued:\n🆔 *Employee ID:* ${staff.id}\n👤 *Role:* ${staff.designation} (${deptMeta.shortLabel})${

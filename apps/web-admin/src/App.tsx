@@ -39,6 +39,7 @@ export default function App() {
     schoolProfile,
     feeInstallments,
     themeMode,
+    themePreference,
   } = useAdminStore();
 
   const initialDept = currentStaff?.department || 'ADM';
@@ -87,14 +88,21 @@ export default function App() {
     return () => mq.removeEventListener('change', handleChange);
   }, []);
 
-  // Synchronize light/dark DOM class and <meta name="color-scheme">
+  // Synchronize light/dark DOM class, background canvas, and theme meta tags
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.documentElement.classList.toggle('dark', themeMode === 'dark');
+    const isDark = themeMode === 'dark';
+    const bg = isDark ? '#090D16' : '#F6F8FC';
+    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.style.backgroundColor = bg;
     document
       .querySelector('meta[name="color-scheme"]')
-      ?.setAttribute('content', themeMode === 'dark' ? 'dark' : 'light');
-  }, [themeMode]);
+      ?.setAttribute('content', themePreference === 'system' ? 'light dark' : themePreference);
+    document.getElementById('edzy-theme-color')?.setAttribute('content', bg);
+    document
+      .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+      ?.setAttribute('content', isDark ? 'black-translucent' : 'default');
+  }, [themeMode, themePreference]);
 
   // Synchronize per-route SEO title, canonical link, and indexing directives
   useEffect(() => {
@@ -213,21 +221,25 @@ export default function App() {
       case 'dashboard':
         return {
           title: 'Campus Command Center',
+          mobileTitle: 'Dashboard',
           subtitle: `${schoolProfile.name} (${schoolProfile.code}) • ${schoolBoard} Session ${schoolProfile.session}`,
         };
       case 'staff':
         return {
           title: 'Staff Directory & Hierarchy',
+          mobileTitle: 'Staff',
           subtitle: `${schoolProfile.name} (${schoolProfile.code}) • Role-Based Employee Accounts`,
         };
       case 'fees':
         return {
           title: 'Fee Counter & Receipts',
+          mobileTitle: 'Fee Counter',
           subtitle: 'Cash/Cheque Receipts, Parent UPI Reconciliation & Dues Follow-up',
         };
       case 'accounts-export':
         return {
           title: 'Tally & Fee Reconciliation Exports',
+          mobileTitle: 'Exports',
           subtitle: `${schoolProfile.name} • Daily Collections & Tally CSV Bundles`,
         };
       case 'students':
@@ -236,6 +248,7 @@ export default function App() {
             currentStaff.department === 'TCH' && currentStaff.assignedClass
               ? `My Class Roster • ${currentStaff.assignedClass}`
               : 'Student Directory & Passes',
+          mobileTitle: 'Students',
           subtitle: `${schoolBoard} Student Roster & App Login Slips`,
         };
       case 'circulars':
@@ -244,26 +257,31 @@ export default function App() {
             currentStaff.department === 'TCH'
               ? 'Class Attendance & Official Notices'
               : 'Official Circulars & Attendance',
+          mobileTitle: 'Circulars',
           subtitle: 'Digital Parent Broadcasts & Daily Attendance Register',
         };
       case 'syllabus':
         return {
           title: 'Curriculum Vault & 3D Labs',
+          mobileTitle: 'Curriculum',
           subtitle: `${schoolBoard} Visual Flowchart Roadmaps & 3D Labs`,
         };
       case 'marks':
         return {
           title: 'Exam Marks & Assessments',
+          mobileTitle: 'Gradebook',
           subtitle: `${schoolBoard} Term Grading & Report Card Sync`,
         };
       case 'settings':
         return {
-          title: 'Campus Settings & Profile',
+          title: 'Campus Settings',
+          mobileTitle: 'Settings',
           subtitle: 'School Profile, Receipts Header & Appearance',
         };
       default:
         return {
           title: 'Edzy School ERP',
+          mobileTitle: 'Edzy ERP',
           subtitle: `${schoolProfile.name} (${schoolProfile.code})`,
         };
     }
@@ -272,7 +290,7 @@ export default function App() {
   const headerInfo = getHeaderInfo();
 
   return (
-    <div className="flex h-dvh bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] antialiased overflow-hidden font-sans transition-colors">
+    <div className="flex min-h-dvh lg:h-dvh bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] antialiased lg:overflow-hidden font-sans transition-colors">
       {/* Role-Filtered Navigation Sidebar & Mobile Drawer */}
       <Sidebar
         activeTab={safeTab}
@@ -286,11 +304,12 @@ export default function App() {
       {/* Main Content Area */}
       <div
         inert={mobileMenuOpen || undefined}
-        className="flex-1 flex flex-col min-w-0 overflow-hidden"
+        className="flex-1 flex flex-col min-w-0 lg:overflow-hidden"
       >
         {/* Sticky Role-Filtered Top Header */}
         <TopHeader
           title={headerInfo.title}
+          mobileTitle={headerInfo.mobileTitle}
           subtitle={headerInfo.subtitle}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           isMobileMenuOpen={mobileMenuOpen}
@@ -317,8 +336,8 @@ export default function App() {
         />
 
         {/* Dynamic Role-Scoped Page Scroll Area */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto pb-12">
+        <main className="flex-1 lg:overflow-y-auto overflow-x-clip p-3.5 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-8">
             {safeTab === 'dashboard' && (
               <DashboardPage
                 onNavigate={handleSelectTab}

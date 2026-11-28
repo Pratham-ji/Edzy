@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Building2,
   Save,
@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Sun,
   Moon,
+  Monitor,
   ArrowRight,
   ShieldCheck,
   Stamp,
@@ -39,10 +40,15 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
     currentStaff,
     feeInstallments,
     themeMode,
+    themePreference,
     setThemeMode,
   } = useAdminStore();
 
   const isPrincipalAdmin = currentStaff?.department === 'ADM';
+
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const stampInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     ...schoolProfile,
@@ -54,6 +60,9 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
   });
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingAssetField, setUploadingAssetField] = useState<
+    'logoDataUrl' | 'stampDataUrl' | 'signatureDataUrl' | null
+  >(null);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
   const [customSubjectDraft, setCustomSubjectDraft] = useState('');
   const [customClassDraft, setCustomClassDraft] = useState('');
@@ -136,6 +145,7 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
   ) => {
     if (!file) return;
     setUploadError(null);
+    setUploadingAssetField(field);
     try {
       const processed = await processBrandImageUpload(file);
       const nextPatch = { [field]: processed.dataUrl } as Partial<CampusConfig>;
@@ -145,6 +155,8 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
       setTimeout(() => setSaveToast(null), 2800);
     } catch (err: any) {
       setUploadError(err?.message || 'Could not process selected image.');
+    } finally {
+      setUploadingAssetField(null);
     }
   };
 
@@ -319,33 +331,48 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
           <div>
             <p className="text-sm font-semibold text-slate-800 dark:text-[#F8FAFC]">ERP Color Theme</p>
             <p className="text-xs text-slate-500 dark:text-[#94A3B8]">
-              Switch between Crisp Light (Default) and Midnight Dark mode.
+              Follows your device OS theme automatically, or pin Light / Dark mode.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setThemeMode('light')}
+              onClick={() => setThemeMode('system')}
+              aria-pressed={themePreference === 'system'}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                themeMode === 'light'
+                themePreference === 'system'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <Sun className="w-3.5 h-3.5" />
-              Light Mode (Default)
+              <Monitor className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>System Auto ({themeMode === 'dark' ? 'Dark' : 'Light'})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setThemeMode('light')}
+              aria-pressed={themePreference === 'light'}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                themePreference === 'light'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Light Mode</span>
             </button>
             <button
               type="button"
               onClick={() => setThemeMode('dark')}
+              aria-pressed={themePreference === 'dark'}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                themeMode === 'dark'
+                themePreference === 'dark'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-[#EEF2F7] dark:bg-[#1A2336] text-slate-600 dark:text-[#94A3B8] hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <Moon className="w-3.5 h-3.5" />
-              Dark Mode
+              <Moon className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Dark Mode</span>
             </button>
           </div>
         </div>
@@ -565,34 +592,48 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
                   </p>
                 </div>
 
-                <div className="h-24 rounded-xl bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 overflow-hidden">
+                <div className="h-24 rounded-xl bg-slate-50 dark:bg-slate-900/70 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:10px_10px] border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden">
                   {brandDraft.logoDataUrl ? (
                     <img
                       src={brandDraft.logoDataUrl}
                       alt="School logo preview"
-                      className="max-h-20 object-contain"
+                      className="max-h-20 object-contain transition-opacity duration-200"
                     />
                   ) : (
-                    <span className="text-[11px] text-slate-400 font-medium text-center">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center">
                       No custom logo uploaded
                     </span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold cursor-pointer transition-colors">
+                  <button
+                    type="button"
+                    disabled={uploadingAssetField === 'logoDataUrl'}
+                    onClick={() => logoInputRef.current?.click()}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] disabled:opacity-60 text-white text-xs font-bold cursor-pointer transition-colors"
+                  >
                     <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>{brandDraft.logoDataUrl ? 'Replace' : 'Upload Logo'}</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="visually-hidden"
-                      onChange={(e) => {
-                        handleAssetFileChange('logoDataUrl', e.target.files?.[0]);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
+                    <span>
+                      {uploadingAssetField === 'logoDataUrl'
+                        ? 'Processing...'
+                        : brandDraft.logoDataUrl
+                          ? 'Replace'
+                          : 'Upload Logo'}
+                    </span>
+                  </button>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleAssetFileChange('logoDataUrl', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
                   {brandDraft.logoDataUrl && (
                     <button
                       type="button"
@@ -617,17 +658,19 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
                   </p>
                 </div>
 
-                <div className="h-24 rounded-xl bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 overflow-hidden">
+                <div className="h-24 rounded-xl bg-slate-50 dark:bg-slate-900/70 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:10px_10px] border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden">
                   {brandDraft.stampDataUrl ? (
                     <img
                       src={brandDraft.stampDataUrl}
                       alt="School digital stamp preview"
-                      className={`max-h-20 object-contain -rotate-6 ${
-                        brandDraft.stampBlendMode !== false ? 'mix-blend-multiply' : ''
+                      className={`max-h-20 object-contain -rotate-6 transition-opacity duration-200 ${
+                        brandDraft.stampBlendMode !== false
+                          ? 'mix-blend-multiply dark:mix-blend-normal dark:bg-white/95 dark:rounded-lg dark:p-1'
+                          : ''
                       }`}
                     />
                   ) : (
-                    <span className="text-[11px] text-slate-500 font-medium text-center px-2">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center px-2">
                       Using crisp circular vector seal fallback
                     </span>
                   )}
@@ -663,19 +706,33 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold cursor-pointer transition-colors">
+                  <button
+                    type="button"
+                    disabled={uploadingAssetField === 'stampDataUrl'}
+                    onClick={() => stampInputRef.current?.click()}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] disabled:opacity-60 text-white text-xs font-bold cursor-pointer transition-colors"
+                  >
                     <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>{brandDraft.stampDataUrl ? 'Replace' : 'Upload Stamp'}</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="visually-hidden"
-                      onChange={(e) => {
-                        handleAssetFileChange('stampDataUrl', e.target.files?.[0]);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
+                    <span>
+                      {uploadingAssetField === 'stampDataUrl'
+                        ? 'Processing...'
+                        : brandDraft.stampDataUrl
+                          ? 'Replace'
+                          : 'Upload Stamp'}
+                    </span>
+                  </button>
+                  <input
+                    ref={stampInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleAssetFileChange('stampDataUrl', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
                   {brandDraft.stampDataUrl && (
                     <button
                       type="button"
@@ -700,34 +757,48 @@ export default function SettingsPage({ onOpenAccountsExport }: SettingsPageProps
                   </p>
                 </div>
 
-                <div className="h-24 rounded-xl bg-white border border-dashed border-slate-300 flex items-center justify-center p-2 overflow-hidden">
+                <div className="h-24 rounded-xl bg-slate-50 dark:bg-slate-900/70 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:10px_10px] border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center p-2 overflow-hidden">
                   {brandDraft.signatureDataUrl ? (
                     <img
                       src={brandDraft.signatureDataUrl}
                       alt="Authorized signature preview"
-                      className="max-h-16 object-contain mix-blend-multiply"
+                      className="max-h-16 object-contain mix-blend-multiply dark:mix-blend-normal dark:bg-white/95 dark:rounded-lg dark:px-2 dark:py-0.5 transition-opacity duration-200"
                     />
                   ) : (
-                    <span className="text-sm font-serif italic text-slate-600">
+                    <span className="text-sm font-serif italic text-slate-600 dark:text-slate-300">
                       {schoolProfile.accountantName}
                     </span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white text-xs font-bold cursor-pointer transition-colors">
+                  <button
+                    type="button"
+                    disabled={uploadingAssetField === 'signatureDataUrl'}
+                    onClick={() => signatureInputRef.current?.click()}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] disabled:opacity-60 text-white text-xs font-bold cursor-pointer transition-colors"
+                  >
                     <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>{brandDraft.signatureDataUrl ? 'Replace' : 'Upload Signature'}</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="visually-hidden"
-                      onChange={(e) => {
-                        handleAssetFileChange('signatureDataUrl', e.target.files?.[0]);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
+                    <span>
+                      {uploadingAssetField === 'signatureDataUrl'
+                        ? 'Processing...'
+                        : brandDraft.signatureDataUrl
+                          ? 'Replace'
+                          : 'Upload Signature'}
+                    </span>
+                  </button>
+                  <input
+                    ref={signatureInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleAssetFileChange('signatureDataUrl', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
                   {brandDraft.signatureDataUrl && (
                     <button
                       type="button"

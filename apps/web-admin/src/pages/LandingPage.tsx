@@ -748,7 +748,7 @@ export default function LandingPage({
       </main>
 
       {/* Clean Executive Footer (Strictly Public Links — Zero Super-Admin Link) */}
-      <footer className="py-10 px-4 sm:px-6 bg-white dark:bg-[#0D1320] border-t border-[#E2E8F0] dark:border-[#232E44] text-xs text-[#475569] dark:text-[#94A3B8]">
+      <footer className="pt-10 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-12 px-4 sm:px-6 bg-white dark:bg-[#0D1320] border-t border-[#E2E8F0] dark:border-[#232E44] text-xs text-[#475569] dark:text-[#94A3B8]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <span

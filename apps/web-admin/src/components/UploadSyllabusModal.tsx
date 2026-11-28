@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   FileUp,
@@ -119,6 +119,8 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -348,16 +350,26 @@ export const UploadSyllabusModal: React.FC<UploadSyllabusModalProps> = ({
                   >
                     Load ICSE Sample
                   </button>
-                  <label className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EEF2F7] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-[11px] font-semibold text-[#475569] dark:text-[#94A3B8] cursor-pointer hover:opacity-80">
-                    <FileUp className="w-3 h-3" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EEF2F7] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-[11px] font-semibold text-[#475569] dark:text-[#94A3B8] cursor-pointer hover:opacity-80"
+                  >
+                    <FileUp className="w-3 h-3" aria-hidden="true" />
                     <span>Import .txt / .pdf</span>
-                    <input
-                      type="file"
-                      accept=".txt,.md,.pdf"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                  </label>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.md,.pdf"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    onChange={(e) => {
+                      handleFileChange(e);
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
                 </div>
               </div>
 

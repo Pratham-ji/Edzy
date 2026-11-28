@@ -5,4 +5,4 @@ Disallow: /portal
 Disallow: /login
 Disallow: /super-admin
 
-Sitemap: https://edzy-admin.pages.dev/sitemap.xml
+Sitemap: https://edzy.pages.dev/sitemap.xml

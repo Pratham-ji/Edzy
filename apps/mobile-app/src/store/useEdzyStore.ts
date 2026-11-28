@@ -1263,6 +1263,42 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
               };
             });
           }
+        } else if (action === 'CIRCULAR_UPDATED') {
+          const circ = data.circular || data;
+          if (circ && circ.id) {
+            const mapped = mapMobileCircularRow(circ);
+            const matchesStudent = isCircularForStudent(
+              mapped.targetClass,
+              get().studentProfile.classGrade
+            );
+            set((state) => {
+              const exists = state.circulars.some((c) => c.id === mapped.id);
+              const nextCirculars = matchesStudent
+                ? exists
+                  ? state.circulars.map((c) => (c.id === mapped.id ? mapped : c))
+                  : [mapped, ...state.circulars]
+                : state.circulars.filter((c) => c.id !== mapped.id);
+              return {
+                circulars: nextCirculars,
+                unreadCircularsCount: Math.min(state.unreadCircularsCount || 0, nextCirculars.length),
+                liveSyncToast: matchesStudent
+                  ? `Circular updated: ${mapped.title}`
+                  : 'Circular removed for your class',
+              };
+            });
+          }
+        } else if (action === 'CIRCULAR_DELETED') {
+          const deletedId = data.circularId || payload.circularId || data.id;
+          if (deletedId) {
+            set((state) => {
+              const nextCirculars = state.circulars.filter((c) => c.id !== deletedId);
+              return {
+                circulars: nextCirculars,
+                unreadCircularsCount: Math.min(state.unreadCircularsCount || 0, nextCirculars.length),
+                liveSyncToast: 'A notice was retracted by School Office',
+              };
+            });
+          }
         } else if (action === 'MARK_UPDATED') {
           const studentId = data.studentId || payload.studentId;
           if (studentId === targetId) {
@@ -1446,20 +1482,54 @@ export const useEdzyStore = create<EdzyState>((set, get) => ({
             filter: `school_id=eq.${activeSchoolCode}`,
           },
           (payload) => {
+            if (payload.eventType === 'DELETE') {
+              const oldRow: any = payload.old;
+              const deletedId = oldRow?.id;
+              if (!deletedId) return;
+              set((state) => {
+                const nextCirculars = state.circulars.filter((c) => c.id !== deletedId);
+                return {
+                  circulars: nextCirculars,
+                  unreadCircularsCount: Math.min(
+                    state.unreadCircularsCount || 0,
+                    nextCirculars.length
+                  ),
+                  liveSyncToast: 'A notice was retracted by School Office',
+                };
+              });
+              return;
+            }
+
             const row: any = payload.new;
             if (!row || !row.id) return;
             const mapped = mapMobileCircularRow(row);
-            if (!isCircularForStudent(mapped.targetClass, get().studentProfile.classGrade)) {
-              return;
-            }
+            const matchesStudent = isCircularForStudent(
+              mapped.targetClass,
+              get().studentProfile.classGrade
+            );
             set((state) => {
               const exists = state.circulars.some((c) => c.id === mapped.id);
+              if (!matchesStudent) {
+                if (!exists) return state;
+                const nextCirculars = state.circulars.filter((c) => c.id !== mapped.id);
+                return {
+                  circulars: nextCirculars,
+                  unreadCircularsCount: Math.min(
+                    state.unreadCircularsCount || 0,
+                    nextCirculars.length
+                  ),
+                };
+              }
               return {
                 circulars: exists
                   ? state.circulars.map((c) => (c.id === mapped.id ? mapped : c))
                   : [mapped, ...state.circulars],
-                unreadCircularsCount: exists ? state.unreadCircularsCount : (state.unreadCircularsCount || 0) + 1,
-                liveSyncToast: `New Circular: ${mapped.title}`,
+                unreadCircularsCount: exists
+                  ? state.unreadCircularsCount
+                  : (state.unreadCircularsCount || 0) + 1,
+                liveSyncToast: exists
+                  ? `Circular updated: ${mapped.title}`
+                  : `New Circular: ${mapped.title}`,
               };
             });
           }

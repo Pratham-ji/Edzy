@@ -28,6 +28,7 @@ import {
   CreditCard,
   Activity,
 } from 'lucide-react';
+import { CANONICAL_SITE_URL, getPortalUrl } from '../lib/siteConfig';
 import { isLiveSupabaseConfigured, supabase } from '../lib/supabase';
 import { useAdminStore } from '../store/useAdminStore';
 import { downloadCsvFile } from '../lib/feeMetrics';
@@ -67,8 +68,8 @@ interface OnboardingKitData {
 type EcosystemFilter = 'ALL' | 'ACTIVE' | 'TRIAL' | 'ATTENTION';
 
 const HQ_SESSION_KEY = 'edzy_hq_founder_auth_v1';
-const PUBLIC_SITE_URL = 'https://edzy-admin.pages.dev';
-const PORTAL_PUBLIC_URL = 'https://edzy-admin.pages.dev/portal';
+const PUBLIC_SITE_URL = CANONICAL_SITE_URL.replace(/\/$/, '');
+const PORTAL_PUBLIC_URL = getPortalUrl(true);
 const EXPECTED_PASSKEY =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_FOUNDER_PASSKEY) ||
   'edzy-hq-2026';
@@ -794,24 +795,27 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
   // GATEKEEPER VIEW
   if (!isUnlocked) {
     return (
-      <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col justify-between px-4 py-6 transition-colors">
-        <header className="max-w-5xl w-full mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm">
+      <div className="min-h-dvh bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col justify-between px-4 pt-5 pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:py-6 transition-colors">
+        <header className="max-w-5xl w-full mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm shrink-0">
               <ShieldCheck className="w-5 h-5" aria-hidden="true" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="font-extrabold text-sm tracking-tight">EDZY HQ</div>
-              <div className="text-[11px] text-[#475569] dark:text-[#94A3B8]">SaaS Ecosystem Control</div>
+              <div className="hidden sm:block text-[11px] text-[#475569] dark:text-[#94A3B8]">
+                SaaS Ecosystem Control
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => navTo('/portal')}
               className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white cursor-pointer"
             >
-              School Portal Login
+              <span className="sm:hidden">Portal</span>
+              <span className="hidden sm:inline">School Portal Login</span>
             </button>
             <button
               type="button"
@@ -828,7 +832,7 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
           </div>
         </header>
 
-        <main className="max-w-md w-full mx-auto my-8 bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl shadow-xl p-7 space-y-5">
+        <main className="max-w-md w-full mx-auto my-6 sm:my-8 bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-2xl shadow-xl p-5 sm:p-7 space-y-5">
           <div className="space-y-1.5">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#6366F1] border border-[#C7D2FE] dark:border-[#3730A3]">
               <Lock className="w-3 h-3" aria-hidden="true" />
@@ -881,13 +885,13 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
 
   // AUTHENTICATED FOUNDER CONTROL TOWER
   return (
-    <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
+    <div className="min-h-dvh bg-[#F6F8FC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
       {/* Sticky Top Header */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-[#0D1320]/90 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#232E44]">
-        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm shrink-0">
-              <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white shadow-sm shrink-0">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -895,7 +899,8 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
                   EDZY HQ
                 </span>
                 <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] whitespace-nowrap">
-                  FOUNDER CONSOLE
+                  <span className="sm:hidden">FOUNDER</span>
+                  <span className="hidden sm:inline">FOUNDER CONSOLE</span>
                 </span>
               </div>
               <p className="hidden sm:block text-[11px] text-[#475569] dark:text-[#94A3B8] truncate">
@@ -909,7 +914,8 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
               type="button"
               onClick={fetchEcosystemData}
               disabled={isLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EEF2F7] dark:bg-[#1A2336] text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white cursor-pointer"
+              aria-label="Refresh telemetry"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#EEF2F7] dark:bg-[#1A2336] text-xs font-bold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
               <span className="hidden sm:inline">Refresh</span>
@@ -931,16 +937,17 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             <button
               type="button"
               onClick={handleLockHq}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-xs font-bold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-xs font-bold cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Lock HQ</span>
+              <span className="sm:hidden">Lock</span>
+              <span className="hidden sm:inline">Lock HQ</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 pt-4 sm:pt-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-10 space-y-4 sm:space-y-5">
         {/* Zero-PII Confidentiality Trust Strip */}
         <section
           aria-label="Zero-PII data confidentiality assurance"
@@ -963,13 +970,13 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
         {/* Founder Quick Links & Operations Command Dock */}
         <nav
           aria-label="Founder quick actions"
-          className="bg-white dark:bg-[#121826] border border-[#E2E8F0] dark:border-[#232E44] rounded-xl p-2.5 flex flex-nowrap sm:flex-wrap items-center justify-between gap-2 overflow-x-auto shadow-2xs"
+          className="-mx-3.5 px-3.5 sm:mx-0 sm:px-2.5 py-2 sm:py-2.5 bg-white dark:bg-[#121826] border-y sm:border border-[#E2E8F0] dark:border-[#232E44] sm:rounded-xl flex flex-nowrap sm:flex-wrap items-center justify-between gap-2 overflow-x-auto shadow-2xs"
         >
           <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => navTo('/')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
               <Globe className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
               <span>Main Website (/) ↗</span>
@@ -978,7 +985,7 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             <button
               type="button"
               onClick={() => navTo('/portal')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
               <KeyRound className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
               <span>School Login Portal (/portal) ↗</span>
@@ -987,7 +994,7 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             <button
               type="button"
               onClick={handleCopyPitchLink}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
               {pitchLinkCopied ? (
                 <Check className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
@@ -1000,7 +1007,7 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             <button
               type="button"
               onClick={() => navTo('/privacy-policy')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#F6F8FC] dark:bg-[#1A2336] hover:bg-[#EEF2FF] dark:hover:bg-[#1B2440] border border-[#E2E8F0] dark:border-[#232E44] text-xs font-semibold text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
               <span>Privacy &amp; DPDP Policy ↗</span>
@@ -1010,7 +1017,7 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
           <button
             type="button"
             onClick={handleExportEcosystemCsv}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#059669] hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-[#059669] hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer whitespace-nowrap shrink-0 transition-colors"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Export Ecosystem Billing Report (CSV)</span>
@@ -1018,10 +1025,12 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
         </nav>
 
         {/* Title & Onboard CTA Row (Single + icon!) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">Partner Schools Ecosystem</h1>
-            <p className="text-sm text-[#475569] dark:text-[#94A3B8] mt-0.5">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              Partner Schools Ecosystem
+            </h1>
+            <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94A3B8] mt-0.5">
               SaaS subscriptions, aggregate campus transaction GMV, and inaugural Principal provisioning.
             </p>
           </div>
@@ -1029,7 +1038,7 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
           <button
             type="button"
             onClick={openOnboardModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-sm font-bold shadow-sm transition-colors self-start sm:self-auto cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#3730A3] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             <span>Onboard New School</span>
@@ -1043,15 +1052,15 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
         )}
 
         {/* 5 Executive SaaS KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-[#121826] p-3.5 sm:p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2 tabular-nums">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
                 Partner Schools
               </span>
-              <Building2 className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
+              <Building2 className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8] shrink-0" aria-hidden="true" />
             </div>
-            <div className="text-2xl font-extrabold">{telemetry.ecosystem.totalSchools}</div>
+            <div className="text-xl sm:text-2xl font-extrabold">{telemetry.ecosystem.totalSchools}</div>
             <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
               <span className="font-bold text-[#059669] dark:text-[#34D399]">
                 {telemetry.ecosystem.activeSchoolsCount} Active
@@ -1060,14 +1069,14 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-[#121826] p-3.5 sm:p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2 tabular-nums">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
-                Ecosystem MRR &amp; ARR
+                Ecosystem MRR
               </span>
-              <IndianRupee className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24]" aria-hidden="true" />
+              <IndianRupee className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24] shrink-0" aria-hidden="true" />
             </div>
-            <div className="text-2xl font-extrabold font-mono">
+            <div className="text-xl sm:text-2xl font-extrabold font-mono">
               ₹{telemetry.ecosystem.totalEcosystemMrr.toLocaleString('en-IN')}
               <span className="text-xs font-sans font-bold text-[#94A3B8]">/mo</span>
             </div>
@@ -1076,14 +1085,14 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-[#121826] p-3.5 sm:p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2 tabular-nums">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
                 Fee Volume (GMV)
               </span>
-              <CreditCard className="w-4 h-4 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+              <CreditCard className="w-4 h-4 text-[#059669] dark:text-[#34D399] shrink-0" aria-hidden="true" />
             </div>
-            <div className="text-2xl font-extrabold font-mono text-[#059669] dark:text-[#34D399]">
+            <div className="text-xl sm:text-2xl font-extrabold font-mono text-[#059669] dark:text-[#34D399]">
               {formatCompactInr(telemetry.ecosystem.totalFeeVolumeProcessed)}
             </div>
             <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-medium">
@@ -1094,14 +1103,14 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-[#121826] p-3.5 sm:p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2 tabular-nums">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
-                Active Campus Users
+                Campus Users
               </span>
-              <GraduationCap className="w-4 h-4 text-cyan-600 dark:text-cyan-400" aria-hidden="true" />
+              <GraduationCap className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
             </div>
-            <div className="text-2xl font-extrabold">
+            <div className="text-xl sm:text-2xl font-extrabold">
               {telemetry.ecosystem.totalStudents}
               <span className="text-xs font-bold text-[#94A3B8] ml-1.5">Students</span>
             </div>
@@ -1110,12 +1119,12 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="col-span-2 sm:col-span-1 bg-white dark:bg-[#121826] p-3.5 sm:p-5 rounded-xl border border-[#E2E8F0] dark:border-[#232E44] shadow-xs space-y-2 tabular-nums">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
                 Platform Health
               </span>
-              <Activity className="w-4 h-4 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
+              <Activity className="w-4 h-4 text-[#059669] dark:text-[#34D399] shrink-0" aria-hidden="true" />
             </div>
             <div className="flex items-center gap-2 pt-0.5">
               <span
@@ -1232,32 +1241,46 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44]">
+                    <div className="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] tabular-nums">
                       <div>
-                        <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">MRR</div>
-                        <div className="font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC]">
-                          ₹{item.monthlySaaSRevenue.toLocaleString('en-IN')}
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                          Fee GMV
                         </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">GMV</div>
-                        <div className="font-mono font-bold text-[#059669] dark:text-[#34D399]">
+                        <div className="font-mono font-bold text-[#059669] dark:text-[#34D399] mt-0.5">
                           ₹{item.totalFeeVolumeProcessed.toLocaleString('en-IN')}
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-[#475569] dark:text-[#94A3B8]">Staff / Stu</div>
-                        <div className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">
-                          {item.totalStaffCount} / {item.studentCount}
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                          SaaS MRR
+                        </div>
+                        <div className="font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] mt-0.5">
+                          ₹{item.monthlySaaSRevenue.toLocaleString('en-IN')}/mo
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                          Students
+                        </div>
+                        <div className="font-bold text-[#0F172A] dark:text-[#F8FAFC] mt-0.5">
+                          {item.studentCount}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#475569] dark:text-[#94A3B8]">
+                          Staff
+                        </div>
+                        <div className="font-bold text-[#0F172A] dark:text-[#F8FAFC] mt-0.5">
+                          {item.totalStaffCount} ({item.activatedStaffCount} active)
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setInspectedSchoolCode(sch.schoolCode)}
-                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white font-bold text-xs cursor-pointer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#3730A3] text-white font-bold text-xs cursor-pointer"
                       >
                         <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Inspect</span>
@@ -1265,24 +1288,21 @@ export default function SuperAdminPage({ onNavigateHome, onNavigatePath }: Super
                       <button
                         type="button"
                         onClick={() => setInspectKit(kitPayload)}
-                        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs cursor-pointer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#EEF2FF] dark:bg-[#1B2440] text-[#4F46E5] dark:text-[#818CF8] border border-[#C7D2FE] dark:border-[#3730A3] font-bold text-xs cursor-pointer"
                       >
                         <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Kit</span>
+                        <span>Onboarding Kit</span>
                       </button>
-                      <button
-                        type="button"
-                        disabled={isProtectedDemo}
-                        onClick={() => setSchoolToDelete(sch)}
-                        aria-label={isProtectedDemo ? `${sch.name} protected` : `Remove ${sch.name}`}
-                        className={`p-2 rounded-lg border ${
-                          isProtectedDemo
-                            ? 'bg-[#F6F8FC] dark:bg-[#1A2336] text-[#94A3B8] border-[#E2E8F0] dark:border-[#232E44] opacity-45 cursor-not-allowed'
-                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50 cursor-pointer'
-                        }`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
+                      {!isProtectedDemo && (
+                        <button
+                          type="button"
+                          onClick={() => setSchoolToDelete(sch)}
+                          aria-label={`Remove ${sch.name}`}
+                          className="p-2 rounded-lg border bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50 cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

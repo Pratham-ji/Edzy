@@ -1,4 +1,6 @@
-const SITE_ORIGIN = 'https://edzy-admin.pages.dev';
+import { CANONICAL_SITE_URL } from './siteConfig';
+
+const SITE_ORIGIN = CANONICAL_SITE_URL.replace(/\/$/, '');
 
 interface RouteSeoMeta {
   title: string;

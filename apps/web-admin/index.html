@@ -2,18 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" id="edzy-theme-color" content="#F6F8FC" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <script>
-      try {
-        var t = localStorage.getItem('edzy_admin_theme');
-        if (t === 'dark') {
-          document.documentElement.classList.add('dark');
-          document.querySelector('meta[name="color-scheme"]').setAttribute('content', 'dark');
-        } else {
-          document.querySelector('meta[name="color-scheme"]').setAttribute('content', 'light');
-        }
-      } catch (e) {}
+      (function () {
+        try {
+          var pref = localStorage.getItem('edzy_theme_preference');
+          if (pref !== 'light' && pref !== 'dark') {
+            var legacy = localStorage.getItem('edzy_admin_theme');
+            pref = legacy === 'light' || legacy === 'dark' ? legacy : null;
+          }
+          var systemDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = pref === 'dark' || (pref !== 'light' && systemDark);
+          var bg = isDark ? '#090D16' : '#F6F8FC';
+          var root = document.documentElement;
+          root.classList.toggle('dark', isDark);
+          root.style.backgroundColor = bg;
+          var cs = document.querySelector('meta[name="color-scheme"]');
+          if (cs) cs.setAttribute('content', pref || 'light dark');
+          var tc = document.getElementById('edzy-theme-color');
+          if (tc) tc.setAttribute('content', bg);
+          var appleBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+          if (appleBar) appleBar.setAttribute('content', isDark ? 'black-translucent' : 'default');
+        } catch (e) {}
+      })();
     </script>
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234F46E5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 10v6M2 10l10-5 10 5-10 5z'/><path d='M6 12v5c3 3 9 3 12 0v-5'/></svg>" />
@@ -27,14 +42,13 @@
       content="Indian K-12 school ERP, CBSE digital campus, ICSE school software, AI study roadmap for schools, hybrid UPI fee management, 3D AR science labs, Dehradun EdTech, school attendance software, DPDP Act compliant school ERP"
     />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#4F46E5" />
-    <link rel="canonical" href="https://edzy-admin.pages.dev/" />
+    <link rel="canonical" href="https://edzy.pages.dev/" />
 
     <!-- Open Graph / WhatsApp & Social Preview -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_IN" />
     <meta property="og:site_name" content="EDZY: Education Made Easy" />
-    <meta property="og:url" content="https://edzy-admin.pages.dev/" />
+    <meta property="og:url" content="https://edzy.pages.dev/" />
     <meta property="og:title" content="EDZY: Education Made Easy | AI School ERP &amp; 3D Visual Labs" />
     <meta
       property="og:description"
@@ -56,10 +70,10 @@
         "@graph": [
           {
             "@type": "Organization",
-            "@id": "https://edzy-admin.pages.dev/#organization",
+            "@id": "https://edzy.pages.dev/#organization",
             "name": "Edzy Learning Technologies Pvt. Ltd.",
             "alternateName": "EDZY: Education Made Easy",
-            "url": "https://edzy-admin.pages.dev/",
+            "url": "https://edzy.pages.dev/",
             "email": "support@edzy.in",
             "areaServed": "IN",
             "foundingLocation": {
@@ -69,20 +83,20 @@
           },
           {
             "@type": "WebSite",
-            "@id": "https://edzy-admin.pages.dev/#website",
+            "@id": "https://edzy.pages.dev/#website",
             "name": "EDZY: Education Made Easy",
-            "url": "https://edzy-admin.pages.dev/",
+            "url": "https://edzy.pages.dev/",
             "publisher": {
-              "@id": "https://edzy-admin.pages.dev/#organization"
+              "@id": "https://edzy.pages.dev/#organization"
             }
           },
           {
             "@type": "SoftwareApplication",
-            "@id": "https://edzy-admin.pages.dev/#software",
+            "@id": "https://edzy.pages.dev/#software",
             "name": "Edzy Campus OS",
             "applicationCategory": "EducationalApplication",
             "operatingSystem": "Web, iOS, Android",
-            "url": "https://edzy-admin.pages.dev/",
+            "url": "https://edzy.pages.dev/",
             "description": "Tenant-isolated K-12 Indian School ERP featuring role-based Principal, Class Teacher, and Accounts workspaces, hybrid UPI and cash fee reconciliation, AI syllabus roadmaps, and on-device 3D visual science labs.",
             "offers": {
               "@type": "AggregateOffer",
@@ -92,7 +106,7 @@
               "offerCount": "2"
             },
             "provider": {
-              "@id": "https://edzy-admin.pages.dev/#organization"
+              "@id": "https://edzy.pages.dev/#organization"
             }
           }
         ]

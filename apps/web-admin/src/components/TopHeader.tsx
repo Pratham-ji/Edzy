@@ -19,6 +19,7 @@ import { formatStaffRoleLabel, getStaffInitials } from '../lib/rbac';
 
 interface TopHeaderProps {
   title: string;
+  mobileTitle?: string;
   subtitle: string;
   onOpenMobileMenu?: () => void;
   isMobileMenuOpen?: boolean;
@@ -32,6 +33,7 @@ interface TopHeaderProps {
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   title,
+  mobileTitle,
   subtitle,
   onOpenMobileMenu,
   isMobileMenuOpen = false,
@@ -86,7 +88,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   );
 
   return (
-    <header className="relative bg-white dark:bg-[#121826] border-b border-[#E2E8F0] dark:border-[#232E44] sticky top-0 z-30 shadow-xs transition-colors">
+    <header className="relative bg-white/95 dark:bg-[#121826]/95 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#232E44] sticky top-0 lg:static z-30 shadow-xs transition-colors">
       {syncError && (
         <div className="bg-red-600 dark:bg-red-700 text-white px-4 sm:px-6 py-2 flex items-center justify-between gap-2 text-xs font-semibold shadow-inner">
           <div className="flex items-center gap-2 min-w-0">
@@ -104,7 +106,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
       )}
 
-      <div className="h-16 px-3 sm:px-5 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="h-14 sm:h-16 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3">
         {/* Left: Mobile Hamburger + Title & Context */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {onOpenMobileMenu && (
@@ -114,15 +116,22 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               aria-label="Open navigation menu"
               aria-expanded={isMobileMenuOpen}
               aria-controls={mobileDrawerId}
-              className="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-slate-700 dark:text-slate-200 hover:bg-[#EEF2FF] hover:text-[#4F46E5] transition-colors shrink-0 cursor-pointer"
+              className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[#F6F8FC] dark:bg-[#1A2336] border border-[#E2E8F0] dark:border-[#232E44] text-slate-700 dark:text-slate-200 hover:bg-[#EEF2FF] hover:text-[#4F46E5] transition-colors shrink-0 cursor-pointer"
             >
               <Menu className="w-5 h-5" aria-hidden="true" />
             </button>
           )}
 
           <div className="min-w-0 flex-1">
-            <h1 className="text-sm lg:text-base font-bold text-slate-900 dark:text-[#F8FAFC] leading-tight truncate">
-              {title}
+            <h1 className="text-sm lg:text-base font-bold text-slate-900 dark:text-[#F8FAFC] leading-tight">
+              {mobileTitle ? (
+                <>
+                  <span className="sm:hidden">{mobileTitle}</span>
+                  <span className="hidden sm:inline truncate">{title}</span>
+                </>
+              ) : (
+                <span className="block truncate">{title}</span>
+              )}
             </h1>
             <p className="hidden sm:block text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate">
               {subtitle}

@@ -887,6 +887,43 @@ const INITIAL_EXAM_MARKS: StudentExamRecord[] = [
   },
 ];
 
+const THEME_STORAGE_KEY = 'edzy_theme_preference';
+const LEGACY_THEME_STORAGE_KEY = 'edzy_admin_theme';
+
+function getStoredThemeOverride(): 'light' | 'dark' | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const pref = localStorage.getItem(THEME_STORAGE_KEY);
+    if (pref === 'light' || pref === 'dark') return pref;
+    const legacy = localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+    if (legacy === 'light' || legacy === 'dark') return legacy;
+  } catch {
+    // Storage access may be restricted
+  }
+  return null;
+}
+
+function getSystemTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyThemeToDom(resolved: 'light' | 'dark', override: 'light' | 'dark' | null): void {
+  if (typeof document === 'undefined') return;
+  const isDark = resolved === 'dark';
+  const bg = isDark ? '#090D16' : '#F6F8FC';
+  const root = document.documentElement;
+  root.classList.toggle('dark', isDark);
+  root.style.backgroundColor = bg;
+  document
+    .querySelector('meta[name="color-scheme"]')
+    ?.setAttribute('content', override ?? 'light dark');
+  document.getElementById('edzy-theme-color')?.setAttribute('content', bg);
+  document
+    .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+    ?.setAttribute('content', isDark ? 'black-translucent' : 'default');
+}
+
 export interface StaffLookupResult {
   found: boolean;
   staff: SchoolStaff | null;
@@ -918,11 +955,12 @@ interface AdminState {
   connectionMode: 'LIVE_CLOUD' | 'DEMO_MODE';
   isSyncing: boolean;
   themeMode: 'light' | 'dark';
+  themePreference: 'system' | 'light' | 'dark';
   syncError: string | null;
 
   setSyncError: (error: string | null) => void;
   toggleThemeMode: () => void;
-  setThemeMode: (mode: 'light' | 'dark') => void;
+  setThemeMode: (mode: 'light' | 'dark' | 'system') => void;
   switchActiveSchool: (schoolId: string) => void;
   provisionPilotSchool: (payload: {
     schoolCode: string;
@@ -1216,9 +1254,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   receiptCounter: 3240,
   connectionMode: isLiveSupabaseConfigured ? 'LIVE_CLOUD' : 'DEMO_MODE',
   isSyncing: false,
-  themeMode:
-    (typeof window !== 'undefined' && (localStorage.getItem('edzy_admin_theme') as 'light' | 'dark')) ||
-    'light',
+  themeMode: getStoredThemeOverride() ?? getSystemTheme(),
+  themePreference: getStoredThemeOverride() ?? 'system',
   syncError: null,
   setSyncError: (error) => set({ syncError: error }),
 
@@ -3589,31 +3626,46 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   toggleThemeMode: () => {
     set((state) => {
-      const next = state.themeMode === 'light' ? 'dark' : 'light';
+      const next: 'light' | 'dark' = state.themeMode === 'light' ? 'dark' : 'light';
+      const system = getSystemTheme();
+      let nextPref: 'system' | 'light' | 'dark';
       if (typeof window !== 'undefined') {
-        localStorage.setItem('edzy_admin_theme', next);
+        try {
+          localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+          if (next === system) {
+            localStorage.removeItem(THEME_STORAGE_KEY);
+            nextPref = 'system';
+          } else {
+            localStorage.setItem(THEME_STORAGE_KEY, next);
+            nextPref = next;
+          }
+        } catch {
+          nextPref = next;
+        }
+      } else {
+        nextPref = next;
       }
-      if (typeof document !== 'undefined') {
-        document.documentElement.classList.toggle('dark', next === 'dark');
-        document
-          .querySelector('meta[name="color-scheme"]')
-          ?.setAttribute('content', next === 'dark' ? 'dark' : 'light');
-      }
-      return { themeMode: next };
+      applyThemeToDom(next, nextPref === 'system' ? null : nextPref);
+      return { themeMode: next, themePreference: nextPref };
     });
   },
 
   setThemeMode: (mode) => {
+    const resolved: 'light' | 'dark' = mode === 'system' ? getSystemTheme() : mode;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('edzy_admin_theme', mode);
+      try {
+        localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+        if (mode === 'system') {
+          localStorage.removeItem(THEME_STORAGE_KEY);
+        } else {
+          localStorage.setItem(THEME_STORAGE_KEY, mode);
+        }
+      } catch {
+        // Storage access may be restricted
+      }
     }
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.toggle('dark', mode === 'dark');
-      document
-        .querySelector('meta[name="color-scheme"]')
-        ?.setAttribute('content', mode === 'dark' ? 'dark' : 'light');
-    }
-    set({ themeMode: mode });
+    applyThemeToDom(resolved, mode === 'system' ? null : mode);
+    set({ themeMode: resolved, themePreference: mode });
   },
 
   addCircular: (payload) => {
@@ -3838,10 +3890,28 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 }));
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  const initialTheme = localStorage.getItem('edzy_admin_theme');
-  if (initialTheme === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
+  const initialOverride = getStoredThemeOverride();
+  applyThemeToDom(initialOverride ?? getSystemTheme(), initialOverride);
+
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', (e) => {
+      if (getStoredThemeOverride() !== null) return;
+      const resolved: 'light' | 'dark' = e.matches ? 'dark' : 'light';
+      applyThemeToDom(resolved, null);
+      useAdminStore.setState({ themeMode: resolved, themePreference: 'system' });
+    });
   }
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === THEME_STORAGE_KEY || e.key === LEGACY_THEME_STORAGE_KEY) {
+      const override = getStoredThemeOverride();
+      const resolved = override ?? getSystemTheme();
+      applyThemeToDom(resolved, override);
+      useAdminStore.setState({
+        themeMode: resolved,
+        themePreference: override ?? 'system',
+      });
+    }
+  });
 }
